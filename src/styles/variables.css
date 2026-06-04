@@ -1,0 +1,382 @@
+/* =========================================================
+   TIMETABLE BUILDER
+   SEMANTIC DESIGN VARIABLES
+
+   Depends On:
+   src/styles/tokens.css
+
+   UI Source:
+   Desktop Timetable Builder
+   Mobile Timetable Builder
+   Subject Allocation Panel
+   ========================================================= */
+
+:root {
+  /* ======================================================
+     SHADCN CORE
+     ====================================================== */
+
+  --background: var(--color-slate-50);
+
+  --foreground: var(--color-slate-900);
+
+  --card: var(--color-white);
+
+  --card-foreground: var(--color-slate-900);
+
+  --popover: var(--color-white);
+
+  --popover-foreground: var(--color-slate-900);
+
+  --primary: var(--color-primary-600);
+
+  --primary-foreground: var(--color-white);
+
+  --secondary: var(--color-slate-100);
+
+  --secondary-foreground: var(--color-slate-800);
+
+  --muted: var(--color-slate-100);
+
+  --muted-foreground: var(--color-slate-500);
+
+  --accent: var(--color-slate-100);
+
+  --accent-foreground: var(--color-slate-900);
+
+  --destructive: var(--color-danger-500);
+
+  --destructive-foreground: var(--color-white);
+
+  --border: var(--color-slate-200);
+
+  --input: var(--color-slate-200);
+
+  --ring: var(--color-primary-500);
+
+  --radius: var(--radius-lg);
+
+  /* ======================================================
+     APP SURFACES
+     ====================================================== */
+
+  --app-background: #f5f7fb;
+
+  --page-background: #f5f7fb;
+
+  --content-background: #ffffff;
+
+  --surface-primary: #ffffff;
+
+  --surface-secondary: #f8fafc;
+
+  --surface-muted: #f1f5f9;
+
+  --surface-hover: #eef4ff;
+
+  --surface-selected: #edf4ff;
+
+  /* ======================================================
+     DASHBOARD LAYOUT
+     ====================================================== */
+
+  --dashboard-header-height: 72px;
+
+  --dashboard-sidebar-width: 280px;
+
+  --dashboard-content-max-width: 1600px;
+
+  --dashboard-gutter: 24px;
+
+  /* ======================================================
+     TOPBAR
+     ====================================================== */
+
+  --topbar-background: #ffffff;
+
+  --topbar-border: #e2e8f0;
+
+  --topbar-shadow: var(--shadow-sm);
+
+  --topbar-item-hover: #f8fafc;
+
+  /* ======================================================
+     SIDEBAR
+     ====================================================== */
+
+  --sidebar-background: #ffffff;
+
+  --sidebar-border: #e2e8f0;
+
+  --sidebar-item-background: transparent;
+
+  --sidebar-item-hover: #f8fafc;
+
+  --sidebar-item-active: #eef4ff;
+
+  --sidebar-item-active-text: #1f4fd6;
+
+  --sidebar-item-text: #334155;
+
+  /* ======================================================
+     TIMETABLE BUILDER
+     ====================================================== */
+
+  --builder-background: #f5f7fb;
+
+  --builder-card-background: #ffffff;
+
+  --builder-card-border: #e2e8f0;
+
+  --builder-card-shadow: var(--shadow-card);
+
+  /* ======================================================
+     FILTER BAR
+     ====================================================== */
+
+  --filter-background: #ffffff;
+
+  --filter-border: #e2e8f0;
+
+  --filter-hover: #f8fafc;
+
+  /* ======================================================
+     ACTION TOOLBAR
+     ====================================================== */
+
+  --toolbar-background: #ffffff;
+
+  --toolbar-border: #e2e8f0;
+
+  --toolbar-card-hover: #f8fafc;
+
+  /* ======================================================
+     RESOURCE PANEL
+     ====================================================== */
+
+  --resource-panel-background: #ffffff;
+
+  --resource-panel-border: #e2e8f0;
+
+  --resource-panel-width: 320px;
+
+  --resource-card-background: #ffffff;
+
+  --resource-card-border: #e2e8f0;
+
+  --resource-card-hover: #f8fafc;
+
+  /* ======================================================
+     SUBJECT ALLOCATION PANEL
+     ====================================================== */
+
+  --allocation-panel-background: #ffffff;
+
+  --allocation-panel-border: #e2e8f0;
+
+  --allocation-card-background: #ffffff;
+
+  --allocation-card-border: #e2e8f0;
+
+  --allocation-card-shadow: var(--shadow-sm);
+
+  /* ======================================================
+     TIMETABLE GRID
+     ====================================================== */
+
+  --grid-background: #ffffff;
+
+  --grid-border: #e2e8f0;
+
+  --grid-header-background: #ffffff;
+
+  --grid-time-column-background: #ffffff;
+
+  --grid-cell-background: #ffffff;
+
+  --grid-cell-hover: #f8fafc;
+
+  --grid-empty-slot-background: #fafbfd;
+
+  /* ======================================================
+     LUNCH BREAK ROW
+     ====================================================== */
+
+  --lunch-row-background: #f8fafc;
+
+  --lunch-row-border: #e2e8f0;
+
+  --lunch-row-text: #64748b;
+
+  /* ======================================================
+     SUBJECT TYPES
+     ====================================================== */
+
+  --theory-color: #3b82f6;
+
+  --theory-background: #eff6ff;
+
+  --theory-border: #bfdbfe;
+
+  --lab-color: #22c55e;
+
+  --lab-background: #f0fdf4;
+
+  --lab-border: #bbf7d0;
+
+  --tutorial-color: #a855f7;
+
+  --tutorial-background: #faf5ff;
+
+  --tutorial-border: #e9d5ff;
+
+  --elective-color: #f59e0b;
+
+  --elective-background: #fffbeb;
+
+  --elective-border: #fde68a;
+
+  /* ======================================================
+     SUBJECT CARDS
+     ====================================================== */
+
+  --subject-card-background: #ffffff;
+
+  --subject-card-border: #e2e8f0;
+
+  --subject-card-hover: #f8fafc;
+
+  --subject-card-shadow: var(--shadow-sm);
+
+  /* ======================================================
+     STATUS PANEL
+     ====================================================== */
+
+  --status-background: #ffffff;
+
+  --status-border: #e2e8f0;
+
+  --status-success-background: #f0fdf4;
+
+  --status-success-border: #22c55e;
+
+  /* ======================================================
+     BUTTONS
+     ====================================================== */
+
+  --button-primary-background: #102f82;
+
+  --button-primary-hover: #153fae;
+
+  --button-primary-text: #ffffff;
+
+  --button-secondary-background: #ffffff;
+
+  --button-secondary-hover: #f8fafc;
+
+  --button-secondary-border: #e2e8f0;
+
+  --button-secondary-text: #0f172a;
+
+  /* ======================================================
+     INPUTS
+     ====================================================== */
+
+  --input-background: #ffffff;
+
+  --input-border: #e2e8f0;
+
+  --input-hover-border: #cbd5e1;
+
+  --input-focus-border: #1f4fd6;
+
+  --input-placeholder: #94a3b8;
+
+  /* ======================================================
+     BADGES
+     ====================================================== */
+
+  --badge-background: #f8fafc;
+
+  --badge-text: #334155;
+
+  --badge-border: #e2e8f0;
+
+  /* ======================================================
+     TABLES
+     ====================================================== */
+
+  --table-background: #ffffff;
+
+  --table-border: #e2e8f0;
+
+  --table-header-background: #f8fafc;
+
+  --table-row-hover: #f8fafc;
+
+  /* ======================================================
+     DROPDOWNS
+     ====================================================== */
+
+  --dropdown-background: #ffffff;
+
+  --dropdown-border: #e2e8f0;
+
+  --dropdown-shadow: var(--shadow-lg);
+
+  /* ======================================================
+     DRAWERS
+     ====================================================== */
+
+  --drawer-background: #ffffff;
+
+  --drawer-border: #e2e8f0;
+
+  /* ======================================================
+     MODALS
+     ====================================================== */
+
+  --modal-background: #ffffff;
+
+  --modal-border: #e2e8f0;
+
+  --modal-shadow: var(--shadow-xl);
+
+  /* ======================================================
+     TOASTS
+     ====================================================== */
+
+  --toast-background: #ffffff;
+
+  --toast-border: #e2e8f0;
+
+  /* ======================================================
+     FOCUS
+     ====================================================== */
+
+  --focus-ring: #1f4fd6;
+
+  --focus-ring-offset: #ffffff;
+
+  /* ======================================================
+     MOBILE
+     ====================================================== */
+
+  --mobile-header-height: 64px;
+
+  --mobile-bottom-spacing: 96px;
+
+  --mobile-fab-size: 56px;
+
+  --mobile-day-selector-height: 60px;
+
+  /* ======================================================
+     ANIMATIONS
+     ====================================================== */
+
+  --animation-fast: 150ms ease;
+
+  --animation-normal: 250ms ease;
+
+  --animation-slow: 350ms ease;
+}

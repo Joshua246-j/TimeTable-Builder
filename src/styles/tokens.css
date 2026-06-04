@@ -1,0 +1,402 @@
+/* =========================================================
+   TIMETABLE BUILDER DESIGN TOKENS
+   Design Source:
+   Desktop + Mobile UI Screens
+   ========================================================= */
+
+/* =========================
+   COLORS
+   ========================= */
+
+:root {
+  /* Brand */
+
+  --color-primary-50: #eef4ff;
+  --color-primary-100: #dbe8ff;
+  --color-primary-200: #bfd4ff;
+  --color-primary-300: #92b4ff;
+  --color-primary-400: #5e8cff;
+  --color-primary-500: #1f4fd6;
+  --color-primary-600: #153fae;
+  --color-primary-700: #102f82;
+  --color-primary-800: #0b235f;
+  --color-primary-900: #07163d;
+
+  /* Neutral */
+
+  --color-white: #ffffff;
+
+  --color-slate-25: #fcfcfd;
+  --color-slate-50: #f8fafc;
+  --color-slate-100: #f1f5f9;
+  --color-slate-200: #e2e8f0;
+  --color-slate-300: #cbd5e1;
+  --color-slate-400: #94a3b8;
+  --color-slate-500: #64748b;
+  --color-slate-600: #475569;
+  --color-slate-700: #334155;
+  --color-slate-800: #1e293b;
+  --color-slate-900: #0f172a;
+
+  /* Semantic */
+
+  --color-success-50: #f0fdf4;
+  --color-success-100: #dcfce7;
+  --color-success-500: #22c55e;
+  --color-success-600: #16a34a;
+
+  --color-warning-50: #fffbeb;
+  --color-warning-100: #fef3c7;
+  --color-warning-500: #f59e0b;
+  --color-warning-600: #d97706;
+
+  --color-danger-50: #fef2f2;
+  --color-danger-100: #fee2e2;
+  --color-danger-500: #ef4444;
+  --color-danger-600: #dc2626;
+
+  --color-info-50: #eff6ff;
+  --color-info-100: #dbeafe;
+  --color-info-500: #3b82f6;
+
+  /* Timetable Types */
+
+  --color-theory: #3b82f6;
+  --color-lab: #22c55e;
+  --color-tutorial: #a855f7;
+  --color-elective: #f59e0b;
+}
+
+/* =========================
+   SURFACE SYSTEM
+   ========================= */
+
+:root {
+  --background: #f8fafc;
+
+  --surface: #ffffff;
+
+  --surface-secondary: #f8fafc;
+
+  --surface-hover: #f1f5f9;
+
+  --surface-selected: #eef4ff;
+
+  --surface-disabled: #f8fafc;
+}
+
+/* =========================
+   TEXT
+   ========================= */
+
+:root {
+  --foreground: #0f172a;
+
+  --foreground-secondary: #334155;
+
+  --foreground-muted: #64748b;
+
+  --foreground-disabled: #94a3b8;
+
+  --foreground-inverse: #ffffff;
+}
+
+/* =========================
+   BORDER
+   ========================= */
+
+:root {
+  --border: #e2e8f0;
+
+  --border-light: #f1f5f9;
+
+  --border-strong: #cbd5e1;
+
+  --border-focus: #1f4fd6;
+}
+
+/* =========================
+   SIDEBAR
+   ========================= */
+
+:root {
+  --sidebar-width: 280px;
+
+  --sidebar-bg: #ffffff;
+
+  --sidebar-border: #e2e8f0;
+
+  --sidebar-item-hover: #f8fafc;
+
+  --sidebar-item-active: #eef4ff;
+
+  --sidebar-item-active-text: #153fae;
+}
+
+/* =========================
+   TOPBAR
+   ========================= */
+
+:root {
+  --topbar-height: 72px;
+
+  --topbar-background: #ffffff;
+
+  --topbar-border: #e2e8f0;
+}
+
+/* =========================
+   TIMETABLE COLORS
+   ========================= */
+
+:root {
+  --timetable-background: #ffffff;
+
+  --timetable-cell-border: #e2e8f0;
+
+  --timetable-cell-hover: #f8fafc;
+
+  --timetable-empty-slot: #f8fafc;
+
+  --timetable-time-column: #ffffff;
+
+  --timetable-lunch-row: #f8fafc;
+}
+
+/* =========================
+   SUBJECT CARD COLORS
+   ========================= */
+
+:root {
+  --subject-theory-bg: #f4f8ff;
+  --subject-theory-border: #3b82f6;
+
+  --subject-lab-bg: #f0fdf4;
+  --subject-lab-border: #22c55e;
+
+  --subject-tutorial-bg: #faf5ff;
+  --subject-tutorial-border: #a855f7;
+
+  --subject-elective-bg: #fffbeb;
+  --subject-elective-border: #f59e0b;
+}
+
+/* =========================
+   STATUS COLORS
+   ========================= */
+
+:root {
+  --status-success-bg: #f0fdf4;
+  --status-success-border: #22c55e;
+
+  --status-warning-bg: #fffbeb;
+  --status-warning-border: #f59e0b;
+
+  --status-danger-bg: #fef2f2;
+  --status-danger-border: #ef4444;
+}
+
+/* =========================
+   TYPOGRAPHY
+   ========================= */
+
+:root {
+  --font-sans:
+    "Geist",
+    "Inter",
+    system-ui,
+    sans-serif;
+
+  --font-mono:
+    "Geist Mono",
+    monospace;
+}
+
+/* =========================
+   DISPLAY
+   ========================= */
+
+:root {
+  --text-display-size: 32px;
+  --text-display-weight: 700;
+  --text-display-line-height: 40px;
+}
+
+/* =========================
+   H1
+   ========================= */
+
+:root {
+  --text-h1-size: 28px;
+  --text-h1-weight: 700;
+  --text-h1-line-height: 36px;
+}
+
+/* =========================
+   H2
+   ========================= */
+
+:root {
+  --text-h2-size: 24px;
+  --text-h2-weight: 700;
+  --text-h2-line-height: 32px;
+}
+
+/* =========================
+   H3
+   ========================= */
+
+:root {
+  --text-h3-size: 20px;
+  --text-h3-weight: 600;
+  --text-h3-line-height: 28px;
+}
+
+/* =========================
+   H4
+   ========================= */
+
+:root {
+  --text-h4-size: 18px;
+  --text-h4-weight: 600;
+  --text-h4-line-height: 24px;
+}
+
+/* =========================
+   BODY
+   ========================= */
+
+:root {
+  --text-body-lg-size: 16px;
+  --text-body-lg-weight: 400;
+  --text-body-lg-line-height: 24px;
+
+  --text-body-size: 14px;
+  --text-body-weight: 400;
+  --text-body-line-height: 20px;
+
+  --text-body-sm-size: 13px;
+  --text-body-sm-weight: 400;
+  --text-body-sm-line-height: 18px;
+}
+
+/* =========================
+   LABELS
+   ========================= */
+
+:root {
+  --text-label-size: 12px;
+  --text-label-weight: 600;
+  --text-label-line-height: 16px;
+
+  --text-caption-size: 11px;
+  --text-caption-weight: 500;
+  --text-caption-line-height: 14px;
+}
+
+/* =========================
+   SPACING
+   ========================= */
+
+:root {
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 20px;
+  --space-6: 24px;
+  --space-8: 32px;
+  --space-10: 40px;
+  --space-12: 48px;
+  --space-16: 64px;
+}
+
+/* =========================
+   RADIUS
+   ========================= */
+
+:root {
+  --radius-sm: 6px;
+
+  --radius-md: 10px;
+
+  --radius-lg: 14px;
+
+  --radius-xl: 20px;
+
+  --radius-2xl: 24px;
+
+  --radius-full: 9999px;
+}
+
+/* =========================
+   SHADOWS
+   ========================= */
+
+:root {
+  --shadow-sm:
+    0 1px 2px rgba(15, 23, 42, 0.04);
+
+  --shadow-md:
+    0 4px 12px rgba(15, 23, 42, 0.06);
+
+  --shadow-lg:
+    0 10px 30px rgba(15, 23, 42, 0.08);
+
+  --shadow-xl:
+    0 20px 50px rgba(15, 23, 42, 0.12);
+
+  --shadow-button:
+    0 8px 24px rgba(31, 79, 214, 0.18);
+
+  --shadow-card:
+    0 2px 10px rgba(15, 23, 42, 0.05);
+}
+
+/* =========================
+   Z INDEX
+   ========================= */
+
+:root {
+  --z-dropdown: 50;
+
+  --z-sticky: 100;
+
+  --z-header: 200;
+
+  --z-sidebar: 300;
+
+  --z-drawer: 400;
+
+  --z-modal: 500;
+
+  --z-toast: 600;
+}
+
+/* =========================
+   TRANSITIONS
+   ========================= */
+
+:root {
+  --transition-fast: 150ms ease;
+
+  --transition-normal: 250ms ease;
+
+  --transition-slow: 350ms ease;
+}
+
+/* =========================
+   RESPONSIVE CONTAINERS
+   ========================= */
+
+:root {
+  --container-mobile: 100%;
+
+  --container-tablet: 768px;
+
+  --container-laptop: 1024px;
+
+  --container-desktop: 1280px;
+
+  --container-wide: 1440px;
+}

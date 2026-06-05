@@ -1,72 +1,96 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useCallback, useMemo } from "react";
 import ActionToolbar from "@/features/timetable/components/ActionToolbar";
 import TimetableGrid from "@/features/timetable/components/TimetableGrid";
 import SubjectAllocationPanel from "@/features/timetable/components/SubjectAllocationPanel";
 import ValidationFooter from "@/features/timetable/components/ValidationFooter";
 import FloatingActionButton from "@/features/timetable/components/FloatingActionButton";
-import MobileFilters from "@/features/timetable/components/MobileFilters";
-import MobileSubjectDrawer from "@/features/timetable/components/MobileSubjectDrawer";
-import type { SubjectCardData } from "@/types/timetable";
+import type { SubjectCardData, TimetableData, TimetableCell } from "@/types/timetable";
+import dynamic from "next/dynamic";
+
+const MobileFilters = dynamic(() => import("@/features/timetable/components/MobileFilters"), { ssr: false });
+const MobileSubjectDrawer = dynamic(() => import("@/features/timetable/components/MobileSubjectDrawer"), { ssr: false });
 
 interface TimetableInteractiveWorkspaceProps {
-  initialData: any;
+  initialData: TimetableData;
 }
 
 export default function TimetableInteractiveWorkspace({
   initialData,
 }: TimetableInteractiveWorkspaceProps) {
   const [isMobileDrawerOpen, setIsMobileDrawerOpen] = useState(false);
-  const [timetableData, setTimetableData] = useState<any>(initialData);
+  const [timetableData, setTimetableData] = useState<TimetableData>(initialData);
   const [selectedCellId, setSelectedCellId] = useState<string | undefined>();
 
-  const handleUpdateSubject = (updatedSubject: SubjectCardData) => {
-    if (!timetableData) return;
-    setTimetableData({
-      ...timetableData,
-      subjects: {
-        ...timetableData.subjects,
-        [updatedSubject.id]: updatedSubject,
-      },
+  const handleUpdateSubject = useCallback((updatedSubject: SubjectCardData) => {
+    setTimetableData((prev) => {
+      if (!prev) return prev;
+      return {
+        ...prev,
+        subjects: {
+          ...prev.subjects,
+          [updatedSubject.id]: updatedSubject,
+        },
+      };
     });
-  };
+  }, []);
 
-  const handleAddSubject = (newSubject: SubjectCardData) => {
-    if (!timetableData) return;
-    setTimetableData({
-      ...timetableData,
-      subjects: {
-        ...timetableData.subjects,
-        [newSubject.id]: newSubject,
-      },
+  const handleAddSubject = useCallback((newSubject: SubjectCardData) => {
+    setTimetableData((prev) => {
+      if (!prev) return prev;
+      return {
+        ...prev,
+        subjects: {
+          ...prev.subjects,
+          [newSubject.id]: newSubject,
+        },
+      };
     });
-  };
+  }, []);
 
-  const handleRemoveSlot = (cellId: string) => {
-    if (!timetableData) return;
-    setTimetableData({
-      ...timetableData,
-      cells: timetableData.cells.map((c: any) =>
-        c.id === cellId
-          ? { ...c, isAssigned: false, assignment: undefined }
-          : c
-      ),
+  const handleRemoveSlot = useCallback((cellId: string) => {
+    setTimetableData((prev) => {
+      if (!prev) return prev;
+      return {
+        ...prev,
+        cells: prev.cells.map((c: TimetableCell) =>
+          c.id === cellId
+            ? { ...c, isAssigned: false, assignment: undefined }
+            : c
+        ),
+      };
     });
-  };
+  }, []);
 
-  const handleAssignSlot = (cellId: string, subjectId: string) => {
-    if (!timetableData) return;
-    setTimetableData({
-      ...timetableData,
-      cells: timetableData.cells.map((c: any) =>
-        c.id === cellId
-          ? { ...c, isAssigned: true, assignment: { subjectId } }
-          : c
-      ),
+  const handleAssignSlot = useCallback((cell: TimetableCell, subjectId: string) => {
+    setTimetableData((prev) => {
+      if (!prev) return prev;
+      
+      const cellExists = prev.cells.some((c: TimetableCell) => c.id === cell.id);
+      
+      let newCells = [...prev.cells];
+      if (cellExists) {
+        newCells = newCells.map((c: TimetableCell) =>
+          c.id === cell.id
+            ? { ...c, isAssigned: true, assignment: { subjectId } }
+            : c
+        );
+      } else {
+        newCells.push({ ...cell, isAssigned: true, assignment: { subjectId } });
+      }
+
+      return {
+        ...prev,
+        cells: newCells,
+      };
     });
     setSelectedCellId(undefined);
-  };
+  }, []);
+
+  const timetableSubjectsArr = useMemo(() => {
+    return Object.values(timetableData?.subjects || {});
+  }, [timetableData?.subjects]);
 
   return (
     <>
@@ -113,7 +137,7 @@ export default function TimetableInteractiveWorkspace({
           </div>
 
           {/* Footer */}
-          <div className="flex-none mt-4 lg:mt-6 pb-safe lg:pb-0">
+          <div className="flex-none mt-4 lg:mt-6 pb-24 lg:pb-0">
             <ValidationFooter conflictCount={5} />
           </div>
         </div>
@@ -134,7 +158,7 @@ export default function TimetableInteractiveWorkspace({
           "
         >
           <SubjectAllocationPanel
-            subjects={Object.values(timetableData?.subjects || {})}
+            subjects={timetableSubjectsArr}
             onUpdateSubject={handleUpdateSubject}
             onAddSubject={handleAddSubject}
           />
@@ -149,6 +173,9 @@ export default function TimetableInteractiveWorkspace({
       <MobileSubjectDrawer
         open={isMobileDrawerOpen}
         onOpenChange={setIsMobileDrawerOpen}
+        subjects={timetableSubjectsArr}
+        onUpdateSubject={handleUpdateSubject}
+        onAddSubject={handleAddSubject}
       />
     </>
   );

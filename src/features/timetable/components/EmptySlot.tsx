@@ -1,13 +1,14 @@
 "use client";
 
 import { Plus } from "lucide-react";
+import { memo } from "react";
 
 interface EmptySlotProps {
   isSelected?: boolean;
   onClick?: () => void;
 }
 
-export default function EmptySlot({
+export default memo(function EmptySlot({
   isSelected = false,
   onClick,
 }: EmptySlotProps) {
@@ -42,6 +43,9 @@ export default function EmptySlot({
               border-[#E2E8F0]
               hover:border-[#CBD5E1]
               hover:bg-slate-50
+              hover:-translate-y-[2px]
+              hover:shadow-md
+              duration-200
             `
         }
       `}
@@ -68,4 +72,4 @@ export default function EmptySlot({
       </div>
     </button>
   );
-}
+});

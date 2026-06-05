@@ -1,3 +1,5 @@
+import { SubjectCardData } from "@/types/timetable";
+
 export const MOCK_DAYS = [
   { id: "1", name: "Monday", shortName: "Mon" },
   { id: "2", name: "Tuesday", shortName: "Tue" },
@@ -16,7 +18,7 @@ export const MOCK_TIME_SLOTS = [
   { id: "7", startTime: "03:00 PM", endTime: "04:00 PM" },
 ];
 
-export const MOCK_SUBJECTS: Record<string, any> = {
+export const MOCK_SUBJECTS: Record<string, SubjectCardData> = {
   "1": { id: "1", subjectName: "Data Structures", type: "THEORY", facultyName: "Dr. Anil Kumar", roomName: "A-301" },
   "2": { id: "2", subjectName: "Database Mgmt Systems", type: "THEORY", facultyName: "Dr. Priya Nair", roomName: "A-301" },
   "3": { id: "3", subjectName: "Software Engg.", type: "THEORY", facultyName: "Prof. Vivek Sharma", roomName: "A-351" },

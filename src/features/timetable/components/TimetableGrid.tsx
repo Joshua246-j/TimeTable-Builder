@@ -4,6 +4,7 @@ import DayHeader from "./DayHeader";
 import TimeColumn from "./TimeColumn";
 import TimetableCell from "./TimetableCell";
 import LunchBreakRow from "./LunchBreakRow";
+import { memo, useCallback } from "react";
 
 import type {
   SubjectCardData,
@@ -57,12 +58,19 @@ interface TimetableGridProps {
   ) => void;
 
   onAssignSlot?: (
-    cellId: string,
+    cell: TimetableCellType,
     subjectId: string
   ) => void;
 }
 
-export default function TimetableGrid({
+const BADGE_STYLES: Record<string, { bg: string; border: string; text: string; label: string }> = {
+  THEORY: { bg: "bg-blue-100/50", border: "border-l-blue-500", text: "text-blue-600", label: "T" },
+  LAB: { bg: "bg-green-100/50", border: "border-l-green-500", text: "text-green-600", label: "L" },
+  TUTORIAL: { bg: "bg-purple-100/50", border: "border-l-purple-500", text: "text-purple-600", label: "TUT" },
+  ELECTIVE: { bg: "bg-orange-100/50", border: "border-l-orange-500", text: "text-orange-600", label: "E" },
+};
+
+export default memo(function TimetableGrid({
   days,
   timeSlots,
   cells,
@@ -71,7 +79,7 @@ export default function TimetableGrid({
 
   lunchBreakIndex,
 
-  lunchBreakLabel,
+  lunchBreakLabel = "LUNCH BREAK",
 
   lunchBreakStartTime,
 
@@ -82,18 +90,17 @@ export default function TimetableGrid({
   onSubjectClick,
   onAssignSlot,
 }: TimetableGridProps) {
-  const getCell = (
-    day: string,
-    startTime: string,
-    endTime: string
-  ) => {
-    return cells.find(
-      (cell) =>
-        cell.day === day &&
-        cell.startTime === startTime &&
-        cell.endTime === endTime
-    );
-  };
+  const getCell = useCallback(
+    (dayName: string, startTime: string, endTime: string) => {
+      return cells.find(
+        (c) =>
+          c.day === dayName &&
+          c.startTime === startTime &&
+          c.endTime === endTime
+      );
+    },
+    [cells]
+  );
 
   return (
     <>
@@ -125,13 +132,6 @@ export default function TimetableGrid({
             const cell = getCell(day, timeSlot.startTime, timeSlot.endTime);
             const subject = cell?.assignment ? subjects[cell.assignment.subjectId] : undefined;
 
-            const badgeStyles: Record<string, any> = {
-              THEORY: { bg: "bg-blue-100/50", border: "border-l-blue-500", text: "text-blue-600", label: "T" },
-              LAB: { bg: "bg-green-100/50", border: "border-l-green-500", text: "text-green-600", label: "L" },
-              TUTORIAL: { bg: "bg-purple-100/50", border: "border-l-purple-500", text: "text-purple-600", label: "TUT" },
-              ELECTIVE: { bg: "bg-orange-100/50", border: "border-l-orange-500", text: "text-orange-600", label: "E" },
-            };
-
             const isLunch = typeof lunchBreakIndex === "number" && lunchBreakIndex === rowIndex;
 
             return (
@@ -151,22 +151,22 @@ export default function TimetableGrid({
                   ) : subject ? (
                     <div
                       className={`relative flex w-full flex-col gap-1 rounded-xl border border-slate-200 border-l-[4px] p-3 shadow-sm ${
-                        badgeStyles[subject.type]?.bg || badgeStyles.THEORY.bg
-                      } ${badgeStyles[subject.type]?.border || badgeStyles.THEORY.border}`}
+                        BADGE_STYLES[subject.type]?.bg || BADGE_STYLES.THEORY.bg
+                      } ${BADGE_STYLES[subject.type]?.border || BADGE_STYLES.THEORY.border}`}
                     >
                       <div className="flex items-start justify-between">
-                        <h4 className="text-sm font-bold text-[#0D2463]">{subject.name}</h4>
-                        <span className={`rounded bg-white px-2 py-0.5 text-[9px] font-bold border border-slate-100 ${badgeStyles[subject.type]?.text || badgeStyles.THEORY.text}`}>
-                          {badgeStyles[subject.type]?.label || badgeStyles.THEORY.label}
+                        <h4 className="text-sm font-bold text-[#0D2463]">{subject.subjectName}</h4>
+                        <span className={`rounded bg-white px-2 py-0.5 text-[9px] font-bold border border-slate-100 ${BADGE_STYLES[subject.type]?.text || BADGE_STYLES.THEORY.text}`}>
+                          {BADGE_STYLES[subject.type]?.label || BADGE_STYLES.THEORY.label}
                         </span>
                       </div>
                       <div className="mt-1 flex items-center gap-1.5 text-[11px] text-slate-600">
-                        <svg className="h-3.5 w-3.5 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2"><path strokeLinecap="round" strokeLinejoin="round" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" /></svg>
-                        {subject.faculty}
+                        <svg className="h-3.5 w-3.5 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2"><path strokeLinecap="round" strokeLinejoin="round" d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z" /></svg>
+                        {subject.facultyName}
                       </div>
                       <div className="flex items-center gap-1.5 text-[11px] text-slate-600">
                         <svg className="h-3.5 w-3.5 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2"><path strokeLinecap="round" strokeLinejoin="round" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" /></svg>
-                        {subject.room}
+                        {subject.roomName}
                       </div>
                     </div>
                   ) : (
@@ -257,7 +257,7 @@ export default function TimetableGrid({
           <div
             className="grid"
             style={{
-              gridTemplateColumns: `120px repeat(${days.length}, minmax(280px, 1fr))`,
+              gridTemplateColumns: `120px repeat(${days.length}, minmax(300px, 1fr))`,
             }}
           >
             <div
@@ -396,4 +396,4 @@ export default function TimetableGrid({
       </div>
     </>
   );
-}
+});

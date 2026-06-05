@@ -64,38 +64,36 @@ export interface SubjectAssignment {
   type: SubjectType;
 }
 
-export interface TimetableCell {
-  id: string;
-
-  day: WeekDay;
-
-  startTime: string;
-
-  endTime: string;
-
-  assignment?: SubjectAssignment;
-
-  isAssigned: boolean;
+export interface TimetableCellAssignment {
+  subjectId: string;
 }
 
-export interface TimetableRow {
-  timeSlot: TimeSlot;
+export interface TimetableCell {
+  id: string;
+  day: string;
+  startTime: string;
+  endTime: string;
+  isAssigned: boolean;
+  assignment?: TimetableCellAssignment;
+}
 
-  cells: TimetableCell[];
+export interface TimetableDay {
+  id: string;
+  name: string;
+  shortName: string;
+}
+
+export interface TimetableTimeSlot {
+  id: string;
+  startTime: string;
+  endTime: string;
 }
 
 export interface TimetableData {
-  semester: string;
-
-  department: string;
-
-  section: string;
-
-  rows: TimetableRow[];
-}
-
-export interface TimetableGridProps {
-  timetableData: TimetableData;
+  days: TimetableDay[];
+  timeSlots: TimetableTimeSlot[];
+  subjects: Record<string, SubjectCardData>;
+  cells: TimetableCell[];
 }
 
 export interface SubjectCardData {

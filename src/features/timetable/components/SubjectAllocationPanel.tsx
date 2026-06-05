@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, memo, useCallback } from "react";
 import { Plus, X } from "lucide-react";
 
 import SubjectAllocationCard from "./SubjectAllocationCard";
@@ -13,20 +13,19 @@ interface SubjectAllocationPanelProps {
   onAddSubject: (subject: SubjectCardData) => void;
 }
 
-export default function SubjectAllocationPanel({
+export default memo(function SubjectAllocationPanel({
   subjects,
   onUpdateSubject,
   onAddSubject,
 }: SubjectAllocationPanelProps) {
   const [editingId, setEditingId] = useState("");
-  const [isAdding, setIsAdding] = useState(false);
 
-  const handleSave = (updatedSubject: SubjectCardData) => {
+  const handleSave = useCallback((updatedSubject: SubjectCardData) => {
     onUpdateSubject(updatedSubject);
     setEditingId("");
-  };
+  }, [onUpdateSubject]);
 
-  const handleAddNew = () => {
+  const handleAddNew = useCallback(() => {
     const newId = `new-${Date.now()}`;
     const newSubject: SubjectCardData = {
       id: newId,
@@ -39,7 +38,7 @@ export default function SubjectAllocationPanel({
     };
     onAddSubject(newSubject);
     setEditingId(newId);
-  };
+  }, [onAddSubject]);
 
   return (
     <aside
@@ -172,4 +171,4 @@ export default function SubjectAllocationPanel({
       </div>
     </aside>
   );
-}
+});

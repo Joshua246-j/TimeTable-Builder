@@ -2,6 +2,7 @@
 
 import EmptySlot from "./EmptySlot";
 import SubjectCard from "./SubjectCard";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
 import type {
   SubjectCardData,
@@ -14,11 +15,13 @@ interface TimetableCellProps {
   selected?: boolean;
   onCellClick?: (cell: TimetableCellType) => void;
   onSubjectClick?: (cell: TimetableCellType) => void;
-  onAssignSlot?: (cellId: string, subjectId: string) => void;
+  onAssignSlot?: (cell: TimetableCellType, subjectId: string) => void;
   availableSubjects?: SubjectCardData[];
 }
 
-export default function TimetableCell({
+import { memo } from "react";
+
+export default memo(function TimetableCell({
   cell,
   subject,
   selected = false,
@@ -58,28 +61,47 @@ export default function TimetableCell({
             onClick={handleClick}
           />
           {selected && onAssignSlot && (
-            <div className="absolute inset-0 bg-white/90 flex flex-col items-center justify-center p-2 z-10 rounded-xl">
-              <span className="text-[10px] font-bold text-slate-500 mb-1">ASSIGN SUBJECT</span>
-              <select
-                className="w-full border border-slate-200 rounded p-1 text-xs"
-                onChange={(e) => {
-                  if (e.target.value) {
-                    onAssignSlot(cell.id, e.target.value);
+            <div className="absolute inset-0 bg-white/95 flex flex-col justify-center p-2 z-10 rounded-xl border border-blue-200 shadow-sm backdrop-blur-sm animate-in fade-in zoom-in duration-200">
+              <div className="flex items-center justify-between mb-2 px-1">
+                <span className="text-[10px] font-bold text-[#0D2463] uppercase tracking-wider">Assign Subject</span>
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    // Click the cell again to deselect or just let parent handle click
+                    if (onCellClick) onCellClick({ ...cell, id: "" });
+                  }}
+                  className="text-slate-400 hover:text-red-500 transition-colors"
+                >
+                  <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>
+                </button>
+              </div>
+              <Select
+                defaultOpen={true}
+                onValueChange={(value) => {
+                  if (value) {
+                    onAssignSlot(cell, value);
                   }
                 }}
-                defaultValue=""
               >
-                <option value="" disabled>Select...</option>
-                {availableSubjects.map((sub) => (
-                  <option key={sub.id} value={sub.id}>
-                    {sub.subjectName}
-                  </option>
-                ))}
-              </select>
+                <SelectTrigger className="w-full h-8 text-xs bg-white border-slate-200 shadow-sm focus:ring-[#0D2463]">
+                  <SelectValue placeholder="Select..." />
+                </SelectTrigger>
+                <SelectContent className="max-h-[200px]">
+                  {availableSubjects.map((sub) => (
+                    <SelectItem key={sub.id} value={sub.id} className="text-xs py-1.5 cursor-pointer">
+                      <div className="flex flex-col">
+                        <span className="font-semibold text-slate-900">{sub.subjectName}</span>
+                        <span className="text-[9px] text-slate-500 uppercase">{sub.type} • {sub.facultyName}</span>
+                      </div>
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
           )}
         </>
       )}
     </div>
   );
-}
+});

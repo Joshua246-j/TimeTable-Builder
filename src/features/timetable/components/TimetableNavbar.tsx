@@ -1,5 +1,7 @@
+"use client";
+
 import Link from "next/link";
-import Image from "next/image";
+import { usePathname } from "next/navigation";
 import {
   Bell,
   CalendarDays,
@@ -20,6 +22,9 @@ import {
 } from "@/components/ui/select";
 
 export default function TimetableNavbar() {
+  const pathname = usePathname();
+  const isDashboard = pathname === "/dashboard";
+  
   return (
     <header
       className="
@@ -108,62 +113,85 @@ export default function TimetableNavbar() {
               </p>
             </div>
           </div>
-        </div>
 
-        {/* Desktop Navigation */}
-        <div
-          className="
-            absolute
-            left-1/2
-            top-1/2
-            -translate-x-1/2
-            -translate-y-1/2
-            hidden
-            items-center
-            gap-1
-            rounded-full
-            p-1
-            md:flex
-          "
-        >
+          {/* Desktop Navigation */}
+          <div
+            className="
+              hidden
+              items-center
+              rounded-full
+              p-1
+              bg-slate-100/50
+              border border-slate-200/60
+              md:flex
+              relative
+            "
+          >
+            {/* Animated sliding background pill */}
+          <div
+            className={`
+              absolute
+              h-[calc(100%-8px)]
+              w-[100px]
+              rounded-full
+              bg-[#0D2463]
+              shadow-sm
+              transition-all
+              duration-300
+              ease-in-out
+              ${isDashboard ? "left-1" : "left-[105px]"}
+            `}
+          />
+
           <Link
             href="/dashboard"
-            className="
+            className={`
+              relative
+              z-10
+              flex
+              w-[100px]
+              items-center
+              justify-center
               rounded-full
-              px-5
-              py-2
+              py-1.5
               text-[13px]
-              font-medium
-              text-slate-500
-              transition
-              hover:text-slate-900
-            "
+              font-semibold
+              transition-colors
+              duration-300
+              ${isDashboard ? "text-white" : "text-slate-500 hover:text-slate-900"}
+            `}
           >
             Dashboard
           </Link>
 
           <Link
             href="/timetable-builder"
-            className="
+            className={`
+              relative
+              z-10
+              flex
+              w-[100px]
+              items-center
+              justify-center
               rounded-full
-              bg-[#0D2463]
-              px-5
-              py-2
+              py-1.5
               text-[13px]
-              font-medium
-              text-white
-              shadow-sm
-            "
+              font-semibold
+              transition-colors
+              duration-300
+              ${!isDashboard ? "text-white" : "text-slate-500 hover:text-slate-900"}
+            `}
           >
             Timetable
           </Link>
         </div>
+      </div>
 
-        {/* RIGHT */}
-        <div
-          className="
-            flex
-            items-center
+      {/* RIGHT */}
+      <div
+        className="
+          flex
+          items-center
             gap-2
             md:gap-3
           "

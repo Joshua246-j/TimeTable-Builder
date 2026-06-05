@@ -3,6 +3,7 @@
 import { Building2, GraduationCap, Pencil, AlertTriangle } from "lucide-react";
 
 import { Badge } from "@/components/ui/badge";
+import { memo } from "react";
 
 import type { SubjectCardData } from "@/types/timetable";
 
@@ -26,7 +27,7 @@ const borderVariants: Record<string, string> = {
   ELECTIVE: "border-l-orange-500",
 };
 
-export default function SubjectCard({
+export default memo(function SubjectCard({
   data,
   selected = false,
   onClick,
@@ -52,7 +53,9 @@ export default function SubjectCard({
         p-3
         text-left
         transition-all
-        hover:shadow-sm
+        duration-200
+        hover:shadow-md
+        hover:-translate-y-[1px]
         ${hasConflict ? 'border-orange-500 border-l-[4px]' : (borderVariants[typeKey] || borderVariants.THEORY)}
         ${
           selected && !hasConflict
@@ -143,4 +146,4 @@ export default function SubjectCard({
       </div>
     </button>
   );
-}
+});

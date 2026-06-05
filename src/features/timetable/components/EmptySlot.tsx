@@ -19,7 +19,7 @@ export default function EmptySlot({
         group
         flex
         h-full
-        min-h-[88px]
+        min-h-[100px]
         w-full
         flex-col
         items-center
@@ -28,70 +28,44 @@ export default function EmptySlot({
         border-2
         border-dashed
         transition-all
+        bg-white
 
         ${
           isSelected
             ? `
-              border-blue-400
-              bg-blue-50
-              ring-2
-              ring-blue-100
+              border-[#4F6BFF]
+              bg-blue-50/30
+              ring-4
+              ring-blue-50
             `
             : `
-              border-slate-200
-              bg-slate-50/50
-              hover:border-blue-300
-              hover:bg-blue-50
+              border-[#E2E8F0]
+              hover:border-[#CBD5E1]
+              hover:bg-slate-50
             `
         }
       `}
     >
-      <div
-        className={`
-          flex
-          h-8
-          w-8
-          items-center
-          justify-center
-          rounded-full
-          transition-colors
-
-          ${
-            isSelected
-              ? "bg-blue-100"
-              : "bg-slate-100 group-hover:bg-blue-100"
-          }
-        `}
-      >
-        <Plus
+      <div className="flex items-center gap-1.5">
+        <Plus className={`h-3 w-3 ${isSelected ? "text-[#4F6BFF]" : "text-[#64748B] group-hover:text-[#475569]"}`} />
+        <span
           className={`
-            h-4
-            w-4
+            text-[11px]
+            font-bold
+            uppercase
+            tracking-wider
+            transition-colors
 
             ${
               isSelected
-                ? "text-blue-700"
-                : "text-slate-400 group-hover:text-blue-600"
+                ? "text-[#4F6BFF]"
+                : "text-[#64748B] group-hover:text-[#475569]"
             }
           `}
-        />
+        >
+          ASSIGN
+        </span>
       </div>
-
-      <span
-        className={`
-          mt-2
-          text-xs
-          font-medium
-
-          ${
-            isSelected
-              ? "text-blue-700"
-              : "text-slate-500 group-hover:text-blue-600"
-          }
-        `}
-      >
-        Empty Slot
-      </span>
     </button>
   );
 }

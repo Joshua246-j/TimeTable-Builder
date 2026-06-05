@@ -16,13 +16,10 @@ export default function TimeColumn({
       <div
         className="
           flex
-          min-h-[88px]
+          min-h-[140px]
           flex-col
           items-center
           justify-center
-          border-r
-          border-slate-200
-          bg-amber-50
           px-3
           text-center
         "
@@ -56,12 +53,10 @@ export default function TimeColumn({
     <div
       className="
         flex
-        min-h-[88px]
+        min-h-[140px]
         flex-col
         justify-center
-        border-r
-        border-slate-200
-        bg-white
+        bg-transparent
         px-3
       "
     >

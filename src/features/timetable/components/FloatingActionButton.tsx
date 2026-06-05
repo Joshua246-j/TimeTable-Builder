@@ -1,10 +1,9 @@
 "use client";
 
 import {
-  Eye,
+  CalendarPlus,
   Plus,
-  Rocket,
-  WandSparkles,
+  Settings2,
 } from "lucide-react";
 
 import {
@@ -15,16 +14,14 @@ import {
 
 interface FloatingActionButtonProps {
   onAddSubject?: () => void;
-  onAutoAllocate?: () => void;
-  onPreview?: () => void;
-  onPublish?: () => void;
+  onAssignSlot?: () => void;
+  onOpenSubjectAllocation?: () => void;
 }
 
 export default function FloatingActionButton({
   onAddSubject,
-  onAutoAllocate,
-  onPreview,
-  onPublish,
+  onAssignSlot,
+  onOpenSubjectAllocation,
 }: FloatingActionButtonProps) {
   return (
     <div
@@ -48,11 +45,12 @@ export default function FloatingActionButton({
               items-center
               justify-center
               rounded-full
-              bg-blue-700
+              bg-[#4F6BFF]
               text-white
-              shadow-lg
+              shadow-[0_8px_30px_rgb(79,107,255,0.3)]
               transition-all
-              hover:bg-blue-800
+              hover:bg-[#3d54cc]
+              active:scale-95
             "
           >
             <Plus className="h-6 w-6" />
@@ -67,9 +65,10 @@ export default function FloatingActionButton({
             rounded-2xl
             border-slate-200
             p-3
+            mb-2
           "
         >
-          <div className="mb-3">
+          <div className="mb-3 px-1">
             <h3
               className="
                 text-sm
@@ -82,7 +81,7 @@ export default function FloatingActionButton({
 
             <p
               className="
-                mt-1
+                mt-0.5
                 text-xs
                 text-slate-500
               "
@@ -91,7 +90,7 @@ export default function FloatingActionButton({
             </p>
           </div>
 
-          <div className="space-y-2">
+          <div className="space-y-1">
             <button
               type="button"
               onClick={onAddSubject}
@@ -102,28 +101,28 @@ export default function FloatingActionButton({
                 gap-3
                 rounded-xl
                 px-3
-                py-3
+                py-2.5
                 text-left
                 transition-all
-                hover:bg-slate-100
+                hover:bg-slate-50
               "
             >
               <div
                 className="
                   flex
-                  h-9
-                  w-9
+                  h-8
+                  w-8
                   items-center
                   justify-center
                   rounded-lg
-                  bg-blue-100
+                  bg-blue-50
                 "
               >
                 <Plus
                   className="
                     h-4
                     w-4
-                    text-blue-700
+                    text-blue-600
                   "
                 />
               </div>
@@ -141,7 +140,7 @@ export default function FloatingActionButton({
 
             <button
               type="button"
-              onClick={onAutoAllocate}
+              onClick={onAssignSlot}
               className="
                 flex
                 w-full
@@ -149,28 +148,28 @@ export default function FloatingActionButton({
                 gap-3
                 rounded-xl
                 px-3
-                py-3
+                py-2.5
                 text-left
                 transition-all
-                hover:bg-slate-100
+                hover:bg-slate-50
               "
             >
               <div
                 className="
                   flex
-                  h-9
-                  w-9
+                  h-8
+                  w-8
                   items-center
                   justify-center
                   rounded-lg
-                  bg-violet-100
+                  bg-purple-50
                 "
               >
-                <WandSparkles
+                <CalendarPlus
                   className="
                     h-4
                     w-4
-                    text-violet-700
+                    text-purple-600
                   "
                 />
               </div>
@@ -182,13 +181,13 @@ export default function FloatingActionButton({
                   text-slate-700
                 "
               >
-                Auto Allocate
+                Assign Slot
               </span>
             </button>
 
             <button
               type="button"
-              onClick={onPreview}
+              onClick={onOpenSubjectAllocation}
               className="
                 flex
                 w-full
@@ -196,28 +195,28 @@ export default function FloatingActionButton({
                 gap-3
                 rounded-xl
                 px-3
-                py-3
+                py-2.5
                 text-left
                 transition-all
-                hover:bg-slate-100
+                hover:bg-slate-50
               "
             >
               <div
                 className="
                   flex
-                  h-9
-                  w-9
+                  h-8
+                  w-8
                   items-center
                   justify-center
                   rounded-lg
                   bg-slate-100
                 "
               >
-                <Eye
+                <Settings2
                   className="
                     h-4
                     w-4
-                    text-slate-700
+                    text-slate-600
                   "
                 />
               </div>
@@ -229,54 +228,7 @@ export default function FloatingActionButton({
                   text-slate-700
                 "
               >
-                Preview Timetable
-              </span>
-            </button>
-
-            <button
-              type="button"
-              onClick={onPublish}
-              className="
-                flex
-                w-full
-                items-center
-                gap-3
-                rounded-xl
-                px-3
-                py-3
-                text-left
-                transition-all
-                hover:bg-slate-100
-              "
-            >
-              <div
-                className="
-                  flex
-                  h-9
-                  w-9
-                  items-center
-                  justify-center
-                  rounded-lg
-                  bg-green-100
-                "
-              >
-                <Rocket
-                  className="
-                    h-4
-                    w-4
-                    text-green-700
-                  "
-                />
-              </div>
-
-              <span
-                className="
-                  text-sm
-                  font-medium
-                  text-slate-700
-                "
-              >
-                Publish Timetable
+                Open Subject Allocation
               </span>
             </button>
           </div>

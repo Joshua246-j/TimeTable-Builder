@@ -24,8 +24,6 @@ export default function DayHeader({
         flex-col
         items-center
         justify-center
-        border-b
-        border-slate-200
         px-4
         text-center
         transition-all

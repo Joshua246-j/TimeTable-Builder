@@ -19,7 +19,7 @@ export default function LunchBreakRow({
         col-span-full
         border-b
         border-slate-200
-        bg-amber-50
+        bg-[#F7F8FC]
       "
     >
       <div
@@ -34,26 +34,15 @@ export default function LunchBreakRow({
         <div className="text-center">
           <p
             className="
-              text-sm
-              font-semibold
-              text-amber-700
+              text-[11px]
+              font-bold
+              uppercase
+              tracking-widest
+              text-slate-500
             "
           >
-            {label}
+            ☕ {startTime || "12:00 PM"} — {endTime || "01:00 PM"} • {label}
           </p>
-
-          {(startTime || endTime) && (
-            <p
-              className="
-                mt-1
-                text-xs
-                text-amber-600
-              "
-            >
-              {startTime} {startTime && endTime && "—"}{" "}
-              {endTime}
-            </p>
-          )}
         </div>
       </div>
     </div>

@@ -101,13 +101,17 @@ export interface TimetableGridProps {
 export interface SubjectCardData {
   id: string;
 
+  code?: string;
+  credits?: number;
   subjectName: string;
 
   facultyName: string;
 
   roomName: string;
 
-  type: SubjectType;
+  type: string;
+
+  hasConflict?: boolean;
 }
 
 export interface DaySelectorItem {

@@ -1,260 +1,227 @@
 "use client";
 
 import {
-  AlertTriangle,
   Eye,
   Rocket,
-  WandSparkles,
+  Sparkles,
+  TriangleAlert,
 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 
 export default function ActionToolbar() {
   return (
-    <section
+    <div
       className="
-        rounded-2xl
-        border
-        border-slate-200
-        bg-white
-        p-5
-        shadow-sm
+        flex
+        w-full
+        overflow-x-auto
+        snap-x
+        gap-3
+        py-2
+        no-scrollbar
+        lg:flex-row
+        lg:items-center
+        lg:justify-between
+        lg:overflow-visible
+        lg:py-0
       "
     >
-      {/* Header */}
-      <div className="mb-5">
-        <h2
-          className="
-            text-base
-            font-semibold
-            text-slate-900
-          "
-        >
-          Timetable Actions
-        </h2>
-
-        <p
-          className="
-            mt-1
-            text-sm
-            text-slate-500
-          "
-        >
-          Manage scheduling, validation and
-          publishing workflows.
-        </p>
-      </div>
-
-      {/* Desktop */}
+      {/* LEFT ACTIONS (Scrollable on Mobile) */}
       <div
         className="
-          hidden
-          lg:grid
-          lg:grid-cols-4
-          gap-4
+          flex
+          flex-nowrap
+          gap-3
+          lg:flex-wrap
         "
       >
         {/* Auto Allocate */}
         <button
           className="
-            group
+            flex
+            flex-1
+            shrink-0
+            snap-start
+            items-center
+            gap-3
             rounded-2xl
-            border
-            border-slate-200
             bg-white
-            p-5
+            px-4
+            py-4
             text-left
             transition-all
-            hover:border-blue-200
-            hover:bg-blue-50
+            hover:bg-[#F8FAFF]
+            lg:w-auto
+            lg:flex-none
+            lg:min-w-[220px]
+            lg:border
+            lg:border-[#E5E7EB]
+            lg:hover:border-[#4F6BFF]
           "
+          style={{ boxShadow: "0 2px 8px -2px rgba(0,0,0,0.05)" }}
         >
           <div
             className="
-              mb-4
               flex
-              h-12
-              w-12
+              h-8
+              w-8
               items-center
               justify-center
-              rounded-xl
-              bg-blue-100
+              rounded-full
+              bg-[#F0F4FF]
+              lg:h-10
+              lg:w-10
+              lg:rounded-lg
             "
           >
-            <WandSparkles
+            <Sparkles
               className="
-                h-5
-                w-5
-                text-blue-700
+                h-4
+                w-4
+                text-[#4F6BFF]
+                lg:h-5
+                lg:w-5
               "
             />
           </div>
 
-          <h3
-            className="
-              text-sm
-              font-semibold
-              text-slate-900
-            "
-          >
-            Auto Allocate
-          </h3>
+          <div>
+            <h3
+              className="
+                text-xs
+                font-bold
+                text-[#0D2463]
+                lg:text-sm
+              "
+            >
+              Auto Allocate
+            </h3>
 
-          <p
-            className="
-              mt-1
-              text-xs
-              leading-5
-              text-slate-500
-            "
-          >
-            Generate schedule automatically
-            using available resources.
-          </p>
+            <p
+              className="
+                mt-0.5
+                text-[10px]
+                text-slate-500
+                lg:text-xs
+              "
+            >
+              Resources
+            </p>
+          </div>
         </button>
 
         {/* Conflict Detection */}
         <button
           className="
-            group
+            flex
+            flex-1
+            shrink-0
+            snap-start
+            items-center
+            gap-3
             rounded-2xl
-            border
-            border-slate-200
             bg-white
-            p-5
+            px-4
+            py-4
             text-left
             transition-all
-            hover:border-amber-200
-            hover:bg-amber-50
-          "
-        >
-          <div
-            className="
-              mb-4
-              flex
-              h-12
-              w-12
-              items-center
-              justify-center
-              rounded-xl
-              bg-amber-100
-            "
-          >
-            <AlertTriangle
-              className="
-                h-5
-                w-5
-                text-amber-600
-              "
-            />
-          </div>
-
-          <h3
-            className="
-              text-sm
-              font-semibold
-              text-slate-900
-            "
-          >
-            Detect Conflicts
-          </h3>
-
-          <p
-            className="
-              mt-1
-              text-xs
-              leading-5
-              text-slate-500
-            "
-          >
-            Check faculty, room and schedule
-            conflicts instantly.
-          </p>
-        </button>
-
-        {/* Preview */}
-        <button
-          className="
-            group
-            rounded-2xl
-            border
-            border-slate-200
-            bg-white
-            p-5
-            text-left
-            transition-all
-            hover:border-slate-300
             hover:bg-slate-50
+            lg:w-auto
+            lg:flex-none
+            lg:min-w-[220px]
+            lg:border
+            lg:border-[#E5E7EB]
+            lg:hover:border-orange-300
+            lg:hover:bg-orange-50
           "
+          style={{ boxShadow: "0 2px 8px -2px rgba(0,0,0,0.05)" }}
         >
           <div
             className="
-              mb-4
               flex
-              h-12
-              w-12
+              h-8
+              w-8
               items-center
               justify-center
-              rounded-xl
-              bg-slate-100
+              rounded-full
+              bg-white
+              border
+              border-slate-200
+              lg:h-10
+              lg:w-10
+              lg:rounded-lg
+              lg:bg-orange-100
+              lg:border-none
             "
           >
-            <Eye
+            <TriangleAlert
               className="
-                h-5
-                w-5
-                text-slate-700
+                h-4
+                w-4
+                text-[#0D2463]
+                lg:h-5
+                lg:w-5
+                lg:text-orange-500
               "
             />
           </div>
 
-          <h3
-            className="
-              text-sm
-              font-semibold
-              text-slate-900
-            "
-          >
-            Preview
-          </h3>
+          <div>
+            <h3
+              className="
+                text-xs
+                font-bold
+                text-[#0D2463]
+                lg:text-sm
+              "
+            >
+              Conflicts
+            </h3>
 
-          <p
-            className="
-              mt-1
-              text-xs
-              leading-5
-              text-slate-500
-            "
-          >
-            Review timetable before final
-            publication.
-          </p>
+            <p
+              className="
+                mt-0.5
+                text-[10px]
+                text-slate-500
+                lg:text-xs
+              "
+            >
+              0 Critical
+            </p>
+          </div>
         </button>
 
-        {/* Publish */}
+        {/* Publish Timetable (Mobile Card version) */}
         <button
           className="
-            group
-            rounded-2xl
+            flex
+            w-[200px]
+            shrink-0
+            snap-start
+            items-start
+            gap-3
+            rounded-xl
             border
-            border-blue-200
-            bg-blue-50
-            p-5
+            border-[#0D2463]
+            bg-[#0D2463]
+            px-4
+            py-3
             text-left
             transition-all
-            hover:bg-blue-100
+            hover:bg-[#091A4A]
+            lg:hidden
           "
         >
           <div
             className="
-              mb-4
               flex
-              h-12
-              w-12
+              h-10
+              w-10
               items-center
               justify-center
-              rounded-xl
-              bg-blue-600
+              rounded-lg
+              bg-white/10
             "
           >
             <Rocket
@@ -266,76 +233,69 @@ export default function ActionToolbar() {
             />
           </div>
 
-          <h3
-            className="
-              text-sm
-              font-semibold
-              text-slate-900
-            "
-          >
-            Publish
-          </h3>
+          <div>
+            <h3
+              className="
+                text-sm
+                font-semibold
+                text-white
+              "
+            >
+              Publish
+            </h3>
 
-          <p
-            className="
-              mt-1
-              text-xs
-              leading-5
-              text-slate-500
-            "
-          >
-            Publish the finalized timetable
-            for students and faculty.
-          </p>
+            <p
+              className="
+                mt-1
+                text-[10px]
+                text-blue-200
+              "
+            >
+              Make it live
+            </p>
+          </div>
         </button>
       </div>
 
-      {/* Mobile */}
+      {/* RIGHT ACTIONS (Desktop Only) */}
       <div
         className="
-          grid
-          grid-cols-2
+          hidden
+          items-center
           gap-3
-          lg:hidden
+          self-end
+          lg:flex
         "
       >
+        {/* Preview */}
         <Button
           variant="outline"
-          className="h-12 justify-start gap-2"
+          className="
+            h-10
+            rounded-lg
+            border-[#E5E7EB]
+            px-5
+          "
         >
-          <WandSparkles className="h-4 w-4" />
-          Auto Allocate
-        </Button>
-
-        <Button
-          variant="outline"
-          className="h-12 justify-start gap-2"
-        >
-          <AlertTriangle className="h-4 w-4" />
-          Conflicts
-        </Button>
-
-        <Button
-          variant="outline"
-          className="h-12 justify-start gap-2"
-        >
-          <Eye className="h-4 w-4" />
+          <Eye className="mr-2 h-4 w-4" />
           Preview
         </Button>
 
+        {/* Publish */}
         <Button
           className="
-            h-12
-            justify-start
-            gap-2
-            bg-blue-700
-            hover:bg-blue-800
+            h-10
+            rounded-lg
+            bg-[#0D2463]
+            px-5
+            text-white
+            hover:bg-[#091A4A]
           "
         >
-          <Rocket className="h-4 w-4" />
-          Publish
+          <Rocket className="mr-2 h-4 w-4" />
+          Publish Timetable
         </Button>
       </div>
-    </section>
+    </div>
   );
 }

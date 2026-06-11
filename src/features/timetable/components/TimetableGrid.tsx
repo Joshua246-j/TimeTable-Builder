@@ -1,7 +1,6 @@
 "use client";
 
 import DayHeader from "./DayHeader";
-import TimeColumn from "./TimeColumn";
 import TimetableCell from "./TimetableCell";
 import LunchBreakRow from "./LunchBreakRow";
 import { memo, useCallback } from "react";
@@ -10,6 +9,12 @@ import type {
   SubjectCardData,
   TimetableCell as TimetableCellType,
 } from "@/types/timetable";
+import { useSelector, useDispatch } from "react-redux";
+import { RootState } from "@/store/store";
+import { toggleCellSelection } from "@/store/selectionSlice";
+import SelectionToolbar from "./SelectionToolbar";
+import type { SelectedCell } from "@/types/timetableSpan";
+import { isOverlap } from "@/lib/timeEngine";
 
 interface TimeSlot {
   id: string;
@@ -25,42 +30,22 @@ interface Day {
 
 interface TimetableGridProps {
   days: Day[];
-
   timeSlots: TimeSlot[];
-
   cells: TimetableCellType[];
-
-  subjects?: Record<
-    string,
-    SubjectCardData
-  >;
-
+  subjects?: Record<string, SubjectCardData>;
   selectedCellId?: string;
-
   lunchBreakIndex?: number;
-
   lunchBreakLabel?: string;
-
   lunchBreakStartTime?: string;
-
   lunchBreakEndTime?: string;
-
-  onDaySelect?: (
-    day: string
-  ) => void;
-
-  onCellClick?: (
-    cell: TimetableCellType
-  ) => void;
-
-  onSubjectClick?: (
-    cell: TimetableCellType
-  ) => void;
-
-  onAssignSlot?: (
-    cell: TimetableCellType,
-    subjectId: string
-  ) => void;
+  onDaySelect?: (day: string) => void;
+  onCellClick?: (cell: TimetableCellType) => void;
+  onSubjectClick?: (cell: TimetableCellType) => void;
+  onEditTime?: (cell: TimetableCellType) => void;
+  onAssignSlot?: (cell: TimetableCellType, subjectId: string) => void;
+  editingGroupId?: string | null;
+  onCancelEdit?: () => void;
+  onSaveEdit?: (subject: SubjectCardData, updatedTime?: {startTime: string; endTime: string}, swappedSubjectId?: string) => void;
 }
 
 const BADGE_STYLES: Record<string, { bg: string; border: string; text: string; label: string }> = {
@@ -76,20 +61,29 @@ export default memo(function TimetableGrid({
   cells,
   subjects = {},
   selectedCellId,
-
   lunchBreakIndex,
-
   lunchBreakLabel = "LUNCH BREAK",
-
   lunchBreakStartTime,
-
   lunchBreakEndTime,
-
   onDaySelect,
   onCellClick,
   onSubjectClick,
+  onEditTime,
   onAssignSlot,
+  editingGroupId,
+  onCancelEdit,
+  onSaveEdit,
 }: TimetableGridProps) {
+  const dispatch = useDispatch();
+  
+  const { selectedCells, selectionMode } = useSelector((state: RootState) => state.selection);
+  const { mergedAllocations } = useSelector((state: RootState) => state.merge);
+  const { lockedAllocations } = useSelector((state: RootState) => state.lock);
+  
+  const handleToggleCellSelection = useCallback((cell: SelectedCell) => {
+    dispatch(toggleCellSelection(cell));
+  }, [dispatch]);
+
   const getCell = useCallback(
     (dayName: string, startTime: string, endTime: string) => {
       return cells.find(
@@ -104,6 +98,7 @@ export default memo(function TimetableGrid({
 
   return (
     <>
+      <SelectionToolbar />
       {/* MOBILE TIMELINE VIEW */}
       <div className="flex flex-col gap-4 lg:hidden">
         {/* Mobile Date Selector (Example static days as per design) */}
@@ -127,7 +122,6 @@ export default memo(function TimetableGrid({
         {/* Timeline Items */}
         <div className="flex flex-col gap-4 px-4 pb-20">
           {timeSlots.map((timeSlot, rowIndex) => {
-            // For mobile, just show one day's schedule (e.g., first day)
             const day = days[0]?.name || "Monday";
             const cell = getCell(day, timeSlot.startTime, timeSlot.endTime);
             const subject = cell?.assignment ? subjects[cell.assignment.subjectId] : undefined;
@@ -136,13 +130,11 @@ export default memo(function TimetableGrid({
 
             return (
               <div key={timeSlot.id} className="flex items-start gap-3">
-                {/* Time */}
                 <div className="w-[60px] shrink-0 pt-2 text-right text-[10px] font-semibold text-slate-500">
                   {timeSlot.startTime}
                   <div className="text-[9px] text-slate-400 opacity-0">{timeSlot.endTime}</div>
                 </div>
 
-                {/* Content */}
                 <div className="min-w-0 flex-1">
                   {isLunch ? (
                     <div className="flex items-center justify-center rounded-xl bg-slate-100 py-3 text-[10px] font-bold text-slate-500">
@@ -150,9 +142,8 @@ export default memo(function TimetableGrid({
                     </div>
                   ) : subject ? (
                     <div
-                      className={`relative flex w-full flex-col gap-1 rounded-xl border border-slate-200 border-l-[4px] p-3 shadow-sm ${
-                        BADGE_STYLES[subject.type]?.bg || BADGE_STYLES.THEORY.bg
-                      } ${BADGE_STYLES[subject.type]?.border || BADGE_STYLES.THEORY.border}`}
+                      className={`relative flex w-full flex-col gap-1 rounded-xl border border-slate-200 border-l-[4px] p-3 shadow-sm ${BADGE_STYLES[subject.type]?.bg || BADGE_STYLES.THEORY.bg
+                        } ${BADGE_STYLES[subject.type]?.border || BADGE_STYLES.THEORY.border}`}
                     >
                       <div className="flex items-start justify-between">
                         <h4 className="text-sm font-bold text-[#0D2463]">{subject.subjectName}</h4>
@@ -186,211 +177,129 @@ export default memo(function TimetableGrid({
         className="
           hidden
           flex-col
+          h-full
+          min-h-0
           overflow-hidden
-          rounded-2xl
-          border
-          border-slate-100
-          bg-white
-          shadow-[0px_4px_24px_rgba(0,0,0,0.02)]
+          rounded-[24px]
+          bg-[#F8FAFC]
+          shadow-sm
           lg:flex
+          border border-slate-200/60
         "
       >
-        {/* Grid Header & Legend */}
-        <div className="flex items-center justify-between border-b border-slate-200 px-6 py-4">
-          <div className="flex items-center gap-2">
-            <div className="flex items-center justify-center rounded-md border border-slate-200 p-1.5 text-slate-500">
-              <svg
-                xmlns="http://www.w3.org/2000/svg"
-                width="16"
-                height="16"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="2"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-              >
-                <rect width="7" height="7" x="3" y="3" rx="1" />
-                <rect width="7" height="7" x="14" y="3" rx="1" />
-                <rect width="7" height="7" x="14" y="14" rx="1" />
-                <rect width="7" height="7" x="3" y="14" rx="1" />
-              </svg>
-            </div>
-            <span className="text-sm font-semibold text-slate-900">Section CSE V A</span>
-            <svg
-              xmlns="http://www.w3.org/2000/svg"
-              width="14"
-              height="14"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="2"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              className="text-slate-400"
-            >
-              <path d="m6 9 6 6 6-6" />
-            </svg>
-          </div>
 
-          <div className="flex items-center gap-4 text-[10px] font-bold uppercase tracking-wider text-slate-500">
-            <div className="flex items-center gap-1.5">
-              <span className="h-1.5 w-1.5 rounded-full bg-blue-500" />
-              THEORY
-            </div>
-            <div className="flex items-center gap-1.5">
-              <span className="h-1.5 w-1.5 rounded-full bg-green-500" />
-              LAB
-            </div>
-            <div className="flex items-center gap-1.5">
-              <span className="h-1.5 w-1.5 rounded-full bg-purple-500" />
-              TUTORIAL
-            </div>
-            <div className="flex items-center gap-1.5">
-              <span className="h-1.5 w-1.5 rounded-full bg-orange-500" />
-              ELECTIVE
-            </div>
-          </div>
-        </div>
 
-        <div className="overflow-x-auto">
+        <div className={`overflow-auto flex-1 ${days.length > 5 ? 'p-2' : 'p-4'}`}>
           <div
-            className="grid"
+            className={`grid ${days.length > 5 ? 'gap-x-[4px] gap-y-[4px]' : 'gap-x-[8px] gap-y-[8px]'}`}
             style={{
-              gridTemplateColumns: `120px repeat(${days.length}, minmax(300px, 1fr))`,
+              gridTemplateColumns: `repeat(${days.length}, minmax(${days.length > 5 ? '250px' : '280px'}, 1fr))`,
             }}
           >
-            <div
-              className="
-                bg-transparent
-              "
-            />
-
             {/* Day Headers */}
             {days.map((day) => (
               <DayHeader
                 key={day.id}
                 day={day.name}
                 shortLabel={day.shortName}
-                onClick={() =>
-                  onDaySelect?.(day.name)
-                }
+                onClick={() => onDaySelect?.(day.name)}
               />
             ))}
 
             {/* Rows */}
-            {timeSlots.map(
-              (timeSlot, rowIndex) => (
-                <div
-                  key={timeSlot.id}
-                  className="contents"
-                >
-                  {/* Time Column */}
-                  <TimeColumn
-                    startTime={
-                      timeSlot.startTime
-                    }
-                    endTime={
-                      timeSlot.endTime
-                    }
-                  />
+            {timeSlots.map((timeSlot, rowIndex) => (
+              <div key={timeSlot.id} className="contents">
+                {/* Cells */}
+                {days.map((day) => {
+                  const cell = getCell(day.name, timeSlot.startTime, timeSlot.endTime);
+                  const actualCell = cell || {
+                    id: `${day.id}-${timeSlot.id}`,
+                    day: day.name,
+                    startTime: timeSlot.startTime,
+                    endTime: timeSlot.endTime,
+                    isAssigned: false,
+                  };
 
-                  {/* Cells */}
-                  {days.map((day) => {
-                    const cell =
-                      getCell(
-                        day.name,
-                        timeSlot.startTime,
-                        timeSlot.endTime
-                      );
+                  const subject = actualCell.assignment ? subjects[actualCell.assignment.subjectId] : undefined;
 
-                    const actualCell = cell || {
-                      id: `${day.id}-${timeSlot.id}`,
-                      day: day.name,
-                      startTime: timeSlot.startTime,
-                      endTime: timeSlot.endTime,
-                      isAssigned: false,
-                    };
 
-                    const subject =
-                      actualCell.assignment
-                        ? subjects[
-                            actualCell.assignment
-                              .subjectId
-                          ]
-                        : undefined;
-
-                    return (
-                      <TimetableCell
-                        key={actualCell.id}
-                        cell={actualCell}
-                        subject={subject}
-                        selected={
-                          selectedCellId ===
-                          actualCell.id
-                        }
-                        onCellClick={
-                          onCellClick
-                        }
-                        onSubjectClick={
-                          onSubjectClick
-                        }
-                        onAssignSlot={
-                          onAssignSlot
-                        }
-                        availableSubjects={
-                          Object.values(subjects)
-                        }
-                      />
+                  const activeGroup = Object.values(mergedAllocations).find((g) => {
+                    const isSameDay = g.dayId === day.name || g.dayId === day.id;
+                    if (!isSameDay) return false;
+                    return isOverlap(
+                      { startTime: g.startTime, endTime: g.endTime },
+                      { startTime: timeSlot.startTime, endTime: timeSlot.endTime }
                     );
-                  })}
+                  });
 
-                  {/* Optional Break Row */}
-                  {typeof lunchBreakIndex ===
-                    "number" &&
-                    lunchBreakIndex ===
-                      rowIndex && (
-                      <>
-                        <div
-                          className="
-                            bg-transparent
-                          "
-                        >
-                          <TimeColumn
-                            startTime={
-                              lunchBreakStartTime ||
-                              ""
-                            }
-                            endTime={
-                              lunchBreakEndTime ||
-                              ""
-                            }
-                            isLunchBreak
-                          />
-                        </div>
+                  if (activeGroup) {
+                    const groupSubject = activeGroup.subjectId ? subjects[activeGroup.subjectId] : undefined;
+                    // Check if lockSlice has this id locked, or if the group itself has isLocked true
+                    const isGroupLocked = lockedAllocations[activeGroup.id] || activeGroup.isLocked;
+                    
+                    if (timeSlot.startTime === activeGroup.startTime) {
+                      return (
+                        <TimetableCell
+                          key={actualCell.id}
+                          cell={actualCell}
+                          subject={groupSubject || subject}
+                          selected={selectedCellId === actualCell.id}
+                          onCellClick={onCellClick}
+                          onSubjectClick={onSubjectClick}
+                          onEditTime={onEditTime}
+                          onAssignSlot={onAssignSlot}
+                          availableSubjects={Object.values(subjects)}
+                          rowIndex={rowIndex}
+                          selectionMode={selectionMode}
+                          onSelectionToggle={handleToggleCellSelection}
+                          rowSpan={activeGroup.rowSpan}
+                          mergedGroup={{ ...activeGroup, isLocked: isGroupLocked }}
+                          isEditing={editingGroupId === activeGroup.id}
+                          onCancelEdit={onCancelEdit}
+                          onSaveEdit={onSaveEdit}
+                        />
+                      );
+                    } else {
+                      return null; // Skip rendering cell if it's covered by a rowSpan
+                    }
+                  }
 
-                        <div
-                          style={{
-                            gridColumn: `span ${days.length}`,
-                          }}
-                        >
-                          <LunchBreakRow
-                            label={
-                              lunchBreakLabel
-                            }
-                            startTime={
-                              lunchBreakStartTime
-                            }
-                            endTime={
-                              lunchBreakEndTime
-                            }
-                          />
-                        </div>
-                      </>
-                    )}
-                </div>
-              )
-            )}
+                  const isSpanSelected = selectedCells.some((c) => c.id === actualCell.id);
+
+                  return (
+                    <TimetableCell
+                      key={actualCell.id}
+                      cell={actualCell}
+                      subject={subject}
+                      selected={selectedCellId === actualCell.id}
+                      onCellClick={onCellClick}
+                      onSubjectClick={onSubjectClick}
+                      onEditTime={onEditTime}
+                      onAssignSlot={onAssignSlot}
+                      availableSubjects={Object.values(subjects)}
+                      rowIndex={rowIndex}
+                      isSpanSelected={isSpanSelected}
+                      selectionMode={selectionMode}
+                      onSelectionToggle={handleToggleCellSelection}
+                      isEditing={editingGroupId === actualCell.id}
+                      onCancelEdit={onCancelEdit}
+                      onSaveEdit={onSaveEdit}
+                    />
+                  );
+                })}
+
+                {/* Optional Break Row */}
+                {typeof lunchBreakIndex === "number" && lunchBreakIndex === rowIndex && (
+                  <div style={{ gridColumn: `span ${days.length}` }}>
+                    <LunchBreakRow
+                      label={lunchBreakLabel}
+                      startTime={lunchBreakStartTime}
+                      endTime={lunchBreakEndTime}
+                    />
+                  </div>
+                )}
+              </div>
+            ))}
           </div>
         </div>
       </div>

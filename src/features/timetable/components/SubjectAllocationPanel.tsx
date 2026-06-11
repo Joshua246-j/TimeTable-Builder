@@ -11,12 +11,14 @@ interface SubjectAllocationPanelProps {
   subjects: SubjectCardData[];
   onUpdateSubject: (subject: SubjectCardData) => void;
   onAddSubject: (subject: SubjectCardData) => void;
+  onClose?: () => void;
 }
 
 export default memo(function SubjectAllocationPanel({
   subjects,
   onUpdateSubject,
   onAddSubject,
+  onClose,
 }: SubjectAllocationPanelProps) {
   const [editingId, setEditingId] = useState("");
 
@@ -26,19 +28,8 @@ export default memo(function SubjectAllocationPanel({
   }, [onUpdateSubject]);
 
   const handleAddNew = useCallback(() => {
-    const newId = `new-${Date.now()}`;
-    const newSubject: SubjectCardData = {
-      id: newId,
-      code: "NEW",
-      credits: 3,
-      type: "THEORY",
-      subjectName: "New Subject",
-      facultyName: "Unassigned",
-      roomName: "Unassigned",
-    };
-    onAddSubject(newSubject);
-    setEditingId(newId);
-  }, [onAddSubject]);
+    setEditingId('NEW_DRAFT');
+  }, []);
 
   return (
     <aside
@@ -57,6 +48,10 @@ export default memo(function SubjectAllocationPanel({
           border-[#E5E7EB]
           px-5
           py-5
+          sticky
+          top-0
+          bg-white
+          z-10
         "
       >
         <div className="flex items-start justify-between">
@@ -83,6 +78,7 @@ export default memo(function SubjectAllocationPanel({
           </div>
 
           <button
+            onClick={onClose}
             className="
               rounded-md
               p-1
@@ -108,51 +104,67 @@ export default memo(function SubjectAllocationPanel({
       >
         <div className="space-y-4">
           {subjects.map((subject) => {
-            const isEditing =
-              editingId === subject.id;
-
-            if (isEditing) {
+            if (editingId === subject.id) {
               return (
-                <SubjectAssignmentEditor
-                  key={subject.id}
-                  subject={subject}
-                  onCancel={() => setEditingId("")}
-                  onSave={() => handleSave(subject)}
-                />
+                <div key={`edit-${subject.id}`} className="mb-4">
+                  <SubjectAssignmentEditor
+                    subject={subject}
+                    onCancel={() => setEditingId("")}
+                    onSave={handleSave}
+                  />
+                </div>
               );
             }
-
             return (
               <SubjectAllocationCard
                 key={subject.id}
                 subject={subject}
-                onEdit={() =>
-                  setEditingId(subject.id)
-                }
+                onEdit={() => setEditingId(subject.id)}
               />
             );
           })}
+
+          {editingId === 'NEW_DRAFT' && (
+            <div className="mb-4">
+              <SubjectAssignmentEditor
+                subject={{
+                  id: `new-${Date.now()}`,
+                  subjectName: "",
+                  code: "",
+                  type: "THEORY",
+                  credits: 3,
+                  facultyName: "",
+                  roomName: "",
+                }}
+                onCancel={() => setEditingId("")}
+                onSave={(subj) => {
+                  if (!subj.subjectName) {
+                    alert("Subject Name is required!");
+                    return;
+                  }
+                  onAddSubject(subj);
+                  setEditingId("");
+                }}
+              />
+            </div>
+          )}
         </div>
       </div>
 
-      {/* Footer */}
+      {/* Editor Modal Removed */}
 
-      <div
-        className="
-          p-5
-          pt-0
-        "
-      >
+      {/* Footer - Fixed at bottom */}
+      <div className="p-5 flex flex-col gap-4 sticky bottom-0 bg-white border-t border-slate-200 z-10 shadow-[0_-4px_10px_rgba(0,0,0,0.02)]">
         <button
           onClick={handleAddNew}
           className="
             flex
-            h-14
+            h-12
             w-full
             items-center
             justify-center
             gap-2
-            rounded-2xl
+            rounded-xl
             border
             border-dashed
             border-[#D6DDF5]
@@ -165,7 +177,6 @@ export default memo(function SubjectAllocationPanel({
           "
         >
           <Plus className="h-4 w-4" />
-
           Add New Subject
         </button>
       </div>

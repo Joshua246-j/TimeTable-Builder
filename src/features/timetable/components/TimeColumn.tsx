@@ -16,12 +16,13 @@ export default function TimeColumn({
       <div
         className="
           flex
-          min-h-[140px]
+          min-h-[72px]
           flex-col
           items-center
           justify-center
-          px-3
+          px-1
           text-center
+          w-[56px]
         "
       >
         <span
@@ -53,18 +54,21 @@ export default function TimeColumn({
     <div
       className="
         flex
-        min-h-[140px]
+        min-h-[72px]
         flex-col
         justify-center
+        items-center
         bg-transparent
-        px-3
+        px-1
+        w-[56px]
       "
     >
       <span
         className="
-          text-sm
-          font-semibold
+          text-[9px]
+          font-bold
           text-slate-900
+          text-center
         "
       >
         {startTime}
@@ -72,9 +76,11 @@ export default function TimeColumn({
 
       <span
         className="
-          mt-1
-          text-xs
+          mt-[1px]
+          text-[9px]
+          font-bold
           text-slate-500
+          text-center
         "
       >
         {endTime}

@@ -14,56 +14,47 @@ export default function DayHeader({
   onClick,
 }: DayHeaderProps) {
   return (
-    <button
-      type="button"
+    <div
       onClick={onClick}
       className={`
         flex
-        min-h-[64px]
         w-full
-        flex-col
         items-center
         justify-center
-        px-4
-        text-center
-        transition-all
-
-        ${
-          active
-            ? `
-              bg-blue-50
-              text-blue-700
-            `
-            : `
-              bg-white
-              text-slate-700
-              hover:bg-slate-50
-            `
-        }
+        pb-4
+        ${onClick ? "cursor-pointer" : ""}
       `}
     >
       {/* Desktop */}
       <span
-        className="
+        className={`
           hidden
-          text-sm
-          font-semibold
+          text-[11px]
+          uppercase
+          font-[700]
+          tracking-[0.04em]
           lg:block
-        "
+          mb-[8px]
+          ${active ? "text-[#4338CA]" : "text-[#64748B]"}
+        `}
       >
         {day}
       </span>
 
       {/* Mobile / Tablet */}
       <span
-        className="
-          text-sm
-          font-semibold
+        className={`
+          text-[11px]
+          uppercase
+          font-[700]
+          tracking-[0.04em]
           lg:hidden
-        "
+          mb-[8px]
+          ${active ? "text-[#4338CA]" : "text-[#64748B]"}
+        `}
       >
         {shortLabel ?? day}
       </span>
-    </button>
+    </div>
   );
 }

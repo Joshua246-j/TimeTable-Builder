@@ -12,7 +12,9 @@ export type SubjectType =
   | "theory"
   | "lab"
   | "tutorial"
-  | "elective";
+  | "elective"
+  | "seminar"
+  | "workshop";
 
 export type WeekDay =
   | "Monday"
@@ -49,6 +51,7 @@ export interface TimeSlot {
   startTime: string;
   endTime: string;
   label: string;
+  durationMinutes?: number;
 }
 
 export interface SubjectAssignment {
@@ -71,10 +74,35 @@ export interface TimetableCellAssignment {
 export interface TimetableCell {
   id: string;
   day: string;
+  dayId?: string;
+  slotId?: string;
   startTime: string;
   endTime: string;
   isAssigned: boolean;
   assignment?: TimetableCellAssignment;
+  rowSpan?: number;
+  merged?: boolean;
+  occupied?: boolean;
+  locked?: boolean;
+  subjectId?: string;
+  mergedGroupId?: string;
+  isEditable?: boolean;
+}
+
+export interface ScheduleEntry {
+  id: string;
+  subjectId: string;
+  teacherId?: string;
+  roomId?: string;
+  dayId: string;
+  startTime: string;
+  endTime: string;
+  duration?: number;
+  rowSpan: number;
+  rowStart: number;
+  merged?: boolean;
+  isEditable: boolean;
+  isLocked: boolean;
 }
 
 export interface TimetableDay {
@@ -87,6 +115,7 @@ export interface TimetableTimeSlot {
   id: string;
   startTime: string;
   endTime: string;
+  durationMinutes?: number;
 }
 
 export interface TimetableData {
@@ -98,22 +127,21 @@ export interface TimetableData {
 
 export interface SubjectCardData {
   id: string;
-
   code?: string;
   credits?: number;
   subjectName: string;
-
   facultyName: string;
-
   roomName: string;
-
   type: string;
-
+  section?: string;
+  color?: string;
+  bookmarkStatus?: boolean;
+  notes?: string;
   hasConflict?: boolean;
+  isEditable?: boolean;
 }
 
 export interface DaySelectorItem {
   label: WeekDay;
-
   value: WeekDay;
 }

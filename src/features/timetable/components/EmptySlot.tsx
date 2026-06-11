@@ -1,75 +1,44 @@
 "use client";
 
-import { Plus } from "lucide-react";
+
 import { memo } from "react";
+import { cn } from "@/lib/utils";
 
 interface EmptySlotProps {
   isSelected?: boolean;
   onClick?: () => void;
+  startTime?: string;
+  endTime?: string;
+  rowSpan?: number;
 }
 
 export default memo(function EmptySlot({
   isSelected = false,
   onClick,
+  rowSpan = 1,
 }: EmptySlotProps) {
+  const baseHeight = 120;
+  const gap = 16;
+  const height = rowSpan > 1 ? baseHeight * rowSpan + gap * (rowSpan - 1) : baseHeight;
+
   return (
     <button
       type="button"
       onClick={onClick}
-      className={`
-        group
-        flex
-        h-full
-        min-h-[100px]
-        w-full
-        flex-col
-        items-center
-        justify-center
-        rounded-xl
-        border-2
-        border-dashed
-        transition-all
-        bg-white
-
-        ${
-          isSelected
-            ? `
-              border-[#4F6BFF]
-              bg-blue-50/30
-              ring-4
-              ring-blue-50
-            `
-            : `
-              border-[#E2E8F0]
-              hover:border-[#CBD5E1]
-              hover:bg-slate-50
-              hover:-translate-y-[2px]
-              hover:shadow-md
-              duration-200
-            `
-        }
-      `}
+      style={{ minHeight: `${height}px` }}
+      className={cn(
+        "group relative flex w-full items-center justify-center overflow-hidden rounded-[10px] border border-dashed transition-all duration-200",
+        isSelected
+          ? "border-blue-500 bg-blue-50/40 ring-2 ring-blue-100"
+          : "border-slate-300 bg-white hover:-translate-y-[1px] hover:border-blue-500 hover:bg-blue-50/40"
+      )}
     >
-      <div className="flex items-center gap-1.5">
-        <Plus className={`h-3 w-3 ${isSelected ? "text-[#4F6BFF]" : "text-[#64748B] group-hover:text-[#475569]"}`} />
-        <span
-          className={`
-            text-[11px]
-            font-bold
-            uppercase
-            tracking-wider
-            transition-colors
-
-            ${
-              isSelected
-                ? "text-[#4F6BFF]"
-                : "text-[#64748B] group-hover:text-[#475569]"
-            }
-          `}
-        >
-          ASSIGN
-        </span>
-      </div>
+      <span className={cn(
+        "text-[10px] font-bold tracking-wider",
+        "text-slate-400 group-hover:text-blue-600"
+      )}>
+        + ASSIGN
+      </span>
     </button>
   );
 });

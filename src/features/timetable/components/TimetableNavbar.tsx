@@ -4,7 +4,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
   Bell,
-  CalendarDays,
+  LayoutGrid,
   Menu,
 } from "lucide-react";
 
@@ -80,11 +80,11 @@ export default function TimetableNavbar() {
                 items-center
                 justify-center
                 rounded-lg
-                bg-[#0D2463]
+                bg-[#4F46E5]
                 text-white
               "
             >
-              <CalendarDays className="h-4 w-4 md:h-5 md:w-5" />
+              <LayoutGrid className="h-4 w-4 md:h-5 md:w-5" />
             </div>
 
             <div className="flex flex-col">
@@ -109,7 +109,7 @@ export default function TimetableNavbar() {
                   leading-tight
                 "
               >
-                B.TECH CSE • SEMESTER V
+                SS TECH CSE • SEMESTER V
               </p>
             </div>
           </div>
@@ -134,7 +134,7 @@ export default function TimetableNavbar() {
               h-[calc(100%-8px)]
               w-[100px]
               rounded-full
-              bg-[#0D2463]
+              bg-[#4F46E5]
               shadow-sm
               transition-all
               duration-300
@@ -284,11 +284,11 @@ export default function TimetableNavbar() {
           >
             <AvatarFallback
               className="
-                bg-[#0D2463]
+                bg-indigo-100
                 text-xs
                 md:text-sm
                 font-semibold
-                text-white
+                text-[#4F46E5]
               "
             >
               AK

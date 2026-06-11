@@ -1,13 +1,22 @@
 "use client";
 
+import { memo } from "react";
+import { useDroppable, useDraggable } from "@dnd-kit/core";
 import EmptySlot from "./EmptySlot";
-import SubjectCard from "./SubjectCard";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import SubjectClassCard from "./SubjectClassCard";
+import MergedPeriodCard from "./MergedPeriodCard";
+import TimetableSlotCard from "./TimetableSlotCard";
+import SubjectAssignmentEditor from "./SubjectAssignmentEditor";
+import { useDispatch } from "react-redux";
+import { lockAllocation, unlockAllocation } from "@/store/lockSlice";
 
 import type {
   SubjectCardData,
   TimetableCell as TimetableCellType,
+  ScheduleEntry,
 } from "@/types/timetable";
+
+import type { SelectedCell } from "@/types/timetableSpan";
 
 interface TimetableCellProps {
   cell: TimetableCellType;
@@ -15,11 +24,21 @@ interface TimetableCellProps {
   selected?: boolean;
   onCellClick?: (cell: TimetableCellType) => void;
   onSubjectClick?: (cell: TimetableCellType) => void;
+  onEditTime?: (cell: TimetableCellType) => void;
   onAssignSlot?: (cell: TimetableCellType, subjectId: string) => void;
   availableSubjects?: SubjectCardData[];
+  rowIndex?: number;
+  isSpanSelected?: boolean;
+  mergedGroup?: ScheduleEntry;
+  onSelectionToggle?: (cell: SelectedCell) => void;
+  selectionMode?: boolean;
+  rowSpan?: number;
+  isLocked?: boolean;
+  isConflict?: boolean;
+  isEditing?: boolean;
+  onCancelEdit?: () => void;
+  onSaveEdit?: (subject: SubjectCardData, updatedTime?: {startTime: string; endTime: string}, swappedSubjectId?: string) => void;
 }
-
-import { memo } from "react";
 
 export default memo(function TimetableCell({
   cell,
@@ -27,80 +46,227 @@ export default memo(function TimetableCell({
   selected = false,
   onCellClick,
   onSubjectClick,
+  onEditTime,
   onAssignSlot,
   availableSubjects = [],
+  rowIndex,
+  isSpanSelected = false,
+  mergedGroup,
+  onSelectionToggle,
+  selectionMode = false,
+  rowSpan = 1,
+  isLocked = false,
+  isConflict = false,
+  isEditing = false,
+  onCancelEdit,
+  onSaveEdit,
 }: TimetableCellProps) {
-  const handleClick = () => {
-    onCellClick?.(cell);
+  const dispatch = useDispatch();
+  
+  const { setNodeRef, isOver } = useDroppable({
+    id: cell.id,
+    data: {
+      type: "CELL",
+      cell,
+    },
+  });
+  
+  const { setNodeRef: setDragRef, attributes, listeners, isDragging } = useDraggable({
+    id: `drag-${mergedGroup ? mergedGroup.id : cell.id}`,
+    data: {
+      type: "CELL_ITEM",
+      cellId: mergedGroup ? mergedGroup.id : cell.id,
+      subjectId: mergedGroup ? mergedGroup.subjectId : cell.assignment?.subjectId,
+      rowSpan: rowSpan,
+      startTime: mergedGroup ? mergedGroup.startTime : cell.startTime,
+      endTime: mergedGroup ? mergedGroup.endTime : cell.endTime,
+    },
+    disabled: mergedGroup ? (mergedGroup.isLocked || isLocked) : isLocked,
+  });
+
+  const handleSlotClick = () => {
+    if (selectionMode && onSelectionToggle && rowIndex !== undefined) {
+      onSelectionToggle({
+        id: cell.id,
+        day: cell.day,
+        startTime: cell.startTime,
+        endTime: cell.endTime,
+        rowIndex,
+        subjectId: cell.assignment?.subjectId,
+      });
+      return;
+    }
+
+    if (cell.isAssigned && subject) {
+      onSubjectClick?.(cell);
+    } else {
+      onCellClick?.(cell);
+    }
   };
 
-  const handleSubjectClick = () => {
-    onSubjectClick?.(cell);
-  };
+  /* =======================================
+     MERGED CARD
+  ======================================= */
+  if (mergedGroup) {
+    return (
+      <div 
+        ref={setNodeRef} 
+        className={`relative ${isOver ? "ring-2 ring-blue-500 rounded-[10px]" : ""}`} 
+        style={{ gridRow: `span ${rowSpan}` }}
+      >
+        <div 
+          ref={setDragRef as unknown as React.Ref<HTMLDivElement>}
+          {...attributes} 
+          {...listeners}
+          className={`h-full ${isDragging ? "opacity-50" : ""}`}
+        >
+          <TimetableSlotCard
+            startTime={mergedGroup.startTime}
+            endTime={mergedGroup.endTime}
+            rowSpan={rowSpan}
+            isSelected={selected || isSpanSelected}
+            isLocked={mergedGroup.isLocked || isLocked}
+            isSelectionMode={selectionMode}
+            onClick={handleSlotClick}
+          >
+            <MergedPeriodCard group={mergedGroup} subject={subject} />
+          </TimetableSlotCard>
+        </div>
 
+        {/* Inline Editor Popup */}
+        {isEditing && subject && (
+          <div className="absolute inset-x-0 top-0 z-[100] min-w-[300px]">
+            <SubjectAssignmentEditor
+              subject={subject}
+              scheduleEntry={{
+                id: mergedGroup.id,
+                subjectId: subject.id,
+                dayId: mergedGroup.dayId,
+                startTime: mergedGroup.startTime,
+                endTime: mergedGroup.endTime,
+                rowSpan: rowSpan,
+                rowStart: 0,
+                isEditable: true,
+                isLocked: mergedGroup.isLocked || isLocked,
+              }}
+              onCancel={() => onCancelEdit?.()}
+              onSave={(s, t, sw) => onSaveEdit?.(s, t, sw)}
+            />
+          </div>
+        )}
+      </div>
+    );
+  }
+
+  /* =======================================
+     NORMAL CELL
+  ======================================= */
   return (
-    <div
-      className="
-        min-h-[140px]
-        p-2
-        relative
-        flex
-        flex-col
-      "
-    >
+    <div ref={setNodeRef} className={`relative ${isOver ? "ring-2 ring-blue-500 rounded-[10px]" : ""}`} style={{ gridRow: `span ${rowSpan}` }}>
       {cell.isAssigned && subject ? (
-        <SubjectCard
-          data={subject}
-          selected={selected}
-          onClick={handleSubjectClick}
-        />
+        <div 
+          ref={setDragRef as unknown as React.Ref<HTMLDivElement>}
+          {...attributes} 
+          {...listeners}
+          className={`h-full ${isDragging ? "opacity-50" : ""}`}
+        >
+          <TimetableSlotCard
+            startTime={cell.startTime}
+            endTime={cell.endTime}
+            rowSpan={rowSpan}
+            isSelected={selected || isSpanSelected}
+            isLocked={isLocked}
+            isConflict={isConflict || subject?.hasConflict}
+            isSelectionMode={selectionMode}
+            onClick={handleSlotClick}
+          >
+            <SubjectClassCard 
+              data={subject} 
+              hasConflict={isConflict || subject.hasConflict} 
+              isLocked={isLocked}
+              onToggleLock={() => {
+                if (isLocked) {
+                  dispatch(unlockAllocation(cell.id));
+                } else {
+                  dispatch(lockAllocation(cell.id));
+                }
+              }}
+              onEdit={() => onEditTime?.(cell)}
+              onDelete={() => onSubjectClick?.(cell)}
+            />
+          </TimetableSlotCard>
+        </div>
       ) : (
-        <>
-          <EmptySlot
-            isSelected={selected}
-            onClick={handleClick}
-          />
-          {selected && onAssignSlot && (
-            <div className="absolute inset-0 bg-white/95 flex flex-col justify-center p-2 z-10 rounded-xl border border-blue-200 shadow-sm backdrop-blur-sm animate-in fade-in zoom-in duration-200">
-              <div className="flex items-center justify-between mb-2 px-1">
-                <span className="text-[10px] font-bold text-[#0D2463] uppercase tracking-wider">Assign Subject</span>
-                <button
-                  type="button"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    // Click the cell again to deselect or just let parent handle click
-                    if (onCellClick) onCellClick({ ...cell, id: "" });
-                  }}
-                  className="text-slate-400 hover:text-red-500 transition-colors"
-                >
-                  <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>
-                </button>
-              </div>
-              <Select
-                defaultOpen={true}
-                onValueChange={(value) => {
-                  if (value) {
-                    onAssignSlot(cell, value);
-                  }
+        <EmptySlot
+          isSelected={selected || isSpanSelected}
+          isSelectionMode={selectionMode}
+          onClick={handleSlotClick}
+          startTime={cell.startTime}
+          endTime={cell.endTime}
+          rowSpan={rowSpan}
+        />
+      )}
+
+      {/* Assignment Popup overlaying the card */}
+      {selected && onAssignSlot && !selectionMode && !cell.isAssigned && (
+        <div className="absolute top-0 inset-x-0 z-50 flex flex-col rounded-[10px] border-2 border-blue-400 bg-white shadow-2xl overflow-hidden min-h-[120px] max-h-[300px]">
+          <div className="flex items-center justify-between px-3 py-2 bg-blue-50 border-b border-blue-100 shrink-0">
+            <span className="text-[11px] font-bold text-blue-800 uppercase tracking-wider">Assign Subject</span>
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                onCellClick?.({ ...cell, id: "" });
+              }}
+              className="text-slate-400 hover:text-red-500 hover:bg-white rounded-md w-6 h-6 flex items-center justify-center transition-colors"
+            >
+              ✕
+            </button>
+          </div>
+          <div className="flex-1 overflow-y-auto p-1.5 scrollbar-thin scrollbar-thumb-slate-200 bg-white">
+            {availableSubjects.map((sub) => (
+              <button
+                key={sub.id}
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onAssignSlot(cell, sub.id);
                 }}
+                className="w-full text-left p-2 hover:bg-blue-50 rounded-lg mb-1 border border-transparent hover:border-blue-200 transition-colors flex flex-col gap-1"
               >
-                <SelectTrigger className="w-full h-8 text-xs bg-white border-slate-200 shadow-sm focus:ring-[#0D2463]">
-                  <SelectValue placeholder="Select..." />
-                </SelectTrigger>
-                <SelectContent className="max-h-[200px]">
-                  {availableSubjects.map((sub) => (
-                    <SelectItem key={sub.id} value={sub.id} className="text-xs py-1.5 cursor-pointer">
-                      <div className="flex flex-col">
-                        <span className="font-semibold text-slate-900">{sub.subjectName}</span>
-                        <span className="text-[9px] text-slate-500 uppercase">{sub.type} • {sub.facultyName}</span>
-                      </div>
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-          )}
-        </>
+                <span className="font-bold text-slate-700 text-[13px] leading-tight line-clamp-2">{sub.subjectName}</span>
+                <span className="text-[10px] uppercase text-slate-500 font-semibold truncate">
+                  {sub.type} • {sub.facultyName}
+                </span>
+              </button>
+            ))}
+            {availableSubjects.length === 0 && (
+              <div className="text-xs text-slate-400 p-4 text-center">No subjects available</div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* Inline Editor Popup for Normal Cell */}
+      {isEditing && subject && cell.isAssigned && (
+        <div className="absolute inset-x-0 top-0 z-[100] min-w-[300px]">
+          <SubjectAssignmentEditor
+            subject={subject}
+            scheduleEntry={{
+              id: cell.id,
+              subjectId: subject.id,
+              dayId: cell.day,
+              startTime: cell.startTime,
+              endTime: cell.endTime,
+              rowSpan: rowSpan,
+              rowStart: 0,
+              isEditable: true,
+              isLocked: isLocked,
+            }}
+            onCancel={() => onCancelEdit?.()}
+            onSave={(s, t, sw) => onSaveEdit?.(s, t, sw)}
+          />
+        </div>
       )}
     </div>
   );

@@ -129,6 +129,10 @@
   }
 }
 
+.font-inter {
+  font-family: var(--font-inter), sans-serif !important;
+}
+
 /* Premium Scrollbar Styles */
 ::-webkit-scrollbar {
   width: 6px;

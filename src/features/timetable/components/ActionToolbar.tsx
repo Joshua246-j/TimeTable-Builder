@@ -8,24 +8,29 @@ import {
   LayoutGrid,
 } from "lucide-react";
 
+import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { useDispatch, useSelector } from "react-redux";
 import { enableSelectionMode, disableSelectionMode } from "@/store/selectionSlice";
-import { mergeSelectedPeriods } from "@/store/syntheticActions";
+import { mergeSelectedPeriods, runValidation } from "@/store/syntheticActions";
 import { undoHistory, redoHistory } from "@/store/historySlice";
 import { RootState, AppDispatch } from "@/store/store";
+import ConflictDrawer from "./ConflictDrawer";
 
 interface ActionToolbarProps {
   includeSaturday?: boolean;
   onToggleSaturday?: (checked: boolean) => void;
+  onOpenConflicts?: () => void;
 }
 
 export default function ActionToolbar({
   includeSaturday = false,
   onToggleSaturday,
+  onOpenConflicts,
 }: ActionToolbarProps) {
   const dispatch = useDispatch<AppDispatch>();
   const { selectionMode, selectedCells } = useSelector((state: RootState) => state.selection);
+  const { conflicts } = useSelector((state: RootState) => state.validation);
 
   const handleToggleSelectionMode = () => {
     if (selectionMode) {
@@ -70,13 +75,22 @@ export default function ActionToolbar({
           </button>
 
           {/* Detect Conflicts */}
-          <button className="flex items-center gap-3 rounded-2xl border border-[#E5E7EB] bg-white px-4 py-3 text-left transition-all hover:border-red-300 hover:bg-red-50 min-w-[200px]" style={{ boxShadow: "0 2px 8px -2px rgba(0,0,0,0.05)" }}>
-            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-red-50 text-red-500">
+          <button 
+            onClick={() => {
+              dispatch(runValidation());
+              if (onOpenConflicts) onOpenConflicts();
+            }}
+            className={`flex items-center gap-3 rounded-2xl border ${conflicts.length > 0 ? 'border-red-300 bg-red-50' : 'border-[#E5E7EB] bg-white'} px-4 py-3 text-left transition-all hover:border-red-300 hover:bg-red-50 min-w-[200px]`} 
+            style={{ boxShadow: "0 2px 8px -2px rgba(0,0,0,0.05)" }}
+          >
+            <div className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-lg ${conflicts.length > 0 ? 'bg-red-100 text-red-600' : 'bg-slate-50 text-slate-500'}`}>
               <TriangleAlert className="h-5 w-5" />
             </div>
             <div>
-              <h3 className="text-sm font-bold text-[#0D2463]">Detect Conflicts</h3>
-              <p className="text-xs text-slate-500">Verify constraints</p>
+              <h3 className={`text-sm font-bold ${conflicts.length > 0 ? 'text-red-700' : 'text-[#0D2463]'}`}>Detect Conflicts</h3>
+              <p className={`text-xs ${conflicts.length > 0 ? 'text-red-500 font-semibold' : 'text-slate-500'}`}>
+                {conflicts.length > 0 ? `${conflicts.length} Conflicts Detected` : 'Verify constraints'}
+              </p>
             </div>
           </button>
           

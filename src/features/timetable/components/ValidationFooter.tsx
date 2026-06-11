@@ -8,7 +8,11 @@ import { undoHistory, redoHistory } from "@/store/historySlice";
 import { clearAllocations } from "@/store/allocationSlice";
 import { runValidation } from "@/store/syntheticActions";
 
-export default function ValidationFooter() {
+interface ValidationFooterProps {
+  onOpenConflicts?: () => void;
+}
+
+export default function ValidationFooter({ onOpenConflicts }: ValidationFooterProps) {
   const dispatch = useDispatch<AppDispatch>();
   const validation = useSelector((state: RootState) => state.validation);
   
@@ -27,7 +31,13 @@ export default function ValidationFooter() {
   const handleRedo = () => dispatch(redoHistory());
 
   return (
-    <div className={`flex flex-col sm:flex-row items-center justify-between rounded-xl border bg-white p-4 shadow-[0_-4px_6px_-1px_rgb(0,0,0,0.05)] lg:shadow-sm ${hasConflicts ? 'border-orange-200' : hasWarnings ? 'border-yellow-200' : 'border-[#E5E7EB]'}`}>
+    <div className={`flex flex-col sm:flex-row items-center justify-between rounded-xl border bg-white p-4 shadow-[0_-4px_6px_-1px_rgb(0,0,0,0.05)] lg:shadow-sm transition-colors ${hasConflicts ? 'border-orange-200 cursor-pointer hover:bg-orange-50/30' : hasWarnings ? 'border-yellow-200' : 'border-[#E5E7EB]'}`}
+         onClick={() => {
+           if (hasConflicts && onOpenConflicts) {
+             onOpenConflicts();
+           }
+         }}
+    >
       {/* Left side: Status */}
       <div className="flex items-center gap-3">
         {hasConflicts ? (

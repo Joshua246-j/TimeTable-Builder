@@ -7,6 +7,11 @@ export interface ValidationIssue {
   cellIds?: string[]; // The cells involved in the conflict
   subjectId?: string;
   autoFixAction?: string;
+  conflictType?: 'Faculty Conflict' | 'Room Conflict' | 'Section Conflict' | 'Merge Conflict' | 'Manual Edit Conflict';
+  affectedSubject?: string;
+  affectedTeacher?: string;
+  affectedRoom?: string;
+  affectedTime?: string;
 }
 
 export interface ValidationResult {

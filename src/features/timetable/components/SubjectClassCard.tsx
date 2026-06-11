@@ -24,14 +24,23 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
+
 import type { LucideIcon } from "lucide-react";
 import { memo } from "react";
 import type { SubjectCardData } from "@/types/timetable";
+import { ValidationIssue } from "@/services/validationService";
 
 
 interface SubjectClassCardProps {
   data: SubjectCardData;
   hasConflict?: boolean;
+  conflictData?: ValidationIssue;
   isLocked?: boolean;
   onToggleLock?: () => void;
   onEdit?: () => void;
@@ -87,6 +96,7 @@ const BADGE_STYLES: Record<string, BadgeStyle> = {
 export default memo(function SubjectClassCard({
   data,
   hasConflict = false,
+  conflictData,
   isLocked = false,
   onToggleLock,
   onEdit,
@@ -101,9 +111,29 @@ export default memo(function SubjectClassCard({
       
         {/* Actions / Conflict indicator */}
       {hasConflict && (
-        <div className="absolute top-2 right-8 h-4 w-4 rounded bg-orange-100 text-orange-500 flex items-center justify-center z-20">
-          <AlertTriangle className="h-2.5 w-2.5" />
-        </div>
+        <TooltipProvider>
+          <Tooltip delayDuration={200}>
+            <TooltipTrigger asChild>
+              <div className="absolute top-2 right-8 h-4 w-4 rounded bg-orange-100 text-orange-500 flex items-center justify-center z-20 cursor-help">
+                <AlertTriangle className="h-2.5 w-2.5" />
+              </div>
+            </TooltipTrigger>
+            {conflictData && (
+              <TooltipContent className="bg-white text-slate-800 p-3 shadow-lg border border-red-100 min-w-[200px]" side="top" align="center">
+                <div className="font-bold text-red-600 flex items-center gap-2 mb-1 border-b border-red-100 pb-1">
+                  <AlertTriangle className="h-4 w-4" />
+                  {conflictData.conflictType || 'Scheduling Conflict'}
+                </div>
+                <div className="space-y-1 text-[11px]">
+                  {conflictData.affectedSubject && <div className="font-semibold text-slate-900 truncate">{conflictData.affectedSubject}</div>}
+                  {conflictData.affectedTeacher && <div className="text-slate-600">👤 {conflictData.affectedTeacher}</div>}
+                  {conflictData.affectedRoom && <div className="text-slate-600">🚪 {conflictData.affectedRoom}</div>}
+                  {conflictData.affectedTime && <div className="text-slate-600 mt-1 pt-1 border-t border-slate-100">🕒 {conflictData.affectedTime}</div>}
+                </div>
+              </TooltipContent>
+            )}
+          </Tooltip>
+        </TooltipProvider>
       )}
 
       {/* 3 dots Dropdown menu */}

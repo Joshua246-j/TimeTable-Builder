@@ -15,6 +15,7 @@ import type {
   TimetableCell as TimetableCellType,
   ScheduleEntry,
 } from "@/types/timetable";
+import { ValidationIssue } from "@/services/validationService";
 
 import type { SelectedCell } from "@/types/timetableSpan";
 
@@ -35,6 +36,7 @@ interface TimetableCellProps {
   rowSpan?: number;
   isLocked?: boolean;
   isConflict?: boolean;
+  conflictData?: ValidationIssue;
   isEditing?: boolean;
   onCancelEdit?: () => void;
   onSaveEdit?: (subject: SubjectCardData, updatedTime?: {startTime: string; endTime: string}, swappedSubjectId?: string) => void;
@@ -57,6 +59,7 @@ export default memo(function TimetableCell({
   rowSpan = 1,
   isLocked = false,
   isConflict = false,
+  conflictData,
   isEditing = false,
   onCancelEdit,
   onSaveEdit,
@@ -176,13 +179,14 @@ export default memo(function TimetableCell({
             rowSpan={rowSpan}
             isSelected={selected || isSpanSelected}
             isLocked={isLocked}
-            isConflict={isConflict || subject?.hasConflict}
+            isConflict={isConflict}
             isSelectionMode={selectionMode}
             onClick={handleSlotClick}
           >
             <SubjectClassCard 
               data={subject} 
-              hasConflict={isConflict || subject.hasConflict} 
+              hasConflict={isConflict}
+              conflictData={conflictData}
               isLocked={isLocked}
               onToggleLock={() => {
                 if (isLocked) {

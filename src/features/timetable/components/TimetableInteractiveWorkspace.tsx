@@ -9,6 +9,7 @@ import FloatingActionButton from "@/features/timetable/components/FloatingAction
 import SubjectClassCard from "@/features/timetable/components/SubjectClassCard";
 import TimetableSlotCard from "@/features/timetable/components/TimetableSlotCard";
 import MergedPeriodCard from "@/features/timetable/components/MergedPeriodCard";
+import ConflictDrawer from "@/features/timetable/components/ConflictDrawer";
 import type { SubjectCardData, TimetableData, TimetableCell as TimetableCellType } from "@/types/timetable";
 import dynamic from "next/dynamic";
 import { useSelector, useDispatch } from "react-redux";
@@ -32,6 +33,7 @@ export default function TimetableInteractiveWorkspace({
   initialData,
 }: TimetableInteractiveWorkspaceProps) {
   const [isMobileDrawerOpen, setIsMobileDrawerOpen] = useState(false);
+  const [isConflictDrawerOpen, setIsConflictDrawerOpen] = useState(false);
   const [timetableData] = useState<TimetableData>(initialData);
   const [includeSaturday, setIncludeSaturday] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(true);
@@ -41,6 +43,8 @@ export default function TimetableInteractiveWorkspace({
   const mergedAllocations = useSelector((state: RootState) => state.merge.mergedAllocations || {});
   const subjectsRedux = useSelector((state: RootState) => state.subject.subjects || {});
   const allocations = useSelector((state: RootState) => state.allocation.allocations || {});
+  const validationState = useSelector((state: RootState) => state.validation);
+  const lockedSlots = useSelector((state: RootState) => state.lock.lockedAllocations || {});
   const [activeDragData, setActiveDragData] = useState<Record<string, unknown> | null>(null);
 
   const sensors = useSensors(
@@ -249,6 +253,7 @@ export default function TimetableInteractiveWorkspace({
               <ActionToolbar 
                 includeSaturday={includeSaturday}
                 onToggleSaturday={setIncludeSaturday}
+                onOpenConflicts={() => setIsConflictDrawerOpen(true)}
               />
               <div className="mt-4 lg:hidden">
                 <MobileFilters />
@@ -318,7 +323,7 @@ export default function TimetableInteractiveWorkspace({
           
           {/* Validation Footer Fixed at Bottom */}
           <div className="flex-none p-4 lg:p-6 lg:pl-8 bg-white border-t border-slate-200 shadow-[0_-4px_10px_rgba(0,0,0,0.02)] z-20">
-            <ValidationFooter />
+            <ValidationFooter onOpenConflicts={() => setIsConflictDrawerOpen(true)} />
           </div>
         </div>
 
@@ -375,6 +380,11 @@ export default function TimetableInteractiveWorkspace({
         onAddSubject={handleAddSubject}
       />
 
+      <ConflictDrawer 
+        isOpen={isConflictDrawerOpen}
+        onClose={() => setIsConflictDrawerOpen(false)}
+        conflicts={validationState?.conflicts || []}
+      />
 
       </div>
 

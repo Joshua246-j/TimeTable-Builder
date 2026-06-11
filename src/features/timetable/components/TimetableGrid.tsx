@@ -12,6 +12,7 @@ import type {
 import { useSelector, useDispatch } from "react-redux";
 import { RootState } from "@/store/store";
 import { toggleCellSelection } from "@/store/selectionSlice";
+import { ValidationIssue } from "@/services/validationService";
 import SelectionToolbar from "./SelectionToolbar";
 import type { SelectedCell } from "@/types/timetableSpan";
 import { isOverlap } from "@/lib/timeEngine";
@@ -79,6 +80,7 @@ export default memo(function TimetableGrid({
   const { selectedCells, selectionMode } = useSelector((state: RootState) => state.selection);
   const { mergedAllocations } = useSelector((state: RootState) => state.merge);
   const { lockedAllocations } = useSelector((state: RootState) => state.lock);
+  const { conflicts } = useSelector((state: RootState) => state.validation);
   
   const handleToggleCellSelection = useCallback((cell: SelectedCell) => {
     dispatch(toggleCellSelection(cell));
@@ -237,6 +239,9 @@ export default memo(function TimetableGrid({
                     // Check if lockSlice has this id locked, or if the group itself has isLocked true
                     const isGroupLocked = lockedAllocations[activeGroup.id] || activeGroup.isLocked;
                     
+                    const groupConflicts = conflicts.filter(c => c.cellIds?.includes(activeGroup.id));
+                    const isConflict = groupConflicts.length > 0;
+                    
                     if (timeSlot.startTime === activeGroup.startTime) {
                       return (
                         <TimetableCell
@@ -257,6 +262,8 @@ export default memo(function TimetableGrid({
                           isEditing={editingGroupId === activeGroup.id}
                           onCancelEdit={onCancelEdit}
                           onSaveEdit={onSaveEdit}
+                          isConflict={isConflict}
+                          conflictData={isConflict ? groupConflicts[0] : undefined}
                         />
                       );
                     } else {
@@ -265,6 +272,9 @@ export default memo(function TimetableGrid({
                   }
 
                   const isSpanSelected = selectedCells.some((c) => c.id === actualCell.id);
+
+                  const cellConflicts = conflicts.filter(c => c.cellIds?.includes(actualCell.id));
+                  const isConflict = cellConflicts.length > 0;
 
                   return (
                     <TimetableCell
@@ -284,6 +294,8 @@ export default memo(function TimetableGrid({
                       isEditing={editingGroupId === actualCell.id}
                       onCancelEdit={onCancelEdit}
                       onSaveEdit={onSaveEdit}
+                      isConflict={isConflict}
+                      conflictData={isConflict ? cellConflicts[0] : undefined}
                     />
                   );
                 })}

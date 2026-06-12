@@ -15,23 +15,24 @@ interface TimetableSlotCardProps {
   isLocked?: boolean;
   isSelectionMode?: boolean;
   onClick?: () => void;
+  onTimeChange?: (startTime: string, endTime: string) => void;
 }
 
 export default memo(function TimetableSlotCard({
   children,
   startTime,
   endTime,
-  duration,
   rowSpan = 1,
   isSelected = false,
   isConflict = false,
   isLocked = false,
   isSelectionMode = false,
   onClick,
+  onTimeChange,
 }: TimetableSlotCardProps) {
   
   // Calculate height dynamically based on rowSpan
-  const baseHeight = 120; // single period height
+  const baseHeight = 160; // single period height
   const gap = 16; // assuming a gap of 16px between rows in grid
   const height = rowSpan > 1 ? baseHeight * rowSpan + gap * (rowSpan - 1) : baseHeight;
 
@@ -105,7 +106,7 @@ export default memo(function TimetableSlotCard({
         )}
 
         {/* TimeRail */}
-        <TimeRail startTime={startTime} endTime={endTime} duration={duration} />
+        <TimeRail startTime={startTime} endTime={endTime} onTimeChange={onTimeChange} />
 
         {/* Child Content (SubjectClassCard) */}
         <div className="flex-1 relative min-w-0 bg-transparent flex flex-col z-20">

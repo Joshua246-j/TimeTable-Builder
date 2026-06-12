@@ -1,14 +1,12 @@
-import { AllocationData } from '@/services/allocationService';
 import { SubjectCardData, ScheduleEntry } from '@/types/timetable';
 import { FacultyData } from '@/services/facultyService';
 import { RoomData } from '@/services/roomService';
 import { ValidationIssue } from '@/services/validationService';
 import { isOverlap } from '@/lib/timeEngine';
-import { MOCK_TIME_SLOTS } from '@/lib/mockData';
+
 
 export interface ValidationContext {
-  allocations: Record<string, AllocationData>;
-  mergedAllocations: Record<string, ScheduleEntry>;
+  allocations: Record<string, ScheduleEntry>;
   subjects: Record<string, SubjectCardData>;
   faculty: Record<string, FacultyData>;
   rooms: Record<string, RoomData>;
@@ -34,41 +32,14 @@ export const validationEngine = {
     // Normalize all allocations into a single flat list of scheduled blocks with real start/end times
     const allBlocks: ScheduledBlock[] = [];
 
-    // Helper to get time from mock slots based on cellId format "Day-SlotId"
-    const getTimeForNormalCell = (cellId: string) => {
-      const parts = cellId.split('-');
-      const timeSlotId = parts[1];
-      const slot = MOCK_TIME_SLOTS.find(t => t.id === timeSlotId);
-      if (slot) {
-        return { startTime: slot.startTime, endTime: slot.endTime, dayId: parts[0] };
-      }
-      return null;
-    };
-
-    // 1. Process normal allocations
     Object.values(context.allocations).forEach(alloc => {
-      const timeInfo = getTimeForNormalCell(alloc.cellId);
-      if (timeInfo) {
-        allBlocks.push({
-          id: alloc.cellId,
-          subjectId: alloc.subjectId,
-          dayId: timeInfo.dayId,
-          startTime: timeInfo.startTime,
-          endTime: timeInfo.endTime,
-          isMerged: false
-        });
-      }
-    });
-
-    // 2. Process merged allocations
-    Object.values(context.mergedAllocations).forEach(merged => {
       allBlocks.push({
-        id: merged.id,
-        subjectId: merged.subjectId,
-        dayId: merged.dayId,
-        startTime: merged.startTime,
-        endTime: merged.endTime,
-        isMerged: true
+        id: alloc.id,
+        subjectId: alloc.subjectId,
+        dayId: alloc.dayId,
+        startTime: alloc.startTime,
+        endTime: alloc.endTime,
+        isMerged: alloc.rowSpan > 1
       });
     });
 

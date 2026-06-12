@@ -4,11 +4,11 @@ import { memo } from "react";
 import { useDroppable, useDraggable } from "@dnd-kit/core";
 import EmptySlot from "./EmptySlot";
 import SubjectClassCard from "./SubjectClassCard";
-import MergedPeriodCard from "./MergedPeriodCard";
 import TimetableSlotCard from "./TimetableSlotCard";
 import SubjectAssignmentEditor from "./SubjectAssignmentEditor";
 import { useDispatch } from "react-redux";
-import { lockAllocation, unlockAllocation } from "@/store/lockSlice";
+import { AppDispatch } from "@/store/store";
+import { toggleLockSlot, removeSubjectAssignment, splitMergedPeriod } from "@/store/syntheticActions";
 
 import type {
   SubjectCardData,
@@ -40,6 +40,8 @@ interface TimetableCellProps {
   isEditing?: boolean;
   onCancelEdit?: () => void;
   onSaveEdit?: (subject: SubjectCardData, updatedTime?: {startTime: string; endTime: string}, swappedSubjectId?: string) => void;
+  onTimeChange?: (cell: TimetableCellType, newStartTime: string, newEndTime: string) => void;
+  isGridEditMode?: boolean;
 }
 
 export default memo(function TimetableCell({
@@ -63,8 +65,10 @@ export default memo(function TimetableCell({
   isEditing = false,
   onCancelEdit,
   onSaveEdit,
+  onTimeChange,
+  isGridEditMode = false,
 }: TimetableCellProps) {
-  const dispatch = useDispatch();
+  const dispatch = useDispatch<AppDispatch>();
   
   const { setNodeRef, isOver } = useDroppable({
     id: cell.id,
@@ -84,10 +88,11 @@ export default memo(function TimetableCell({
       startTime: mergedGroup ? mergedGroup.startTime : cell.startTime,
       endTime: mergedGroup ? mergedGroup.endTime : cell.endTime,
     },
-    disabled: mergedGroup ? (mergedGroup.isLocked || isLocked) : isLocked,
+    disabled: isGridEditMode || (mergedGroup ? (mergedGroup.isLocked || isLocked) : isLocked),
   });
 
   const handleSlotClick = () => {
+    if (isGridEditMode) return;
     if (selectionMode && onSelectionToggle && rowIndex !== undefined) {
       onSelectionToggle({
         id: cell.id,
@@ -101,7 +106,7 @@ export default memo(function TimetableCell({
     }
 
     if (cell.isAssigned && subject) {
-      onSubjectClick?.(cell);
+      // SubjectClassCard handles its own interactions (edit, delete, lock, etc.)
     } else {
       onCellClick?.(cell);
     }
@@ -113,12 +118,12 @@ export default memo(function TimetableCell({
   if (mergedGroup) {
     return (
       <div 
-        ref={setNodeRef} 
-        className={`relative ${isOver ? "ring-2 ring-blue-500 rounded-[10px]" : ""}`} 
+        ref={isGridEditMode ? undefined : setNodeRef} 
+        className={`relative ${isOver && !isGridEditMode ? "ring-2 ring-blue-500 rounded-[10px]" : ""}`} 
         style={{ gridRow: `span ${rowSpan}` }}
       >
         <div 
-          ref={setDragRef as unknown as React.Ref<HTMLDivElement>}
+          ref={isGridEditMode ? undefined : (setDragRef as unknown as React.Ref<HTMLDivElement>)}
           {...attributes} 
           {...listeners}
           className={`h-full ${isDragging ? "opacity-50" : ""}`}
@@ -131,13 +136,31 @@ export default memo(function TimetableCell({
             isLocked={mergedGroup.isLocked || isLocked}
             isSelectionMode={selectionMode}
             onClick={handleSlotClick}
+            onTimeChange={(newStart, newEnd) => onTimeChange?.({ ...cell, id: mergedGroup.id, assignment: { subjectId: mergedGroup.subjectId } }, newStart, newEnd)}
           >
-            <MergedPeriodCard group={mergedGroup} subject={subject} />
+            <SubjectClassCard 
+              data={subject} 
+              scheduleEntry={mergedGroup}
+              hasConflict={subject?.hasConflict}
+              isLocked={mergedGroup.isLocked || isLocked}
+              onToggleLock={isGridEditMode ? undefined : () => {
+                dispatch(toggleLockSlot({ id: mergedGroup.id }));
+              }}
+              onEdit={isGridEditMode ? undefined : () => onEditTime?.({ ...cell, id: mergedGroup.id, assignment: { subjectId: mergedGroup.subjectId } })}
+              onDelete={isGridEditMode ? undefined : () => {
+                dispatch(removeSubjectAssignment({ cellId: mergedGroup.id }));
+              }}
+              onSplit={isGridEditMode ? undefined : () => {
+                dispatch(splitMergedPeriod({ mergedId: mergedGroup.id }));
+              }}
+              assignedTime={`${mergedGroup.startTime} - ${mergedGroup.endTime}`}
+              assignedDay={mergedGroup.dayId}
+            />
           </TimetableSlotCard>
         </div>
 
         {/* Inline Editor Popup */}
-        {isEditing && subject && (
+        {isEditing && subject && !isGridEditMode && (
           <div className="absolute inset-x-0 top-0 z-[100] min-w-[300px]">
             <SubjectAssignmentEditor
               subject={subject}
@@ -165,10 +188,10 @@ export default memo(function TimetableCell({
      NORMAL CELL
   ======================================= */
   return (
-    <div ref={setNodeRef} className={`relative ${isOver ? "ring-2 ring-blue-500 rounded-[10px]" : ""}`} style={{ gridRow: `span ${rowSpan}` }}>
+    <div ref={isGridEditMode ? undefined : setNodeRef} className={`relative ${isOver && !isGridEditMode ? "ring-2 ring-blue-500 rounded-[10px]" : ""}`} style={{ gridRow: `span ${rowSpan}` }}>
       {cell.isAssigned && subject ? (
         <div 
-          ref={setDragRef as unknown as React.Ref<HTMLDivElement>}
+          ref={isGridEditMode ? undefined : (setDragRef as unknown as React.Ref<HTMLDivElement>)}
           {...attributes} 
           {...listeners}
           className={`h-full ${isDragging ? "opacity-50" : ""}`}
@@ -182,28 +205,26 @@ export default memo(function TimetableCell({
             isConflict={isConflict}
             isSelectionMode={selectionMode}
             onClick={handleSlotClick}
+            onTimeChange={(newStart, newEnd) => onTimeChange?.(cell, newStart, newEnd)}
           >
             <SubjectClassCard 
               data={subject} 
               hasConflict={isConflict}
               conflictData={conflictData}
               isLocked={isLocked}
-              onToggleLock={() => {
-                if (isLocked) {
-                  dispatch(unlockAllocation(cell.id));
-                } else {
-                  dispatch(lockAllocation(cell.id));
-                }
+              onToggleLock={isGridEditMode ? undefined : () => {
+                dispatch(toggleLockSlot({ id: cell.id }));
               }}
-              onEdit={() => onEditTime?.(cell)}
-              onDelete={() => onSubjectClick?.(cell)}
+              onEdit={isGridEditMode ? undefined : () => onEditTime?.(cell)}
+              onDelete={isGridEditMode ? undefined : () => onSubjectClick?.(cell)}
+              assignedTime={`${cell.startTime} - ${cell.endTime}`}
+              assignedDay={cell.day}
             />
           </TimetableSlotCard>
         </div>
       ) : (
         <EmptySlot
           isSelected={selected || isSpanSelected}
-          isSelectionMode={selectionMode}
           onClick={handleSlotClick}
           startTime={cell.startTime}
           endTime={cell.endTime}
@@ -212,7 +233,7 @@ export default memo(function TimetableCell({
       )}
 
       {/* Assignment Popup overlaying the card */}
-      {selected && onAssignSlot && !selectionMode && !cell.isAssigned && (
+      {selected && onAssignSlot && !selectionMode && !cell.isAssigned && !isGridEditMode && (
         <div className="absolute top-0 inset-x-0 z-50 flex flex-col rounded-[10px] border-2 border-blue-400 bg-white shadow-2xl overflow-hidden min-h-[120px] max-h-[300px]">
           <div className="flex items-center justify-between px-3 py-2 bg-blue-50 border-b border-blue-100 shrink-0">
             <span className="text-[11px] font-bold text-blue-800 uppercase tracking-wider">Assign Subject</span>
@@ -252,7 +273,7 @@ export default memo(function TimetableCell({
       )}
 
       {/* Inline Editor Popup for Normal Cell */}
-      {isEditing && subject && cell.isAssigned && (
+      {isEditing && subject && cell.isAssigned && !isGridEditMode && (
         <div className="absolute inset-x-0 top-0 z-[100] min-w-[300px]">
           <SubjectAssignmentEditor
             subject={subject}

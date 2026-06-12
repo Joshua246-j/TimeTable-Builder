@@ -24,6 +24,16 @@ export type WeekDay =
   | "Friday"
   | "Saturday";
 
+export interface SelectedCellData {
+  id: string;
+  day: string;
+  dayId?: string;
+  rowIndex: number;
+  startTime: string;
+  endTime: string;
+  subjectId?: string;
+}
+
 export interface Semester {
   id: string;
   name: string;
@@ -135,7 +145,6 @@ export interface SubjectCardData {
   type: string;
   section?: string;
   color?: string;
-  bookmarkStatus?: boolean;
   notes?: string;
   hasConflict?: boolean;
   isEditable?: boolean;

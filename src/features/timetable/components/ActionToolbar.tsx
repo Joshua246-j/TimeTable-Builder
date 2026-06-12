@@ -8,28 +8,24 @@ import {
   LayoutGrid,
 } from "lucide-react";
 
-import { useState } from "react";
+
 import { Button } from "@/components/ui/button";
 import { useDispatch, useSelector } from "react-redux";
-import { enableSelectionMode, disableSelectionMode } from "@/store/selectionSlice";
+import { enableSelectionMode, disableSelectionMode } from "@/store/timetableEngineSlice";
 import { mergeSelectedPeriods, runValidation } from "@/store/syntheticActions";
 import { undoHistory, redoHistory } from "@/store/historySlice";
 import { RootState, AppDispatch } from "@/store/store";
-import ConflictDrawer from "./ConflictDrawer";
+
 
 interface ActionToolbarProps {
-  includeSaturday?: boolean;
-  onToggleSaturday?: (checked: boolean) => void;
   onOpenConflicts?: () => void;
 }
 
 export default function ActionToolbar({
-  includeSaturday = false,
-  onToggleSaturday,
   onOpenConflicts,
 }: ActionToolbarProps) {
   const dispatch = useDispatch<AppDispatch>();
-  const { selectionMode, selectedCells } = useSelector((state: RootState) => state.selection);
+  const { selectionMode, selectedCells } = useSelector((state: RootState) => state.timetableEngine);
   const { conflicts } = useSelector((state: RootState) => state.validation);
 
   const handleToggleSelectionMode = () => {
@@ -170,17 +166,6 @@ export default function ActionToolbar({
           </select>
         </div>
 
-        <div className="ml-4 flex items-center gap-2 border-l pl-4 border-slate-200">
-          <label className="text-xs font-bold text-slate-500 flex items-center gap-2 cursor-pointer">
-            <input 
-              type="checkbox" 
-              checked={includeSaturday} 
-              onChange={(e) => onToggleSaturday?.(e.target.checked)}
-              className="rounded border-slate-300 text-blue-600 focus:ring-blue-500"
-            />
-            Include Saturday
-          </label>
-        </div>
       </div>
     </div>
   );

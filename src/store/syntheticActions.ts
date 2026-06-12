@@ -1,17 +1,12 @@
 import { createAsyncThunk } from '@reduxjs/toolkit';
 import { RootState, AppDispatch } from './store';
-import { addAllocation, removeAllocation, updateAllocation as updateSingleAllocation } from './allocationSlice';
-import { createMergedAllocation, deleteMergedAllocation } from './mergeSlice';
-import { lockAllocation, unlockAllocation, updateOccupancy, clearOccupancy, updateAllocation as updateMergedRecord } from './timetableSlice';
+import { assign, remove, move, swap, merge, split, updateTime, lock, unlock, clearSelection } from './timetableEngineSlice';
 import { recordAction } from './historySlice';
-import { clearSelection } from './selectionSlice';
 import { ScheduleEntry } from '@/types/timetable';
-import { AllocationData } from '@/services/allocationService';
 import { validationEngine, ValidationContext } from '@/lib/validationEngine';
 import { mergeEngine } from '@/lib/mergeEngine';
 import { setValidationResults } from './validationSlice';
-import { MOCK_TIME_SLOTS } from '@/lib/mockData';
-import { parseTime, formatTime, calculateDurationMinutes, calculateRowSpan } from '@/lib/timeEngine';
+import { parseTime, formatTime, calculateDurationMinutes } from '@/lib/timeEngine';
 import { deleteSubject } from './subjectSlice';
 
 // Centralized Synthetic Actions
@@ -26,8 +21,7 @@ export const runValidation = createAsyncThunk<
     const state = getState();
     
     const context: ValidationContext = {
-      allocations: state.allocation.allocations,
-      mergedAllocations: state.merge.mergedAllocations,
+      allocations: state.timetableEngine.allocations,
       subjects: state.subject.subjects,
       faculty: state.faculty.faculty,
       rooms: state.room.rooms,
@@ -40,29 +34,35 @@ export const runValidation = createAsyncThunk<
 
 export const assignSubject = createAsyncThunk<
   void,
-  { cellId: string; subjectId: string; isLocked?: boolean },
+  { cellId: string; subjectId: string; dayId: string; startTime: string; endTime: string; isLocked?: boolean },
   { state: RootState; dispatch: AppDispatch }
 >(
   'actions/assignSubject',
   async (payload, { dispatch, getState }) => {
-    const { cellId, subjectId, isLocked = false } = payload;
+    const { cellId, subjectId, dayId, startTime, endTime, isLocked = false } = payload;
     const state = getState();
 
     // Check if locked
-    if (state.lock.lockedAllocations[cellId]) {
-      return; // Cannot assign to locked slot
+    if (state.timetableEngine.allocations[cellId]?.isLocked) {
+      return; 
     }
 
-    const allocation: AllocationData = {
-      cellId,
+    // Generate unique ID for allocation
+    const allocationId = `alloc-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+
+    const allocation: ScheduleEntry = {
+      id: allocationId,
       subjectId,
+      dayId,
+      startTime,
+      endTime,
+      rowSpan: 1,
+      rowStart: 0,
+      isEditable: true,
       isLocked,
     };
 
-    dispatch(addAllocation(allocation));
-    
-    // Update Occupancy
-    dispatch(updateOccupancy({ key: cellId, record: { occupied: true, allocationId: cellId } }));
+    dispatch(assign(allocation));
     
     dispatch(recordAction({
       type: 'ASSIGN_SUBJECT',
@@ -84,14 +84,9 @@ export const removeSubjectAssignment = createAsyncThunk<
     const { cellId } = payload;
     const state = getState();
 
-    if (state.lock.lockedAllocations[cellId]) {
-      return;
-    }
-
-    const previousAllocation = state.allocation.allocations[cellId];
-    if (previousAllocation) {
-      dispatch(removeAllocation(cellId));
-      dispatch(clearOccupancy(cellId));
+    const previousAllocation = state.timetableEngine.allocations[cellId];
+    if (previousAllocation && !previousAllocation.isLocked) {
+      dispatch(remove(cellId));
       
       dispatch(recordAction({
         type: 'REMOVE_SUBJECT',
@@ -106,75 +101,43 @@ export const removeSubjectAssignment = createAsyncThunk<
 
 export const swapSubjectAssignments = createAsyncThunk<
   void,
-  { sourceCellId: string; targetCellId: string },
+  { sourceCellId: string; targetCellId: string; targetDayId?: string; targetStartTime?: string; targetEndTime?: string },
   { state: RootState; dispatch: AppDispatch }
 >(
   'actions/swapSubjectAssignments',
   async (payload, { dispatch, getState }) => {
-    const { sourceCellId, targetCellId } = payload;
+    const { sourceCellId, targetCellId, targetDayId, targetStartTime, targetEndTime } = payload;
     const state = getState();
 
-    // Determine if source is merged
-    const sourceMerged = state.merge.mergedAllocations[sourceCellId];
-    const targetMerged = state.merge.mergedAllocations[targetCellId];
+    const source = state.timetableEngine.allocations[sourceCellId];
+    const target = state.timetableEngine.allocations[targetCellId];
     
-    // Check locks
-    if (sourceMerged?.isLocked || state.lock.lockedAllocations[sourceCellId]) return;
-    if (targetMerged?.isLocked || state.lock.lockedAllocations[targetCellId]) return;
+    if (source?.isLocked || target?.isLocked) return;
 
-    if (!sourceMerged && !targetMerged) {
-      // NORMAL to NORMAL swap
-      const sourceAllocation = state.allocation.allocations[sourceCellId];
-      const targetAllocation = state.allocation.allocations[targetCellId];
+    if (!source && !target) return;
 
-      if (!sourceAllocation) return;
+    if (source && target) {
+      dispatch(swap({ sourceId: sourceCellId, targetId: targetCellId }));
+    } else if (source && !target && targetDayId && targetStartTime) {
+      // Just a move to an empty slot
+      let newEndTime = targetEndTime || targetStartTime;
+      const timeSlots = state.gridConfig.timeSlots;
+      const slotIndex = timeSlots.findIndex(t => t.startTime === targetStartTime);
+      
+      if (slotIndex !== -1) {
+        if (source && source.rowSpan > 1) {
+          const endSlotIndex = slotIndex + source.rowSpan - 1;
+          if (endSlotIndex < timeSlots.length) {
+             newEndTime = timeSlots[endSlotIndex].endTime;
+          }
+        }
 
-      if (!targetAllocation) {
-        dispatch(removeAllocation(sourceCellId));
-        dispatch(clearOccupancy(sourceCellId));
-        dispatch(addAllocation({
-          cellId: targetCellId,
-          subjectId: sourceAllocation.subjectId,
-          isLocked: sourceAllocation.isLocked,
-        }));
-        dispatch(updateOccupancy({ key: targetCellId, record: { occupied: true, allocationId: targetCellId } }));
-      } else {
-        dispatch(addAllocation({
-          cellId: targetCellId,
-          subjectId: sourceAllocation.subjectId,
-          isLocked: sourceAllocation.isLocked,
-        }));
-        dispatch(addAllocation({
-          cellId: sourceCellId,
-          subjectId: targetAllocation.subjectId,
-          isLocked: targetAllocation.isLocked,
-        }));
-      }
-    } else {
-      // Merged Swap Logic - Simplified: just block it and redirect to updateTimeAllocation for now 
-      // since the UI expects a clean drop. But actually we CAN swap if we just move the start time!
-      const rowSpan = sourceMerged ? sourceMerged.rowSpan : 1;
-      const subjectId = sourceMerged ? sourceMerged.subjectId : state.allocation.allocations[sourceCellId]?.subjectId;
-      
-      if (!subjectId) return;
-      
-      const targetCellParts = targetCellId.split('-');
-      const dayId = targetCellParts[0];
-      const timeSlotId = targetCellParts[1];
-      
-      // We rely on updateTimeAllocation to do the heavy lifting of moving a merged block
-      // because it handles recreating the span and clearing old cells.
-      const timeSlot = MOCK_TIME_SLOTS.find((t: Record<string, unknown>) => t.id === timeSlotId);
-      if (timeSlot) {
-        const startMins = parseTime(timeSlot.startTime as string);
-        const endMins = startMins + (rowSpan * 60); // approx 1 hr slots
-        
-        dispatch(updateTimeAllocation({
+        dispatch(move({
           id: sourceCellId,
-          subjectId: subjectId,
-          dayId: dayId,
-          startTime: timeSlot.startTime,
-          endTime: formatTime(endMins)
+          targetId: targetCellId,
+          newDayId: targetDayId,
+          newStartTime: targetStartTime,
+          newEndTime: newEndTime
         }));
       }
     }
@@ -197,7 +160,7 @@ export const mergeSelectedPeriods = createAsyncThunk<
   'actions/mergeSelectedPeriods',
   async (payload, { dispatch, getState }) => {
     const state = getState();
-    const { selectedCells } = state.selection;
+    const { selectedCells } = state.timetableEngine;
 
     if (selectedCells.length < 2) return; 
 
@@ -207,12 +170,10 @@ export const mergeSelectedPeriods = createAsyncThunk<
       return;
     }
 
-    dispatch(createMergedAllocation(mergedEntry));
-    
-    // Update occupancy for all covered cells
-    selectedCells.forEach(cell => {
-      dispatch(updateOccupancy({ key: cell.id, record: { occupied: true, mergedGroupId: mergedEntry.id } }));
-    });
+    // Remove old single allocations that are being merged
+    selectedCells.forEach(cell => dispatch(remove(cell.id)));
+
+    dispatch(merge(mergedEntry));
 
     dispatch(clearSelection());
 
@@ -234,19 +195,35 @@ export const splitMergedPeriod = createAsyncThunk<
   'actions/splitMergedPeriod',
   async (payload, { dispatch, getState }) => {
     const state = getState();
-    const merged = state.merge.mergedAllocations[payload.mergedId];
+    const merged = state.timetableEngine.allocations[payload.mergedId];
 
-    if (!merged) return;
-    if (state.lock.lockedAllocations[merged.id] || merged.isLocked) return;
+    if (!merged || merged.isLocked) return;
 
-    dispatch(deleteMergedAllocation(payload.mergedId));
+    dispatch(split(payload.mergedId));
 
-    // Cleanup occupancy
-    Object.keys(state.timetable.occupancyMap).forEach(key => {
-      if (state.timetable.occupancyMap[key].mergedGroupId === payload.mergedId) {
-         dispatch(clearOccupancy(key));
-      }
-    });
+    // Recreate single entries
+    // For simplicity we create 1 hour blocks based on rowSpan
+    const startMins = parseTime(merged.startTime);
+    for (let i = 0; i < merged.rowSpan; i++) {
+        const slotStart = startMins + (i * 60);
+        const slotEnd = slotStart + 60;
+        // Mock ID construction
+        const timeSlot = state.gridConfig.timeSlots.find(t => t.startTime === formatTime(slotStart));
+        if (timeSlot) {
+            const allocationId = `alloc-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+            dispatch(assign({
+                id: allocationId,
+                subjectId: merged.subjectId,
+                dayId: merged.dayId,
+                startTime: formatTime(slotStart),
+                endTime: formatTime(slotEnd),
+                rowSpan: 1,
+                rowStart: 0,
+                isEditable: true,
+                isLocked: false
+            }));
+        }
+    }
 
     dispatch(recordAction({
       type: 'SPLIT_PERIODS',
@@ -260,23 +237,25 @@ export const splitMergedPeriod = createAsyncThunk<
 
 export const toggleLockSlot = createAsyncThunk<
   void,
-  { id: string; isMerged?: boolean },
+  { id: string },
   { state: RootState; dispatch: AppDispatch }
 >(
   'actions/toggleLockSlot',
   async (payload, { dispatch, getState }) => {
     const state = getState();
-    const isCurrentlyLocked = state.lock.lockedAllocations[payload.id];
+    const alloc = state.timetableEngine.allocations[payload.id];
+    
+    if (!alloc) return;
 
-    if (isCurrentlyLocked) {
-      dispatch(unlockAllocation(payload.id));
+    if (alloc.isLocked) {
+      dispatch(unlock(payload.id));
     } else {
-      dispatch(lockAllocation(payload.id));
+      dispatch(lock(payload.id));
     }
 
     dispatch(recordAction({
       type: 'TOGGLE_LOCK',
-      payload: { id: payload.id, wasLocked: isCurrentlyLocked },
+      payload: { id: payload.id, wasLocked: alloc.isLocked },
       timestamp: Date.now()
     }));
   }
@@ -289,69 +268,28 @@ export const updateTimeAllocation = createAsyncThunk<
 >(
   'actions/updateTimeAllocation',
   async (payload, { dispatch, getState }) => {
-    const { id, subjectId, dayId, startTime, endTime } = payload;
+    const { id, dayId, startTime, endTime } = payload;
     const state = getState();
     
-    // Determine the duration and rowspan based on generic 60 min intervals
     const durationMins = calculateDurationMinutes(startTime, endTime);
-    const rowSpan = calculateRowSpan(durationMins, 60);
+    const rowSpan = Math.max(1, Math.round(durationMins / 60)); // calculateRowSpan(durationMins, 60);
 
-    // Conflict validation should go here using the occupancyMap
-    // For now, assume it's valid and proceed with state update
-
-    if (rowSpan > 1) {
-      // It's a merged block now
-      // 1. Remove it from normal allocations if it was there
-      if (state.allocation.allocations[id]) {
-        dispatch(removeAllocation(id));
-      }
-      // 2. Clear previous occupancy
-      Object.keys(state.timetable.occupancyMap).forEach(key => {
-        if (state.timetable.occupancyMap[key].mergedGroupId === id || key === id) {
-           dispatch(clearOccupancy(key));
-        }
-      });
-      // 3. Create or update the merged allocation
-      const mergeEntry: ScheduleEntry = {
+    dispatch(updateTime({
         id,
-        subjectId,
-        dayId,
-        startTime,
-        endTime,
-        rowStart: 0, // Obsolete, keeping for type safety temporarily
-        rowSpan,
-        isEditable: true,
-        isLocked: false,
-      };
-      if (state.merge.mergedAllocations[id]) {
-        dispatch(updateMergedRecord({ id, updates: mergeEntry }));
-        // Wait, updateMergedRecord is updateAllocation from timetableSlice. I should use updateMergedAllocation from mergeSlice.
-        dispatch({ type: 'merge/updateMergedAllocation', payload: { id, updates: mergeEntry } });
-      } else {
-        dispatch(createMergedAllocation(mergeEntry));
-      }
-      
-      // Update Occupancy for the new times
-      // We would ideally map over timeSlots to set occupancy, but for now just mark it.
-      dispatch(updateOccupancy({ key: id, record: { occupied: true, mergedGroupId: id } }));
+        newStartTime: startTime,
+        newEndTime: endTime,
+        newRowSpan: rowSpan
+    }));
 
-    } else {
-      // It's a single cell
-      if (state.merge.mergedAllocations[id]) {
-        dispatch(deleteMergedAllocation(id));
-      }
-      Object.keys(state.timetable.occupancyMap).forEach(key => {
-        if (state.timetable.occupancyMap[key].mergedGroupId === id || key === id) {
-           dispatch(clearOccupancy(key));
-        }
-      });
-      
-      dispatch(addAllocation({
-        cellId: id,
-        subjectId,
-        isLocked: false,
-      }));
-      dispatch(updateOccupancy({ key: id, record: { occupied: true, allocationId: id } }));
+    // If day changed, we need a full move
+    const alloc = state.timetableEngine.allocations[id];
+    if (alloc && alloc.dayId !== dayId) {
+        dispatch(move({
+            id,
+            newDayId: dayId,
+            newStartTime: startTime,
+            newEndTime: endTime
+        }));
     }
 
     dispatch(runValidation());
@@ -368,27 +306,12 @@ export const deleteSubjectGlobal = createAsyncThunk<
     const { subjectId } = payload;
     const state = getState();
     
-    // 1. Find and remove all single allocations
-    Object.values(state.allocation.allocations).forEach(alloc => {
+    Object.values(state.timetableEngine.allocations).forEach(alloc => {
       if (alloc.subjectId === subjectId) {
-        dispatch(removeAllocation(alloc.cellId));
-        dispatch(clearOccupancy(alloc.cellId));
+        dispatch(remove(alloc.id));
       }
     });
 
-    // 2. Find and remove all merged allocations
-    Object.values(state.merge.mergedAllocations).forEach(merged => {
-      if (merged.subjectId === subjectId) {
-        dispatch(deleteMergedAllocation(merged.id));
-        Object.keys(state.timetable.occupancyMap).forEach(key => {
-          if (state.timetable.occupancyMap[key].mergedGroupId === merged.id || key === merged.id) {
-             dispatch(clearOccupancy(key));
-          }
-        });
-      }
-    });
-
-    // 3. Delete from subject store
     dispatch(deleteSubject(subjectId));
     dispatch(runValidation());
   }
@@ -396,37 +319,27 @@ export const deleteSubjectGlobal = createAsyncThunk<
 
 export const swapAssignmentSubject = createAsyncThunk<
   void,
-  { cellId: string; newSubjectId: string },
+  { cellId: string; newSubjectId: string; dayId?: string; startTime?: string; endTime?: string },
   { state: RootState; dispatch: AppDispatch }
 >(
   'actions/swapAssignmentSubject',
   async (payload, { dispatch, getState }) => {
-    const { cellId, newSubjectId } = payload;
+    const { cellId, newSubjectId, dayId, startTime, endTime } = payload;
     const state = getState();
+    const alloc = state.timetableEngine.allocations[cellId];
 
-    // Check if it's a merged block
-    if (state.merge.mergedAllocations[cellId]) {
-      dispatch({ type: 'merge/updateMergedAllocation', payload: { id: cellId, updates: { subjectId: newSubjectId } } });
-    } else if (state.allocation.allocations[cellId]) {
-      dispatch(updateSingleAllocation({ cellId, updates: { subjectId: newSubjectId } }));
-    } else {
-      // If no allocation exists, just assign it normally
-      dispatch(assignSubject({ cellId, subjectId: newSubjectId }));
+    if (alloc && !alloc.isLocked) {
+        // Just update the subject ID inline
+        // Redux doesn't have a direct subjectId updater in timetableEngineSlice yet, we can re-assign
+        dispatch(assign({
+            ...alloc,
+            subjectId: newSubjectId
+        }));
+    } else if (!alloc && dayId && startTime && endTime) {
+        dispatch(assignSubject({ cellId, subjectId: newSubjectId, dayId, startTime, endTime }));
     }
     
     dispatch(runValidation());
-  }
-);
-
-export const duplicateAssignment = createAsyncThunk<
-  void,
-  { cellId: string },
-  { state: RootState; dispatch: AppDispatch }
->(
-  'actions/duplicateAssignment',
-  async () => {
-    // Implementation stub for duplicating a slot into the next available adjacent slot.
-    // For now, no-op to fulfill interface. Real implementation requires searching day slots.
   }
 );
 
@@ -436,13 +349,7 @@ export const autoAllocate = createAsyncThunk<
   { state: RootState; dispatch: AppDispatch }
 >(
   'actions/autoAllocate',
-  async (_, { dispatch, getState }) => {
-    const state = getState();
-    const subjects = Object.values(state.subject.subjects);
-    
-    // Simple mock logic: just dispatch a validation run since real auto-allocate would be complex
-    // and requirement said "Auto Allocate Integration -> Must never place overlap".
-    // A robust auto-allocate engine would use validationEngine.validateAll during its placement loops.
+  async (_, { dispatch }) => {
     alert("Auto Allocate Engine initiated. (Integration point for future heuristic solver)");
     dispatch(runValidation());
   }

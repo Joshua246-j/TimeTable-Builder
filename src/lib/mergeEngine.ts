@@ -50,7 +50,7 @@ export const mergeEngine = {
       else break;
     }
     
-    for (let i = newCellIndex + 1; i < 20; i++) {
+    for (let i = newCellIndex + 1; i < 24; i++) {
       const c = dayCells.find(x => x.rowIndex === i);
       if (c && c.assignment?.subjectId === subjectId) mergeGroup.push(c.id);
       else break;

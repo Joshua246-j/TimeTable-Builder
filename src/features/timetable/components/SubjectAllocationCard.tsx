@@ -33,7 +33,7 @@ export default function SubjectAllocationCard({
 
 
   const dispatch = useDispatch<AppDispatch>();
-  const allocations = useSelector((state: RootState) => state.allocation.allocations);
+  const { allocations } = useSelector((state: RootState) => state.timetableEngine);
 
   const { attributes, listeners, setNodeRef, isDragging } = useDraggable({
     id: subject.id,

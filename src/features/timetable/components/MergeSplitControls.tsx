@@ -3,11 +3,14 @@
 import { memo } from "react";
 import { useDispatch, useSelector } from "react-redux";
 import { RootState } from "@/store/store";
-import { disableSelectionMode, enableSelectionMode, splitMergedGroup } from "@/store/timetableSlice";
+import { disableSelectionMode, enableSelectionMode } from "@/store/timetableEngineSlice";
+import { splitMergedPeriod } from "@/store/syntheticActions";
+
+import { AppDispatch } from "@/store/store";
 
 export default memo(function MergeSplitControls({ groupId }: { groupId?: string }) {
-  const dispatch = useDispatch();
-  const { selectionMode } = useSelector((state: RootState) => state.timetable);
+  const dispatch = useDispatch<AppDispatch>();
+  const { selectionMode } = useSelector((state: RootState) => state.timetableEngine);
 
   return (
     <div className="flex items-center gap-2">
@@ -29,7 +32,7 @@ export default memo(function MergeSplitControls({ groupId }: { groupId?: string 
 
       {groupId && (
         <button
-          onClick={() => dispatch(splitMergedGroup(groupId))}
+          onClick={() => dispatch(splitMergedPeriod({ mergedId: groupId }))}
           className="px-3 py-1.5 text-xs font-semibold bg-orange-50 text-orange-600 rounded-md hover:bg-orange-100 transition-colors border border-orange-200"
         >
           Split Period

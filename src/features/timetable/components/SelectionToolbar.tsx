@@ -2,41 +2,31 @@
 
 import { memo } from "react";
 import { useDispatch, useSelector } from "react-redux";
-import { RootState } from "@/store/store";
-import { disableSelectionMode } from "@/store/selectionSlice";
-import { createMergedAllocation } from "@/store/mergeSlice";
-import { ScheduleEntry } from "@/types/timetable";
+import { RootState, AppDispatch } from "@/store/store";
+import { disableSelectionMode } from "@/store/timetableEngineSlice";
+import { mergeSelectedPeriods } from "@/store/syntheticActions";
+
 import { mergeEngine } from "@/lib/mergeEngine";
 import { cn } from "@/lib/utils";
 
 export default memo(function SelectionToolbar() {
-  const dispatch = useDispatch();
-  const { selectedCells, selectionMode } = useSelector((state: RootState) => state.selection);
+  const dispatch = useDispatch<AppDispatch>();
+  const { selectedCells, selectionMode } = useSelector((state: RootState) => state.timetableEngine);
 
   if (!selectionMode && selectedCells.length === 0) return null;
 
   const canMerge = mergeEngine.canMerge(selectedCells);
 
   const handleMerge = () => {
-    if (!canMerge) return;
+    if (selectedCells.length < 2) return;
     
-    // selectedCells are already sorted by rowIndex if using selectionSlice reducer
-    const startCell = selectedCells[0];
-    const endCell = selectedCells[selectedCells.length - 1];
+    const subjId = selectedCells[0].subjectId;
+    if (!subjId) {
+      alert("Please assign a subject to the first slot before merging.");
+      return;
+    }
 
-    const newGroup: ScheduleEntry = {
-      id: crypto.randomUUID(),
-      dayId: startCell.day || startCell.id.split('-')[0], // Simplified day extraction
-      startTime: startCell.startTime,
-      endTime: endCell.endTime,
-      rowSpan: selectedCells.length,
-      rowStart: startCell.rowIndex,
-      subjectId: startCell.subjectId || "",
-      isLocked: false,
-      isEditable: true,
-    };
-
-    dispatch(createMergedAllocation(newGroup));
+    dispatch(mergeSelectedPeriods({ subjectId: subjId }));
     dispatch(disableSelectionMode());
   };
 

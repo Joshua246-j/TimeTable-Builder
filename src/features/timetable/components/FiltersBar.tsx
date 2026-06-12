@@ -20,18 +20,17 @@ import {
   SEMESTERS,
 } from "@/constants/timetable";
 
-import { useTimetableStore } from "@/store/timetable-store";
+import { useDispatch, useSelector } from "react-redux";
+import { RootState, AppDispatch } from "@/store/store";
+import { setSemester, setDepartment, setSection } from "@/store/uiSlice";
 
 export default function FiltersBar() {
+  const dispatch = useDispatch<AppDispatch>();
   const {
     selectedSemester,
     selectedDepartment,
     selectedSection,
-
-    setSemester,
-    setDepartment,
-    setSection,
-  } = useTimetableStore();
+  } = useSelector((state: RootState) => state.ui);
 
   return (
     <section
@@ -99,7 +98,7 @@ export default function FiltersBar() {
 
           <Select
             value={selectedSemester}
-            onValueChange={setSemester}
+            onValueChange={(val) => dispatch(setSemester(val))}
           >
             <SelectTrigger
               className="
@@ -144,7 +143,7 @@ export default function FiltersBar() {
 
           <Select
             value={selectedDepartment}
-            onValueChange={setDepartment}
+            onValueChange={(val) => dispatch(setDepartment(val))}
           >
             <SelectTrigger
               className="
@@ -189,7 +188,7 @@ export default function FiltersBar() {
 
           <Select
             value={selectedSection}
-            onValueChange={setSection}
+            onValueChange={(val) => dispatch(setSection(val))}
           >
             <SelectTrigger
               className="

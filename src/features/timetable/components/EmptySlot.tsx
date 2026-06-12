@@ -17,7 +17,7 @@ export default memo(function EmptySlot({
   onClick,
   rowSpan = 1,
 }: EmptySlotProps) {
-  const baseHeight = 120;
+  const baseHeight = 160;
   const gap = 16;
   const height = rowSpan > 1 ? baseHeight * rowSpan + gap * (rowSpan - 1) : baseHeight;
 

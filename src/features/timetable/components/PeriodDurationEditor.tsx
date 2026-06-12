@@ -3,9 +3,9 @@
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { useDispatch } from "react-redux";
-import { createAllocation } from "@/store/timetableSlice";
+import { assign } from "@/store/timetableEngineSlice";
 import { ScheduleEntry } from "@/types/timetable";
-import { SelectedCellData } from "@/store/timetableSlice";
+import { SelectedCellData } from "@/types/timetable";
 
 interface PeriodDurationEditorProps {
   startCell: SelectedCellData;
@@ -19,7 +19,7 @@ export default function PeriodDurationEditor({ startCell, onClose }: PeriodDurat
   const handleSave = () => {
     const newGroup: ScheduleEntry = {
       id: crypto.randomUUID(),
-      dayId: startCell.dayId,
+      dayId: startCell.dayId || startCell.day,
       startTime: startCell.startTime,
       endTime: "TBD", // Normally calculated by Engine
       rowSpan: durationHours, // Simplified 1 hr = 1 rowSpan
@@ -28,7 +28,7 @@ export default function PeriodDurationEditor({ startCell, onClose }: PeriodDurat
       isLocked: false,
       isEditable: true,
     };
-    dispatch(createAllocation(newGroup));
+    dispatch(assign(newGroup));
     onClose();
   };
 

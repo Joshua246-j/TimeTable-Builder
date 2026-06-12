@@ -1,5 +1,5 @@
 /* eslint-disable @typescript-eslint/no-unused-vars */
-import { SelectedCellData } from '@/store/timetableSlice';
+import { SelectedCellData } from '@/types/timetable';
 import type { ScheduleEntry } from "@/types/timetable";
 
 export function calculateDuration(startTime: string, endTime: string): string {
@@ -72,7 +72,7 @@ export function mergeSlots(selectedCells: SelectedCellData[], subjectId: string)
   const entry: ScheduleEntry = {
     id: `merge-${Date.now()}`,
     subjectId: subjectId,
-    dayId: dayId,
+    dayId: dayId || selectedCells[0].day,
     startTime: startCell.startTime,
     endTime: endCell.endTime,
     rowStart: startCell.rowIndex,

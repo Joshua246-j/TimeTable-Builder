@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button";
 import { useSelector, useDispatch } from "react-redux";
 import { RootState, AppDispatch } from "@/store/store";
 import { undoHistory, redoHistory } from "@/store/historySlice";
-import { clearAllocations } from "@/store/allocationSlice";
+import { clearAllocations } from "@/store/timetableEngineSlice";
 import { runValidation } from "@/store/syntheticActions";
 
 interface ValidationFooterProps {

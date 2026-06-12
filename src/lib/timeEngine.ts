@@ -1,4 +1,4 @@
-import { SelectedCellData } from '@/store/timetableSlice';
+import { SelectedCellData } from '@/types/timetable';
 import type { ScheduleEntry } from "@/types/timetable";
 
 export interface TimeSlotData {
@@ -187,4 +187,26 @@ export function isAdjacentSelection(selectedCells: SelectedCellData[]): boolean 
   }
 
   return true;
+}
+
+/**
+ * Recalculates sequential start and end times given an initial start time and an array of ordered durations.
+ * Useful for grid configuration mode when inserting breaks or changing period durations.
+ */
+export function recalculateSequentialTimes(
+  initialStartTime: string,
+  items: { id: string; durationMinutes: number }[]
+): { id: string; startTime: string; endTime: string; durationMinutes: number }[] {
+  let currentMins = parseTime(initialStartTime);
+  return items.map(item => {
+    const startMins = currentMins;
+    const endMins = currentMins + item.durationMinutes;
+    currentMins = endMins;
+    return {
+      id: item.id,
+      durationMinutes: item.durationMinutes,
+      startTime: formatTime(startMins),
+      endTime: formatTime(endMins)
+    };
+  });
 }

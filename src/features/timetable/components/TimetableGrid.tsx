@@ -2,8 +2,9 @@
 
 import DayHeader from "./DayHeader";
 import TimetableCell from "./TimetableCell";
-import LunchBreakRow from "./LunchBreakRow";
+import BreakRow from "./BreakRow";
 import { memo, useCallback } from "react";
+import { Edit2 } from "lucide-react";
 
 import type {
   SubjectCardData,
@@ -11,8 +12,10 @@ import type {
 } from "@/types/timetable";
 import { useSelector, useDispatch } from "react-redux";
 import { RootState } from "@/store/store";
-import { toggleCellSelection } from "@/store/selectionSlice";
-import { ValidationIssue } from "@/services/validationService";
+import { toggleCellSelection } from "@/store/timetableEngineSlice";
+import { toggleGridEditMode } from "@/store/gridConfigSlice";
+import { GridBreak } from "@/store/gridConfigSlice";
+
 import SelectionToolbar from "./SelectionToolbar";
 import type { SelectedCell } from "@/types/timetableSpan";
 import { isOverlap } from "@/lib/timeEngine";
@@ -35,14 +38,13 @@ interface TimetableGridProps {
   cells: TimetableCellType[];
   subjects?: Record<string, SubjectCardData>;
   selectedCellId?: string;
-  lunchBreakIndex?: number;
-  lunchBreakLabel?: string;
-  lunchBreakStartTime?: string;
-  lunchBreakEndTime?: string;
+  isGridEditMode?: boolean;
+  breaks?: GridBreak[];
   onDaySelect?: (day: string) => void;
   onCellClick?: (cell: TimetableCellType) => void;
   onSubjectClick?: (cell: TimetableCellType) => void;
   onEditTime?: (cell: TimetableCellType) => void;
+  onTimeChange?: (cell: TimetableCellType, newStartTime: string, newEndTime: string) => void;
   onAssignSlot?: (cell: TimetableCellType, subjectId: string) => void;
   editingGroupId?: string | null;
   onCancelEdit?: () => void;
@@ -62,14 +64,13 @@ export default memo(function TimetableGrid({
   cells,
   subjects = {},
   selectedCellId,
-  lunchBreakIndex,
-  lunchBreakLabel = "LUNCH BREAK",
-  lunchBreakStartTime,
-  lunchBreakEndTime,
+  isGridEditMode = false,
+  breaks = [],
   onDaySelect,
   onCellClick,
   onSubjectClick,
   onEditTime,
+  onTimeChange,
   onAssignSlot,
   editingGroupId,
   onCancelEdit,
@@ -77,9 +78,7 @@ export default memo(function TimetableGrid({
 }: TimetableGridProps) {
   const dispatch = useDispatch();
   
-  const { selectedCells, selectionMode } = useSelector((state: RootState) => state.selection);
-  const { mergedAllocations } = useSelector((state: RootState) => state.merge);
-  const { lockedAllocations } = useSelector((state: RootState) => state.lock);
+  const { selectedCells, selectionMode, allocations } = useSelector((state: RootState) => state.timetableEngine);
   const { conflicts } = useSelector((state: RootState) => state.validation);
   
   const handleToggleCellSelection = useCallback((cell: SelectedCell) => {
@@ -123,26 +122,22 @@ export default memo(function TimetableGrid({
 
         {/* Timeline Items */}
         <div className="flex flex-col gap-4 px-4 pb-20">
-          {timeSlots.map((timeSlot, rowIndex) => {
+          {timeSlots.map((timeSlot) => {
             const day = days[0]?.name || "Monday";
             const cell = getCell(day, timeSlot.startTime, timeSlot.endTime);
             const subject = cell?.assignment ? subjects[cell.assignment.subjectId] : undefined;
-
-            const isLunch = typeof lunchBreakIndex === "number" && lunchBreakIndex === rowIndex;
+            const breakAfterThis = breaks.find(b => b.afterPeriodId === timeSlot.id);
 
             return (
-              <div key={timeSlot.id} className="flex items-start gap-3">
+              <div key={timeSlot.id} className="contents">
+              <div className="flex items-start gap-3 w-full">
                 <div className="w-[60px] shrink-0 pt-2 text-right text-[10px] font-semibold text-slate-500">
                   {timeSlot.startTime}
                   <div className="text-[9px] text-slate-400 opacity-0">{timeSlot.endTime}</div>
                 </div>
 
                 <div className="min-w-0 flex-1">
-                  {isLunch ? (
-                    <div className="flex items-center justify-center rounded-xl bg-slate-100 py-3 text-[10px] font-bold text-slate-500">
-                      ☕ LUNCH BREAK
-                    </div>
-                  ) : subject ? (
+                  {subject ? (
                     <div
                       className={`relative flex w-full flex-col gap-1 rounded-xl border border-slate-200 border-l-[4px] p-3 shadow-sm ${BADGE_STYLES[subject.type]?.bg || BADGE_STYLES.THEORY.bg
                         } ${BADGE_STYLES[subject.type]?.border || BADGE_STYLES.THEORY.border}`}
@@ -169,6 +164,19 @@ export default memo(function TimetableGrid({
                   )}
                 </div>
               </div>
+              {breakAfterThis && (
+                <div className="w-full mt-4 mb-4">
+                  <BreakRow
+                    label={breakAfterThis.label}
+                    startTime={timeSlot.endTime}
+                    endTime={`+${breakAfterThis.durationMinutes}m`}
+                    durationMinutes={breakAfterThis.durationMinutes}
+                    isGridEditMode={isGridEditMode}
+                    onRemove={() => {}}
+                  />
+                </div>
+              )}
+              </div>
             );
           })}
         </div>
@@ -187,11 +195,24 @@ export default memo(function TimetableGrid({
           shadow-sm
           lg:flex
           border border-slate-200/60
+          relative
         "
       >
+        {/* Edit Grid Button */}
+        <button
+          onClick={() => dispatch(toggleGridEditMode())}
+          className={`absolute top-4 right-4 z-10 flex items-center gap-2 rounded-full px-3 py-1.5 text-xs font-bold transition-all shadow-sm ${
+            isGridEditMode
+              ? "bg-indigo-100 text-indigo-700 ring-2 ring-indigo-500"
+              : "bg-white text-slate-600 border border-slate-200 hover:bg-slate-50 hover:text-slate-900 hover:shadow-md"
+          }`}
+        >
+          <Edit2 className="w-3.5 h-3.5" />
+          Edit Grid
+        </button>
 
 
-        <div className={`overflow-auto flex-1 ${days.length > 5 ? 'p-2' : 'p-4'}`}>
+        <div className={`overflow-auto flex-1 ${days.length > 5 ? 'p-2 pt-12' : 'p-4 pt-12'}`}>
           <div
             className={`grid ${days.length > 5 ? 'gap-x-[4px] gap-y-[4px]' : 'gap-x-[8px] gap-y-[8px]'}`}
             style={{
@@ -209,61 +230,65 @@ export default memo(function TimetableGrid({
             ))}
 
             {/* Rows */}
-            {timeSlots.map((timeSlot, rowIndex) => (
+            {timeSlots.map((timeSlot, rowIndex) => {
+              const breakAfterThis = breaks.find(b => b.afterPeriodId === timeSlot.id);
+              return (
               <div key={timeSlot.id} className="contents">
                 {/* Cells */}
                 {days.map((day) => {
-                  const cell = getCell(day.name, timeSlot.startTime, timeSlot.endTime);
-                  const actualCell = cell || {
-                    id: `${day.id}-${timeSlot.id}`,
-                    day: day.name,
-                    startTime: timeSlot.startTime,
-                    endTime: timeSlot.endTime,
-                    isAssigned: false,
-                  };
-
-                  const subject = actualCell.assignment ? subjects[actualCell.assignment.subjectId] : undefined;
 
 
-                  const activeGroup = Object.values(mergedAllocations).find((g) => {
-                    const isSameDay = g.dayId === day.name || g.dayId === day.id;
+
+
+
+
+                  const allocation = Object.values(allocations).find((a) => {
+                    const isSameDay = a.dayId === day.name || a.dayId === day.id;
                     if (!isSameDay) return false;
                     return isOverlap(
-                      { startTime: g.startTime, endTime: g.endTime },
+                      { startTime: a.startTime, endTime: a.endTime },
                       { startTime: timeSlot.startTime, endTime: timeSlot.endTime }
                     );
                   });
 
-                  if (activeGroup) {
-                    const groupSubject = activeGroup.subjectId ? subjects[activeGroup.subjectId] : undefined;
-                    // Check if lockSlice has this id locked, or if the group itself has isLocked true
-                    const isGroupLocked = lockedAllocations[activeGroup.id] || activeGroup.isLocked;
+                  if (allocation) {
+                    const allocSubject = allocation.subjectId ? subjects[allocation.subjectId] : undefined;
+                    const isLocked = allocation.isLocked;
                     
-                    const groupConflicts = conflicts.filter(c => c.cellIds?.includes(activeGroup.id));
-                    const isConflict = groupConflicts.length > 0;
+                    const allocConflicts = conflicts.filter(c => c.cellIds?.includes(allocation.id));
+                    const isConflict = allocConflicts.length > 0;
                     
-                    if (timeSlot.startTime === activeGroup.startTime) {
+                    if (timeSlot.startTime === allocation.startTime) {
                       return (
                         <TimetableCell
-                          key={actualCell.id}
-                          cell={actualCell}
-                          subject={groupSubject || subject}
-                          selected={selectedCellId === actualCell.id}
+                          key={allocation.id}
+                          cell={{
+                            id: allocation.id,
+                            day: day.name,
+                            startTime: allocation.startTime,
+                            endTime: allocation.endTime,
+                            isAssigned: true,
+                            assignment: { subjectId: allocation.subjectId }
+                          }}
+                          subject={allocSubject}
+                          selected={selectedCellId === allocation.id || selectedCells.some(c => c.id === allocation.id)}
                           onCellClick={onCellClick}
                           onSubjectClick={onSubjectClick}
                           onEditTime={onEditTime}
+                          onTimeChange={onTimeChange}
                           onAssignSlot={onAssignSlot}
                           availableSubjects={Object.values(subjects)}
                           rowIndex={rowIndex}
                           selectionMode={selectionMode}
                           onSelectionToggle={handleToggleCellSelection}
-                          rowSpan={activeGroup.rowSpan}
-                          mergedGroup={{ ...activeGroup, isLocked: isGroupLocked }}
-                          isEditing={editingGroupId === activeGroup.id}
+                          rowSpan={allocation.rowSpan}
+                          mergedGroup={allocation.rowSpan > 1 ? allocation : undefined}
+                          isLocked={isLocked}
+                          isEditing={editingGroupId === allocation.id}
                           onCancelEdit={onCancelEdit}
                           onSaveEdit={onSaveEdit}
                           isConflict={isConflict}
-                          conflictData={isConflict ? groupConflicts[0] : undefined}
+                          conflictData={isConflict ? allocConflicts[0] : undefined}
                         />
                       );
                     } else {
@@ -271,47 +296,46 @@ export default memo(function TimetableGrid({
                     }
                   }
 
-                  const isSpanSelected = selectedCells.some((c) => c.id === actualCell.id);
-
-                  const cellConflicts = conflicts.filter(c => c.cellIds?.includes(actualCell.id));
-                  const isConflict = cellConflicts.length > 0;
+                  // Empty Cell
+                  const emptyCellId = `${day.id}-${timeSlot.id}`;
+                  const isSpanSelected = selectedCells.some((c) => c.id === emptyCellId);
 
                   return (
                     <TimetableCell
-                      key={actualCell.id}
-                      cell={actualCell}
-                      subject={subject}
-                      selected={selectedCellId === actualCell.id}
+                      key={emptyCellId}
+                      cell={{
+                        id: emptyCellId,
+                        day: day.name,
+                        startTime: timeSlot.startTime,
+                        endTime: timeSlot.endTime,
+                        isAssigned: false,
+                      }}
+                      selected={selectedCellId === emptyCellId}
                       onCellClick={onCellClick}
-                      onSubjectClick={onSubjectClick}
-                      onEditTime={onEditTime}
                       onAssignSlot={onAssignSlot}
                       availableSubjects={Object.values(subjects)}
                       rowIndex={rowIndex}
                       isSpanSelected={isSpanSelected}
                       selectionMode={selectionMode}
                       onSelectionToggle={handleToggleCellSelection}
-                      isEditing={editingGroupId === actualCell.id}
-                      onCancelEdit={onCancelEdit}
-                      onSaveEdit={onSaveEdit}
-                      isConflict={isConflict}
-                      conflictData={isConflict ? cellConflicts[0] : undefined}
                     />
                   );
                 })}
 
                 {/* Optional Break Row */}
-                {typeof lunchBreakIndex === "number" && lunchBreakIndex === rowIndex && (
-                  <div style={{ gridColumn: `span ${days.length}` }}>
-                    <LunchBreakRow
-                      label={lunchBreakLabel}
-                      startTime={lunchBreakStartTime}
-                      endTime={lunchBreakEndTime}
+                {breakAfterThis && (
+                  <div style={{ gridColumn: `span ${days.length}` }} className="my-1">
+                    <BreakRow
+                      label={breakAfterThis.label}
+                      startTime={timeSlot.endTime}
+                      endTime={`+${breakAfterThis.durationMinutes}m`}
+                      durationMinutes={breakAfterThis.durationMinutes}
+                      isGridEditMode={isGridEditMode}
                     />
                   </div>
                 )}
               </div>
-            ))}
+            )})}
           </div>
         </div>
       </div>

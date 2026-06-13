@@ -20,7 +20,7 @@ Parameters:
     Type: String
     Description: >-
       ECR registry prefix, e.g. 123456789012.dkr.ecr.us-east-1.amazonaws.com
-      Images are pulled as ${EcrRegistry}/iis-<service>:${ImageTag}.
+      Images are pulled as <registry>/iis-<service>:<tag>.
   ImageTag:
     Type: String
     Default: latest
@@ -218,7 +218,7 @@ Resources:
   AlbSecurityGroup:
     Type: AWS::EC2::SecurityGroup
     Properties:
-      GroupDescription: Internal ALB — accepts traffic from the VPC Link only
+      GroupDescription: Internal ALB - accepts traffic from the VPC Link only
       VpcId: !Ref Vpc
       SecurityGroupIngress:
         - IpProtocol: tcp
@@ -232,7 +232,7 @@ Resources:
   EcsSecurityGroup:
     Type: AWS::EC2::SecurityGroup
     Properties:
-      GroupDescription: ECS Fargate tasks — accept traffic from the ALB only
+      GroupDescription: ECS Fargate tasks - accept traffic from the ALB only
       VpcId: !Ref Vpc
       SecurityGroupIngress:
         - IpProtocol: tcp
@@ -246,7 +246,7 @@ Resources:
   RdsSecurityGroup:
     Type: AWS::EC2::SecurityGroup
     Properties:
-      GroupDescription: RDS PostgreSQL — accepts traffic from ECS tasks only
+      GroupDescription: RDS PostgreSQL - accepts traffic from ECS tasks only
       VpcId: !Ref Vpc
       SecurityGroupIngress:
         - IpProtocol: tcp
@@ -431,12 +431,27 @@ Resources:
           Environment:
             - { Name: SERVICE_NAME, Value: iam }
             - { Name: ROUTE_PREFIX, Value: /iam }
-            - { Name: DB_HOST, Value: !GetAtt Database.Endpoint.Address }
+            - { Name: DB_HOST, Value: !GetAtt DBCluster.Endpoint.Address }
             - { Name: DB_PORT, Value: "5432" }
             - { Name: DB_NAME, Value: !Ref DBName }
+            # non-prod: username is not sensitive, so pass it as a plain env var.
+            - !If
+              - IsProd
+              - !Ref "AWS::NoValue"
+              - { Name: DB_USER, Value: !Ref DBUsername }
           Secrets:
-            - { Name: DB_USER, ValueFrom: !Sub "${DbSecret}:username::" }
-            - { Name: DB_PASSWORD, ValueFrom: !Sub "${DbSecret}:password::" }
+            # prod: Aurora-managed secret (username + password).
+            # non-prod: SSM SecureString holds the password only.
+            - Name: DB_PASSWORD
+              ValueFrom: !If
+                - IsProd
+                - !Sub "${DBCluster.MasterUserSecret.SecretArn}:password::"
+                - !Sub "arn:${AWS::Partition}:ssm:${AWS::Region}:${AWS::AccountId}:parameter/iis/${EnvironmentName}/db-password"
+            - !If
+              - IsProd
+              - Name: DB_USER
+                ValueFrom: !Sub "${DBCluster.MasterUserSecret.SecretArn}:username::"
+              - !Ref "AWS::NoValue"
           LogConfiguration:
             LogDriver: awslogs
             Options:
@@ -522,12 +537,27 @@ Resources:
           Environment:
             - { Name: SERVICE_NAME, Value: campus }
             - { Name: ROUTE_PREFIX, Value: /campus }
-            - { Name: DB_HOST, Value: !GetAtt Database.Endpoint.Address }
+            - { Name: DB_HOST, Value: !GetAtt DBCluster.Endpoint.Address }
             - { Name: DB_PORT, Value: "5432" }
             - { Name: DB_NAME, Value: !Ref DBName }
+            # non-prod: username is not sensitive, so pass it as a plain env var.
+            - !If
+              - IsProd
+              - !Ref "AWS::NoValue"
+              - { Name: DB_USER, Value: !Ref DBUsername }
           Secrets:
-            - { Name: DB_USER, ValueFrom: !Sub "${DbSecret}:username::" }
-            - { Name: DB_PASSWORD, ValueFrom: !Sub "${DbSecret}:password::" }
+            # prod: Aurora-managed secret (username + password).
+            # non-prod: SSM SecureString holds the password only.
+            - Name: DB_PASSWORD
+              ValueFrom: !If
+                - IsProd
+                - !Sub "${DBCluster.MasterUserSecret.SecretArn}:password::"
+                - !Sub "arn:${AWS::Partition}:ssm:${AWS::Region}:${AWS::AccountId}:parameter/iis/${EnvironmentName}/db-password"
+            - !If
+              - IsProd
+              - Name: DB_USER
+                ValueFrom: !Sub "${DBCluster.MasterUserSecret.SecretArn}:username::"
+              - !Ref "AWS::NoValue"
           LogConfiguration:
             LogDriver: awslogs
             Options:
@@ -613,12 +643,27 @@ Resources:
           Environment:
             - { Name: SERVICE_NAME, Value: commerce }
             - { Name: ROUTE_PREFIX, Value: /commerce }
-            - { Name: DB_HOST, Value: !GetAtt Database.Endpoint.Address }
+            - { Name: DB_HOST, Value: !GetAtt DBCluster.Endpoint.Address }
             - { Name: DB_PORT, Value: "5432" }
             - { Name: DB_NAME, Value: !Ref DBName }
+            # non-prod: username is not sensitive, so pass it as a plain env var.
+            - !If
+              - IsProd
+              - !Ref "AWS::NoValue"
+              - { Name: DB_USER, Value: !Ref DBUsername }
           Secrets:
-            - { Name: DB_USER, ValueFrom: !Sub "${DbSecret}:username::" }
-            - { Name: DB_PASSWORD, ValueFrom: !Sub "${DbSecret}:password::" }
+            # prod: Aurora-managed secret (username + password).
+            # non-prod: SSM SecureString holds the password only.
+            - Name: DB_PASSWORD
+              ValueFrom: !If
+                - IsProd
+                - !Sub "${DBCluster.MasterUserSecret.SecretArn}:password::"
+                - !Sub "arn:${AWS::Partition}:ssm:${AWS::Region}:${AWS::AccountId}:parameter/iis/${EnvironmentName}/db-password"
+            - !If
+              - IsProd
+              - Name: DB_USER
+                ValueFrom: !Sub "${DBCluster.MasterUserSecret.SecretArn}:username::"
+              - !Ref "AWS::NoValue"
           LogConfiguration:
             LogDriver: awslogs
             Options:
@@ -704,12 +749,27 @@ Resources:
           Environment:
             - { Name: SERVICE_NAME, Value: observability }
             - { Name: ROUTE_PREFIX, Value: /observability }
-            - { Name: DB_HOST, Value: !GetAtt Database.Endpoint.Address }
+            - { Name: DB_HOST, Value: !GetAtt DBCluster.Endpoint.Address }
             - { Name: DB_PORT, Value: "5432" }
             - { Name: DB_NAME, Value: !Ref DBName }
+            # non-prod: username is not sensitive, so pass it as a plain env var.
+            - !If
+              - IsProd
+              - !Ref "AWS::NoValue"
+              - { Name: DB_USER, Value: !Ref DBUsername }
           Secrets:
-            - { Name: DB_USER, ValueFrom: !Sub "${DbSecret}:username::" }
-            - { Name: DB_PASSWORD, ValueFrom: !Sub "${DbSecret}:password::" }
+            # prod: Aurora-managed secret (username + password).
+            # non-prod: SSM SecureString holds the password only.
+            - Name: DB_PASSWORD
+              ValueFrom: !If
+                - IsProd
+                - !Sub "${DBCluster.MasterUserSecret.SecretArn}:password::"
+                - !Sub "arn:${AWS::Partition}:ssm:${AWS::Region}:${AWS::AccountId}:parameter/iis/${EnvironmentName}/db-password"
+            - !If
+              - IsProd
+              - Name: DB_USER
+                ValueFrom: !Sub "${DBCluster.MasterUserSecret.SecretArn}:username::"
+              - !Ref "AWS::NoValue"
           LogConfiguration:
             LogDriver: awslogs
             Options:
@@ -813,14 +873,20 @@ Outputs:
     Description: Public HTTPS endpoint for the platform
     Value: !GetAtt HttpApi.ApiEndpoint
   ClusterName:
-    Description: ECS cluster name (set as ECS_CLUSTER in CircleCI)
+    Description: ECS cluster name
     Value: !Ref EcsCluster
   AlbDnsName:
     Description: Internal ALB DNS name
     Value: !GetAtt LoadBalancer.DNSName
   DbEndpoint:
-    Description: RDS PostgreSQL endpoint address
-    Value: !GetAtt Database.Endpoint.Address
-  DbSecretArn:
-    Description: Secrets Manager ARN holding DB credentials
-    Value: !Ref DbSecret
+    Description: Aurora cluster writer endpoint
+    Value: !GetAtt DBCluster.Endpoint.Address
+  DbReaderEndpoint:
+    Description: Aurora cluster reader endpoint
+    Value: !GetAtt DBCluster.ReadEndpoint.Address
+  DbCredentialSource:
+    Description: Where the DB password lives — Secrets Manager (prod) or SSM SecureString (non-prod)
+    Value: !If
+      - IsProd
+      - !GetAtt DBCluster.MasterUserSecret.SecretArn
+      - !Sub "arn:${AWS::Partition}:ssm:${AWS::Region}:${AWS::AccountId}:parameter/iis/${EnvironmentName}/db-password"

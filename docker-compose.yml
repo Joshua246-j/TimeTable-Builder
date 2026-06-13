@@ -1,0 +1,79 @@
+services:
+  db:
+    image: postgres:16
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: iis
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  iam:
+    build: ./services/iam
+    environment:
+      SERVICE_NAME: iam
+      ROUTE_PREFIX: /iam
+      DB_HOST: db
+      DB_NAME: iis
+      DB_USER: postgres
+      DB_PASSWORD: postgres
+    ports:
+      - "8001:8000"
+    depends_on:
+      db:
+        condition: service_healthy
+
+  campus:
+    build: ./services/campus
+    environment:
+      SERVICE_NAME: campus
+      ROUTE_PREFIX: /campus
+      DB_HOST: db
+      DB_NAME: iis
+      DB_USER: postgres
+      DB_PASSWORD: postgres
+    ports:
+      - "8002:8000"
+    depends_on:
+      db:
+        condition: service_healthy
+
+  commerce:
+    build: ./services/commerce
+    environment:
+      SERVICE_NAME: commerce
+      ROUTE_PREFIX: /commerce
+      DB_HOST: db
+      DB_NAME: iis
+      DB_USER: postgres
+      DB_PASSWORD: postgres
+    ports:
+      - "8003:8000"
+    depends_on:
+      db:
+        condition: service_healthy
+
+  observability:
+    build: ./services/observability
+    environment:
+      SERVICE_NAME: observability
+      ROUTE_PREFIX: /observability
+      DB_HOST: db
+      DB_NAME: iis
+      DB_USER: postgres
+      DB_PASSWORD: postgres
+    ports:
+      - "8004:8000"
+    depends_on:
+      db:
+        condition: service_healthy
+
+volumes:
+  pgdata:

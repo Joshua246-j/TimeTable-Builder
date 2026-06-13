@@ -1,0 +1,9 @@
+[
+  { "ParameterKey": "EnvironmentName", "ParameterValue": "dev" },
+  { "ParameterKey": "EcrRegistry", "ParameterValue": "123456789012.dkr.ecr.us-east-1.amazonaws.com" },
+  { "ParameterKey": "ImageTag", "ParameterValue": "latest" },
+  { "ParameterKey": "DBUsername", "ParameterValue": "iis_admin" },
+  { "ParameterKey": "DBPassword", "ParameterValue": "CHANGE_ME_strong_password" },
+  { "ParameterKey": "DBInstanceClass", "ParameterValue": "db.t4g.micro" },
+  { "ParameterKey": "DesiredCount", "ParameterValue": "1" }
+]

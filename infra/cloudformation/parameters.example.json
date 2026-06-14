@@ -4,6 +4,7 @@
   { "ParameterKey": "ImageTag", "ParameterValue": "latest" },
   { "ParameterKey": "DBUsername", "ParameterValue": "iis_admin" },
   { "ParameterKey": "DBPassword", "ParameterValue": "CHANGE_ME_strong_password" },
-  { "ParameterKey": "DBInstanceClass", "ParameterValue": "db.t4g.micro" },
+  { "ParameterKey": "AuroraMinCapacity", "ParameterValue": "0.5" },
+  { "ParameterKey": "AuroraMaxCapacity", "ParameterValue": "4" },
   { "ParameterKey": "DesiredCount", "ParameterValue": "1" }
 ]

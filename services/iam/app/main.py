@@ -1,10 +1,12 @@
 import logging
 
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
+from fastapi.responses import JSONResponse
 
-from app.api.routes import router
 from app.core.config import settings
 from app.core.database import check_db, lifespan
+from app.core.exceptions import DomainError
+from app.views import router
 
 logging.basicConfig(level=settings.log_level)
 
@@ -13,6 +15,12 @@ app = FastAPI(
     version=settings.version,
     lifespan=lifespan,
 )
+
+
+@app.exception_handler(DomainError)
+async def handle_domain_error(_: Request, exc: DomainError) -> JSONResponse:
+    """Map controller-raised domain errors to HTTP responses."""
+    return JSONResponse(status_code=exc.status_code, content={"detail": exc.detail})
 
 
 @app.get("/health", tags=["system"])

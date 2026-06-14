@@ -1,0 +1,156 @@
+name: build-test-provision
+
+# Migrated from CircleCI. Runs on pushes to the deployment branch:
+#   test -> build & push images (ECR) -> provision infra (CloudFormation).
+#
+# provision_infra is idempotent: it creates the stack "iis-${ENVIRONMENT}" if it
+# does not exist, otherwise applies changes. It passes ImageTag=$GITHUB_SHA, so
+# CloudFormation updates the ECS task definitions and performs the rolling
+# deployment itself.
+#
+# Database: Aurora Serverless v2 (PostgreSQL). Password handling per environment:
+#   prod      -> Aurora-managed password in Secrets Manager (auto-rotation); no
+#                DB_PASSWORD is needed or passed.
+#   non-prod  -> provision_infra writes DB_PASSWORD to an SSM SecureString that
+#                both Aurora and the ECS tasks read from.
+#
+# Configure on the repository (Settings -> Secrets and variables -> Actions):
+#   Variables:  AWS_REGION, ENVIRONMENT, DB_USERNAME (optional)
+#   Secrets:    AWS_OIDC_ROLE_ARN, DB_PASSWORD (non-prod only)
+
+on:
+  push:
+    branches: [deployment]
+  workflow_dispatch: {}
+
+permissions:
+  id-token: write   # required for AWS OIDC
+  contents: read
+
+env:
+  AWS_REGION: ${{ vars.AWS_REGION }}
+  ENVIRONMENT: ${{ vars.ENVIRONMENT }}
+
+concurrency:
+  group: deploy-${{ vars.ENVIRONMENT }}
+  cancel-in-progress: false
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        service: [iam, campus, commerce, observability]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+      - name: Install dependencies
+        working-directory: services/${{ matrix.service }}
+        run: pip install -r requirements.txt pytest
+      - name: Run tests
+        working-directory: services/${{ matrix.service }}
+        run: python -m pytest -q
+
+  build_and_push:
+    needs: test
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        service: [iam, campus, commerce, observability]
+    steps:
+      - uses: actions/checkout@v4
+      - name: Configure AWS credentials (OIDC)
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_OIDC_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+      - name: Login to Amazon ECR
+        id: ecr
+        uses: aws-actions/amazon-ecr-login@v2
+      - name: Build and push image to ECR
+        env:
+          REGISTRY: ${{ steps.ecr.outputs.registry }}
+          REPO: iis-${{ matrix.service }}
+        run: |
+          set -euo pipefail
+          # Ensure the ECR repository exists.
+          aws ecr describe-repositories --repository-names "$REPO" >/dev/null 2>&1 \
+            || aws ecr create-repository --repository-name "$REPO" \
+                 --image-scanning-configuration scanOnPush=true >/dev/null
+
+          docker build \
+            -t "$REGISTRY/$REPO:$GITHUB_SHA" \
+            -t "$REGISTRY/$REPO:latest" \
+            "services/${{ matrix.service }}"
+
+          docker push "$REGISTRY/$REPO:$GITHUB_SHA"
+          docker push "$REGISTRY/$REPO:latest"
+
+  provision_infra:
+    needs: build_and_push   # waits for all four images to be pushed
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Configure AWS credentials (OIDC)
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_OIDC_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+      - name: Provision / update infrastructure (CloudFormation)
+        env:
+          DB_PASSWORD: ${{ secrets.DB_PASSWORD }}
+          DB_USERNAME: ${{ vars.DB_USERNAME }}
+        run: |
+          set -euo pipefail
+          STACK_NAME="iis-${ENVIRONMENT}"
+          ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text)
+          REGISTRY="${ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com"
+
+          # Check whether the stack is already in position.
+          if aws cloudformation describe-stacks --stack-name "$STACK_NAME" >/dev/null 2>&1; then
+            echo "Stack '$STACK_NAME' exists — applying any changes."
+          else
+            echo "Stack '$STACK_NAME' not found — creating it."
+          fi
+
+          # Common parameters. ImageTag=$GITHUB_SHA changes the task definitions,
+          # so CloudFormation performs the rolling deployment of the new images.
+          PARAMS=(
+            "EnvironmentName=$ENVIRONMENT"
+            "EcrRegistry=$REGISTRY"
+            "ImageTag=$GITHUB_SHA"
+            "DBUsername=${DB_USERNAME:-iis_admin}"
+          )
+
+          if [ "$ENVIRONMENT" = "prod" ]; then
+            # prod: Aurora manages the master password in Secrets Manager.
+            echo "prod: using Aurora-managed Secrets Manager password (no DB_PASSWORD passed)."
+          else
+            # non-prod: store the password in an SSM SecureString (CloudFormation
+            # cannot create SecureString params) and pass it as the Aurora master
+            # password. ECS reads DB_PASSWORD from this parameter at runtime.
+            : "${DB_PASSWORD:?DB_PASSWORD must be set for non-prod environments}"
+            echo "non-prod: writing SSM SecureString /iis/${ENVIRONMENT}/db-password."
+            aws ssm put-parameter \
+              --name "/iis/${ENVIRONMENT}/db-password" \
+              --type SecureString \
+              --value "$DB_PASSWORD" \
+              --overwrite >/dev/null
+            PARAMS+=("DBPassword=$DB_PASSWORD")
+          fi
+
+          # Idempotent create-or-update.
+          aws cloudformation deploy \
+            --stack-name "$STACK_NAME" \
+            --template-file infra/cloudformation/template.yaml \
+            --capabilities CAPABILITY_NAMED_IAM \
+            --no-fail-on-empty-changeset \
+            --parameter-overrides "${PARAMS[@]}"
+
+          echo "Infrastructure is in position. Stack outputs:"
+          aws cloudformation describe-stacks --stack-name "$STACK_NAME" \
+            --query 'Stacks[0].Outputs' --output table

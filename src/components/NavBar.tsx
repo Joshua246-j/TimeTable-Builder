@@ -12,44 +12,46 @@ export default function NavBar() {
   return (
     <nav className="flex h-[64px] w-full items-center justify-between border-b border-[#E5E7EB] bg-white px-6">
       
-      {/* Left: Logo & Title */}
-      <div className="flex items-center gap-3">
-        <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-[#0D2463] text-white">
-          {isDashboard ? <GraduationCap className="h-5 w-5" /> : <LayoutGrid className="h-5 w-5" />}
-        </div>
-        <div>
-          <h1 className="text-[15px] font-bold text-slate-900 leading-tight">
-            {isDashboard ? "IIS" : "Timetable Creation"}
-          </h1>
-          <div className="flex items-center text-[11px] font-semibold text-slate-500 uppercase tracking-wider mt-0.5">
-            SS Tech CSE • Semester
-            <ChevronDown className="ml-1 h-3 w-3" />
+      {/* Left: Logo, Title & Tabs */}
+      <div className="flex items-center gap-10">
+        <div className="flex items-center gap-3">
+          <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-[#0D2463] text-white">
+            {isDashboard ? <GraduationCap className="h-5 w-5" /> : <LayoutGrid className="h-5 w-5" />}
+          </div>
+          <div>
+            <h1 className="text-[15px] font-bold text-slate-900 leading-tight">
+              {isDashboard ? "IIS" : "Timetable Creation"}
+            </h1>
+            <div className="flex items-center text-[11px] font-semibold text-slate-500 uppercase tracking-wider mt-0.5">
+              SS Tech CSE • Semester
+              <ChevronDown className="ml-1 h-3 w-3" />
+            </div>
           </div>
         </div>
-      </div>
 
-      {/* Middle: Tabs */}
-      <div className="flex items-center gap-2 rounded-xl bg-slate-50 p-1">
-        <Link 
-          href="/dashboard"
-          className={`rounded-lg px-6 py-2 text-sm font-semibold transition-colors ${
-            pathname.includes('/dashboard')
-              ? "bg-[#5A67D8] text-white shadow-sm"
-              : "text-slate-600 hover:text-slate-900"
-          }`}
-        >
-          Dashboard
-        </Link>
-        <Link 
-          href="/timetable-builder"
-          className={`rounded-lg px-6 py-2 text-sm font-semibold transition-colors ${
-            pathname.includes('/timetable-builder')
-              ? "bg-[#5A67D8] text-white shadow-sm"
-              : "text-slate-600 hover:text-slate-900"
-          }`}
-        >
-          Timetable
-        </Link>
+        {/* Tabs */}
+        <div className="flex items-center gap-2 rounded-xl bg-slate-50 p-1">
+          <Link 
+            href="/dashboard"
+            className={`rounded-lg px-6 py-2 text-sm font-semibold transition-colors ${
+              pathname.includes('/dashboard') || pathname === '/attendance' || pathname === '/lecture' || pathname === '/presentations'
+                ? "bg-[#5A67D8] text-white shadow-sm"
+                : "text-slate-600 hover:text-slate-900 hover:bg-slate-100"
+            }`}
+          >
+            Dashboard
+          </Link>
+          <Link 
+            href="/timetable-builder"
+            className={`rounded-lg px-6 py-2 text-sm font-semibold transition-colors ${
+              pathname.includes('/timetable-builder')
+                ? "bg-[#5A67D8] text-white shadow-sm"
+                : "text-slate-600 hover:text-slate-900 hover:bg-slate-100"
+            }`}
+          >
+            Timetable
+          </Link>
+        </div>
       </div>
 
       {/* Right: Selectors & Profile */}

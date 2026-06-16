@@ -247,7 +247,7 @@ export default function TimetableInteractiveWorkspace({
       <div className="flex h-full w-full flex-col bg-[#F8FAFC]">
         <div className="flex-1 flex overflow-hidden font-inter relative">
         <div className="flex-1 flex flex-col overflow-hidden bg-[#F8FAFC]">
-          <div className="flex-1 overflow-y-auto flex flex-col p-4 lg:p-6 lg:pl-8">
+          <div className="overflow-y-auto flex flex-col p-4 lg:p-6 lg:pl-8 h-full">
             <div className="flex-none">
               <ActionToolbar 
                 onOpenConflicts={() => setIsConflictDrawerOpen(true)}
@@ -257,11 +257,10 @@ export default function TimetableInteractiveWorkspace({
               </div>
             </div>
 
-            <div className="flex-1 mt-4 lg:mt-6 min-h-0 flex flex-col pb-6">
+            <div className="mt-4 lg:mt-6 flex flex-col pb-6">
               <div
                 className="
-                  flex-1
-                  overflow-auto
+                
                   bg-transparent lg:bg-white
                   relative
                 "
@@ -361,11 +360,11 @@ export default function TimetableInteractiveWorkspace({
                 />
               </div>
             </div>
-          </div>
-          
-          <div className="flex-none p-4 lg:p-6 lg:pl-8 bg-white border-t border-slate-200 shadow-[0_-4px_10px_rgba(0,0,0,0.02)] z-20">
+            
+            <div className="flex-none pt-4 lg:pt-6 border-t border-slate-200 bg-white">
             <ValidationFooter onOpenConflicts={() => setIsConflictDrawerOpen(true)} />
-          </div>
+            </div>
+          </div> 
         </div>
 
         <div
@@ -382,7 +381,7 @@ export default function TimetableInteractiveWorkspace({
             ${sidebarOpen ? "w-[320px]" : "w-[0px] border-none"}
           `}
         >
-          <div className="w-[320px] h-full">
+          <div className="w-[320px] h-[80px] ">
             <SubjectAllocationPanel
               subjects={timetableSubjectsArr}
               onUpdateSubject={handleUpdateSubject}

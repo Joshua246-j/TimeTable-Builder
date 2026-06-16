@@ -35,7 +35,7 @@ export default memo(function SubjectAllocationPanel({
     <aside
       className="
         flex
-        h-full
+        h-[90dvh]
         flex-col
         bg-white
       "
@@ -98,7 +98,8 @@ export default memo(function SubjectAllocationPanel({
       <div
         className="
           flex-1
-          overflow-y-auto
+          
+          overflow-y-scroll
           p-5
         "
       >

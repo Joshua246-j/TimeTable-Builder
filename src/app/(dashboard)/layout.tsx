@@ -5,11 +5,11 @@ interface DashboardLayoutProps {
   children: ReactNode;
 }
 
-export default function DashboardLayout({
-  children,
-}: DashboardLayoutProps) {
+// src/app/(dashboard)/layout.tsx
+
+export default function DashboardLayout({ children }: DashboardLayoutProps) {
   return (
-    <div className="min-h-screen bg-[#F7F8FC] flex flex-col font-inter">
+    <div className="h-screen bg-[#F7F8FC] flex flex-col font-inter">  {/* min-h-screen → h-screen */}
       <NavBar />
       <div className="flex-1 overflow-hidden">
         {children}

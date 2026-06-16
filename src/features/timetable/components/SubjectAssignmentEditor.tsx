@@ -22,6 +22,8 @@ import type { SubjectCardData, ScheduleEntry } from "@/types/timetable";
 import { formatTime, parseTime } from "@/lib/timeEngine";
 import { useSelector } from "react-redux";
 import { RootState } from "@/store/store";
+import { CircularTimePicker } from "./CircularTimePicker";
+import { parse, format } from "date-fns";
 
 interface SubjectAssignmentEditorProps {
   subject: SubjectCardData;
@@ -249,20 +251,18 @@ export default function SubjectAssignmentEditor({
               </div>
               <div>
                 <label className="mb-1.5 block text-[10px] font-semibold uppercase tracking-wide text-slate-500">Start Time</label>
-                <input
-                  type="time"
-                  value={timeState.startTimeStr}
-                  onChange={(e) => setTimeState(s => s ? { ...s, startTimeStr: e.target.value } : null)}
-                  className="flex h-10 w-full rounded-md border border-slate-200 bg-white px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
+                <CircularTimePicker
+                  value={timeState.startTimeStr ? parse(timeState.startTimeStr, "HH:mm", new Date()) : new Date()}
+                  onChange={(d) => setTimeState(s => s ? { ...s, startTimeStr: format(d, "HH:mm") } : null)}
+                  className="h-10 w-full"
                 />
               </div>
               <div>
                 <label className="mb-1.5 block text-[10px] font-semibold uppercase tracking-wide text-slate-500">End Time</label>
-                <input
-                  type="time"
-                  value={timeState.endTimeStr}
-                  onChange={(e) => setTimeState(s => s ? { ...s, endTimeStr: e.target.value } : null)}
-                  className="flex h-10 w-full rounded-md border border-slate-200 bg-white px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
+                <CircularTimePicker
+                  value={timeState.endTimeStr ? parse(timeState.endTimeStr, "HH:mm", new Date()) : new Date()}
+                  onChange={(d) => setTimeState(s => s ? { ...s, endTimeStr: format(d, "HH:mm") } : null)}
+                  className="h-10 w-full"
                 />
               </div>
             </div>

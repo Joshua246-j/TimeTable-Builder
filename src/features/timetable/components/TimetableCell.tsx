@@ -9,6 +9,7 @@ import SubjectAssignmentEditor from "./SubjectAssignmentEditor";
 import { useDispatch } from "react-redux";
 import { AppDispatch } from "@/store/store";
 import { toggleLockSlot, removeSubjectAssignment, splitMergedPeriod } from "@/store/syntheticActions";
+import { enableSelectionMode, toggleCellSelection } from "@/store/timetableEngineSlice";
 
 import type {
   SubjectCardData,
@@ -150,6 +151,19 @@ export default memo(function TimetableCell({
               onDelete={isGridEditMode ? undefined : () => {
                 dispatch(removeSubjectAssignment({ cellId: mergedGroup.id }));
               }}
+              onMerge={isGridEditMode ? undefined : () => {
+                dispatch(enableSelectionMode());
+                if (rowIndex !== undefined) {
+                  dispatch(toggleCellSelection({
+                    id: mergedGroup.id,
+                    day: mergedGroup.dayId,
+                    startTime: mergedGroup.startTime,
+                    endTime: mergedGroup.endTime,
+                    rowIndex,
+                    subjectId: mergedGroup.subjectId,
+                  }));
+                }
+              }}
               onSplit={isGridEditMode ? undefined : () => {
                 dispatch(splitMergedPeriod({ mergedId: mergedGroup.id }));
               }}
@@ -217,6 +231,19 @@ export default memo(function TimetableCell({
               }}
               onEdit={isGridEditMode ? undefined : () => onEditTime?.(cell)}
               onDelete={isGridEditMode ? undefined : () => onSubjectClick?.(cell)}
+              onMerge={isGridEditMode ? undefined : () => {
+                dispatch(enableSelectionMode());
+                if (rowIndex !== undefined) {
+                  dispatch(toggleCellSelection({
+                    id: cell.id,
+                    day: cell.day,
+                    startTime: cell.startTime,
+                    endTime: cell.endTime,
+                    rowIndex,
+                    subjectId: cell.assignment?.subjectId,
+                  }));
+                }
+              }}
               assignedTime={`${cell.startTime} - ${cell.endTime}`}
               assignedDay={cell.day}
             />

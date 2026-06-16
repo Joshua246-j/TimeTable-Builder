@@ -1,8 +1,8 @@
 import { z } from 'zod';
 
 export const PersonTypeSchema = z.object({
-  personType: z.enum(['student', 'staff'], {
-    required_error: 'Please select a person type to continue.',
+  personType: z.enum(['student', 'staff'] as const, {
+    message: 'Please select a person type to continue.',
   }),
 });
 

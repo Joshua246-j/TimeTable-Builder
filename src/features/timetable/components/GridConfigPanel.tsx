@@ -1,258 +1,401 @@
-import { useState } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { useDispatch, useSelector } from "react-redux";
 import { RootState, AppDispatch } from "@/store/store";
 import {
   toggleGridEditMode,
   toggleDay,
-  addBreak,
-  removeBreak,
-  updatePeriodStructure,
-  GridBreak
+  setBreaks,
+  updateTimeSlots,
+  GridBreak,
+  GridTimeSlot,
+  updatePeriodStructure
 } from "@/store/gridConfigSlice";
-import { X, Clock, Settings2, Plus, CalendarDays, Coffee, Trash2, Check } from "lucide-react";
+import { X, Clock, Plus, CalendarDays, Trash2, GripVertical, Save } from "lucide-react";
 import { toast } from "sonner";
+import { parseTime, formatTime } from "@/lib/timeEngine";
+
+import {
+  DndContext,
+  closestCenter,
+  KeyboardSensor,
+  PointerSensor,
+  useSensor,
+  useSensors,
+  DragEndEvent
+} from "@dnd-kit/core";
+import {
+  arrayMove,
+  SortableContext,
+  sortableKeyboardCoordinates,
+  verticalListSortingStrategy,
+  useSortable
+} from "@dnd-kit/sortable";
+import { CSS } from "@dnd-kit/utilities";
+
+import { parse, format } from 'date-fns';
+import { CircularTimePicker } from './CircularTimePicker';
+
+type TimelineItem = {
+  id: string;
+  type: 'PERIOD' | 'BREAK';
+  label: string;
+  durationMinutes: number;
+  originalPeriodId?: string;
+  originalBreakId?: string;
+  breakType?: GridBreak['type'];
+};
+
+function SortableItem({ item, timeRange, onDelete, onUpdateDuration }: { item: TimelineItem; timeRange: string; onDelete: (id: string) => void; onUpdateDuration: (id: string, mins: number) => void }) {
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: item.id });
+  const style = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+    zIndex: isDragging ? 50 : 1,
+    opacity: isDragging ? 0.6 : 1,
+  };
+
+  const isPeriod = item.type === 'PERIOD';
+
+  return (
+    <div
+      ref={setNodeRef}
+      style={style}
+      className={`rounded-2xl border transition-all ${isPeriod ? 'border-[#E5E7EB] bg-white hover:border-slate-300 hover:shadow-sm' : 'border-orange-200 bg-[#FFF9F2] hover:shadow-sm'}`}
+    >
+      <div className="p-[16px] flex items-center gap-3">
+        <div {...attributes} {...listeners} className="cursor-grab active:cursor-grabbing text-slate-400 hover:text-slate-600">
+          <GripVertical className="w-4 h-4" />
+        </div>
+        
+        <div className="flex-1 min-w-0">
+          <div className="flex items-start justify-between">
+             <h4 className={`text-[15px] font-bold truncate pr-2 ${isPeriod ? 'text-slate-900' : 'text-[#C2410C]'}`}>
+                 {isPeriod ? item.label : item.breakType}
+             </h4>
+             {!isPeriod && (
+                <button onClick={() => onDelete(item.id)} className="text-red-400 hover:text-red-600 transition-colors">
+                  <Trash2 className="w-4 h-4" />
+                </button>
+             )}
+          </div>
+          
+          <div className="flex items-center justify-between mt-2">
+              <span className="text-[11px] font-semibold text-slate-500 tracking-wider">{timeRange}</span>
+              <div className="flex items-center gap-1.5">
+                  <input 
+                     type="number" 
+                     value={item.durationMinutes}
+                     onChange={(e) => onUpdateDuration(item.id, parseInt(e.target.value) || 0)}
+                     className="w-12 text-[11px] font-semibold p-1 border border-slate-200 rounded text-center outline-none focus:border-[#4F6BFF] bg-white"
+                  />
+                  <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Mins</span>
+              </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
 
 export default function GridConfigPanel() {
   const dispatch = useDispatch<AppDispatch>();
   const config = useSelector((state: RootState) => state.gridConfig);
-  const { allocations } = useSelector((state: RootState) => state.timetableEngine);
 
   // Local state for Period Structure form
   const [startTime, setStartTime] = useState(config.startTime);
-  const [duration, setDuration] = useState(config.defaultPeriodDuration);
-  const [periodsCount, setPeriodsCount] = useState(config.numberOfPeriods);
+  const [timelineItems, setTimelineItems] = useState<TimelineItem[]>([]);
 
-  // Local state for Break form
-  const [showAddBreak, setShowAddBreak] = useState(false);
-  const [breakPosition, setBreakPosition] = useState<string>(config.timeSlots[0]?.id || '1');
-  const [breakType, setBreakType] = useState<GridBreak['type']>('Lunch Break');
-  const [breakDuration, setBreakDuration] = useState<number>(45);
+  // Initialize timeline items
+  useEffect(() => {
+    if (!config.isGridEditMode) return;
+    
+    const items: TimelineItem[] = [];
+    
+    const initialBreaks = config.breaks.filter(b => b.afterPeriodId === '0' || !b.afterPeriodId);
+    initialBreaks.forEach(b => {
+       items.push({
+          id: `break-${b.id}`,
+          type: 'BREAK',
+          label: b.label,
+          durationMinutes: b.durationMinutes,
+          originalBreakId: b.id,
+          breakType: b.type
+       });
+    });
 
-  if (!config.isGridEditMode) return null;
+    config.timeSlots.forEach(ts => {
+       items.push({
+          id: `period-${ts.id}`,
+          type: 'PERIOD',
+          label: ts.label, 
+          durationMinutes: ts.durationMinutes || config.defaultPeriodDuration,
+          originalPeriodId: ts.id
+       });
+       
+       const breaksAfter = config.breaks.filter(b => b.afterPeriodId === ts.id);
+       breaksAfter.forEach(b => {
+          items.push({
+             id: `break-${b.id}`,
+             type: 'BREAK',
+             label: b.label,
+             durationMinutes: b.durationMinutes,
+             originalBreakId: b.id,
+             breakType: b.type
+          });
+       });
+    });
+    // eslint-disable-next-line
+    setTimelineItems(items);
+  }, [config.timeSlots, config.breaks, config.isGridEditMode, config.defaultPeriodDuration]);
 
-  const handleToggleDay = (dayName: string, enabled: boolean) => {
-    if (!enabled) {
-      // Validation check before disabling a day
-      const hasSubjects = Object.values(allocations).some(alloc => alloc.id.startsWith(dayName));
-      if (hasSubjects) {
-        if (!confirm(`Warning: There are subjects assigned on ${dayName}. If you disable this day, those subjects might not be visible. Do you want to continue?`)) {
-          return; // Abort if they don't confirm
-        }
-      }
+  const sensors = useSensors(
+    useSensor(PointerSensor),
+    useSensor(KeyboardSensor, {
+      coordinateGetter: sortableKeyboardCoordinates,
+    })
+  );
+
+  const handleDragEnd = (event: DragEndEvent) => {
+    const { active, over } = event;
+    if (over && active.id !== over.id) {
+      setTimelineItems((items) => {
+        const oldIndex = items.findIndex((i) => i.id === active.id);
+        const newIndex = items.findIndex((i) => i.id === over.id);
+        return arrayMove(items, oldIndex, newIndex);
+      });
     }
-    dispatch(toggleDay({ name: dayName, enabled }));
-  };
-
-  const handleSavePeriodStructure = () => {
-    dispatch(updatePeriodStructure({ startTime, duration, count: periodsCount }));
-    toast.success("Period structure updated");
   };
 
   const handleAddBreak = () => {
-    const newBreak: GridBreak = {
-      id: `break-${Date.now()}`,
-      afterPeriodId: breakPosition,
-      durationMinutes: breakDuration,
-      label: breakType,
-      type: breakType
-    };
-    dispatch(addBreak(newBreak));
-    setShowAddBreak(false);
-    toast.success(`${breakType} added`);
+    const newBreakId = `new-break-${Date.now()}`;
+    setTimelineItems(items => [
+      ...items,
+      {
+        id: newBreakId,
+        type: 'BREAK',
+        label: 'Custom Break',
+        durationMinutes: 15,
+        breakType: 'Custom Break'
+      }
+    ]);
+  };
+  
+  const handleAddPeriod = () => {
+    const newPeriodId = `new-period-${Date.now()}`;
+    const periodCount = timelineItems.filter(i => i.type === 'PERIOD').length;
+    setTimelineItems(items => [
+      ...items,
+      {
+        id: newPeriodId,
+        type: 'PERIOD',
+        label: `Period ${periodCount + 1}`,
+        durationMinutes: config.defaultPeriodDuration,
+      }
+    ]);
   };
 
+  const handleDeleteItem = (id: string) => {
+    setTimelineItems(items => items.filter(i => i.id !== id));
+  };
+
+  const handleUpdateDuration = (id: string, mins: number) => {
+    setTimelineItems(items => items.map(i => i.id === id ? { ...i, durationMinutes: mins } : i));
+  };
+
+  const handleSaveGrid = () => {
+    const newTimeSlots: GridTimeSlot[] = [];
+    const newBreaks: GridBreak[] = [];
+    
+    let periodIndex = 1;
+    let lastPeriodId = "0"; 
+    
+    let currentMins = parseTime(startTime);
+    
+    timelineItems.forEach(item => {
+        const itemStart = formatTime(currentMins);
+        currentMins += item.durationMinutes;
+        const itemEnd = formatTime(currentMins);
+        
+        if (item.type === 'PERIOD') {
+           const pid = item.originalPeriodId || `p-${Date.now()}-${periodIndex}`;
+           newTimeSlots.push({
+               id: pid,
+               startTime: itemStart,
+               endTime: itemEnd,
+               label: `Period ${periodIndex}`,
+               durationMinutes: item.durationMinutes
+           });
+           lastPeriodId = pid;
+           periodIndex++;
+        } else {
+           newBreaks.push({
+               id: item.originalBreakId || `break-${Date.now()}-${Math.random()}`,
+               afterPeriodId: lastPeriodId, 
+               durationMinutes: item.durationMinutes,
+               label: item.label,
+               type: item.breakType || 'Custom Break'
+           });
+        }
+    });
+    
+    dispatch(updatePeriodStructure({ startTime, duration: config.defaultPeriodDuration, count: newTimeSlots.length }));
+    dispatch(updateTimeSlots(newTimeSlots));
+    dispatch(setBreaks(newBreaks));
+    
+    toast.success("Grid configuration saved successfully!");
+    dispatch(toggleGridEditMode());
+  };
+
+  const renderedItems = useMemo(() => {
+    const startMins = parseTime(startTime);
+    const result = [];
+    let current = startMins;
+    
+    for (const item of timelineItems) {
+       const itemStart = formatTime(current);
+       const next = current + item.durationMinutes;
+       const itemEnd = formatTime(next);
+       current = next;
+       
+       let label = (item.type === 'PERIOD' ? item.label : item.breakType) || 'Unknown';
+       if (item.type === 'PERIOD' && label.includes(" - ")) {
+           const periodNum = timelineItems.filter(i => i.type === 'PERIOD').indexOf(item) + 1;
+           label = `Period ${periodNum}`;
+       }
+       
+       result.push({ ...item, label, timeRange: `${itemStart} - ${itemEnd}` });
+    }
+    return result;
+  }, [timelineItems, startTime]);
+
+  // Safely parse the "09:00 AM" string into a JS Date object for MUI
+  const parsedStartTime = useMemo(() => {
+     try {
+       const d = parse(startTime, "hh:mm a", new Date());
+       return isNaN(d.getTime()) ? new Date() : d;
+     } catch {
+       return new Date();
+     }
+  }, [startTime]);
+
+  const handleTimeChange = (newValue: Date | null) => {
+     if (newValue) {
+        setStartTime(format(newValue, "hh:mm a"));
+     }
+  };
+
+  if (!config.isGridEditMode) return null;
+
   return (
-    <div className="h-full w-[360px] shrink-0 bg-white border-l border-slate-200 shadow-2xl flex flex-col z-50 overflow-hidden">
+    <aside className="h-[90dvh] w-[360px] shrink-0 bg-white flex flex-col z-50 border-l border-[#E5E7EB] shadow-2xl">
         {/* Header */}
-        <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100 bg-slate-50/50">
-          <div className="flex items-center gap-2 text-indigo-700">
-            <Settings2 className="w-5 h-5" />
-            <h2 className="font-bold text-[15px]">Grid Configuration</h2>
+        <div className="border-b border-[#E5E7EB] px-5 py-5 sticky top-0 bg-white z-10">
+          <div className="flex items-start justify-between">
+            <div>
+              <h2 className="text-[20px] font-semibold text-slate-900">Grid Setup</h2>
+              <p className="mt-1 text-sm text-slate-500">Reorder slots & breaks</p>
+            </div>
+            <button
+              onClick={() => dispatch(toggleGridEditMode())}
+              className="rounded-md p-1 text-slate-400 transition-colors hover:bg-slate-100 hover:text-slate-700"
+            >
+              <X className="h-4 w-4" />
+            </button>
           </div>
-          <button
-            onClick={() => dispatch(toggleGridEditMode())}
-            className="p-2 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-full transition-colors"
-          >
-            <X className="w-4 h-4" />
-          </button>
         </div>
 
-        <div className="flex-1 overflow-y-auto p-6 space-y-8 scrollbar-thin scrollbar-thumb-slate-200">
+        <div className="flex-1 overflow-y-scroll p-5 space-y-6">
 
           {/* Working Days Section */}
-          <section className="space-y-4">
-            <div className="flex items-center gap-2 border-b border-slate-100 pb-2">
-              <CalendarDays className="w-4 h-4 text-slate-400" />
-              <h3 className="font-bold text-slate-700 text-sm">Working Days</h3>
+          <section>
+            <div className="flex items-center gap-2 pb-3">
+              <CalendarDays className="w-4 h-4 text-[#4F6BFF]" />
+              <h3 className="font-semibold text-slate-900 text-[15px]">Working Days</h3>
             </div>
             <div className="grid grid-cols-2 gap-2">
               {config.days.map(day => (
                 <label
                   key={day.id}
-                  className={`flex items-center justify-between p-3 border rounded-xl cursor-pointer transition-all ${day.enabled ? 'border-indigo-200 bg-indigo-50/30' : 'border-slate-200 bg-white hover:border-slate-300'
-                    }`}
+                  className={`flex items-center justify-between p-3 border rounded-xl cursor-pointer transition-all ${day.enabled ? 'border-[#4F6BFF] bg-[#F8FAFF]' : 'border-[#E5E7EB] bg-white hover:border-slate-300'}`}
                 >
-                  <span className={`text-sm font-semibold ${day.enabled ? 'text-indigo-700' : 'text-slate-500'}`}>
+                  <span className={`text-[13px] font-semibold ${day.enabled ? 'text-[#4F6BFF]' : 'text-slate-500'}`}>
                     {day.name}
                   </span>
                   <input
                     type="checkbox"
                     checked={day.enabled}
-                    onChange={(e) => handleToggleDay(day.name, e.target.checked)}
-                    className="rounded border-slate-300 text-indigo-600 focus:ring-indigo-500"
+                    onChange={(e) => dispatch(toggleDay({ name: day.name, enabled: e.target.checked }))}
+                    className="w-4 h-4 rounded border-slate-300 text-[#4F6BFF] focus:ring-[#4F6BFF]"
                   />
                 </label>
               ))}
             </div>
           </section>
 
-          {/* Period Structure Section */}
-          <section className="space-y-4">
-            <div className="flex items-center gap-2 border-b border-slate-100 pb-2">
-              <Clock className="w-4 h-4 text-slate-400" />
-              <h3 className="font-bold text-slate-700 text-sm">Period Structure</h3>
+          {/* Timeline Setup Section */}
+          <section>
+            <div className="flex items-center justify-between pb-3">
+                <div className="flex items-center gap-2">
+                  <Clock className="w-4 h-4 text-[#4F6BFF]" />
+                  <h3 className="font-semibold text-slate-900 text-[15px]">Timeline Config</h3>
+                </div>
+                <div className="flex items-center gap-2">
+                    <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Start</label>
+                    <CircularTimePicker 
+                        value={parsedStartTime}
+                        onChange={(d: Date) => handleTimeChange(d)}
+                        className="w-[120px]"
+                    />
+                </div>
             </div>
 
-            <div className="space-y-3 bg-slate-50 p-4 rounded-xl border border-slate-100">
-              <div>
-                <label className="block text-xs font-bold text-slate-500 mb-1">Start Time</label>
-                <input
-                  type="text"
-                  value={startTime}
-                  onChange={e => setStartTime(e.target.value)}
-                  placeholder="e.g. 08:30 AM"
-                  className="w-full p-2 text-sm border border-slate-200 rounded-lg outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 bg-white"
-                />
-              </div>
-              <div className="flex gap-3">
-                <div className="flex-1">
-                  <label className="block text-xs font-bold text-slate-500 mb-1">Duration (mins)</label>
-                  <input
-                    type="number"
-                    value={duration}
-                    onChange={e => setDuration(parseInt(e.target.value) || 0)}
-                    className="w-full p-2 text-sm border border-slate-200 rounded-lg outline-none focus:border-indigo-500 bg-white"
-                  />
-                </div>
-                <div className="flex-1">
-                  <label className="block text-xs font-bold text-slate-500 mb-1">Periods Count</label>
-                  <input
-                    type="number"
-                    value={periodsCount}
-                    onChange={e => setPeriodsCount(parseInt(e.target.value) || 0)}
-                    className="w-full p-2 text-sm border border-slate-200 rounded-lg outline-none focus:border-indigo-500 bg-white"
-                  />
-                </div>
-              </div>
-
-              <button
-                onClick={handleSavePeriodStructure}
-                className="w-full mt-2 bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs py-2.5 rounded-lg flex items-center justify-center gap-2 transition-colors"
-              >
-                <Check className="w-4 h-4" />
-                Apply Structure
-              </button>
-            </div>
-          </section>
-
-          {/* Break Management Section */}
-          <section className="space-y-4">
-            <div className="flex items-center gap-2 border-b border-slate-100 pb-2">
-              <Coffee className="w-4 h-4 text-slate-400" />
-              <h3 className="font-bold text-slate-700 text-sm">Break Management</h3>
+            {/* DND Timeline */}
+            <div className="space-y-3">
+                <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
+                    <SortableContext items={timelineItems.map(i => i.id)} strategy={verticalListSortingStrategy}>
+                        {renderedItems.map(item => (
+                            <SortableItem 
+                                key={item.id} 
+                                item={item} 
+                                timeRange={item.timeRange} 
+                                onDelete={handleDeleteItem} 
+                                onUpdateDuration={handleUpdateDuration}
+                            />
+                        ))}
+                    </SortableContext>
+                </DndContext>
             </div>
 
-            <div className="space-y-2">
-              {config.breaks.length === 0 && (
-                <div className="text-center py-4 text-xs font-medium text-slate-400 bg-slate-50 border border-dashed border-slate-200 rounded-xl">
-                  No breaks defined
-                </div>
-              )}
-
-              {config.breaks.map(b => (
-                <div key={b.id} className="flex flex-col gap-1 p-3 border border-slate-200 rounded-xl bg-white shadow-sm group">
-                  <div className="flex items-center justify-between">
-                    <span className="font-bold text-sm text-slate-700">{b.label}</span>
-                    <button
-                      onClick={() => dispatch(removeBreak(b.id))}
-                      className="text-slate-400 hover:text-red-500 hover:bg-red-50 p-1.5 rounded-md transition-colors opacity-0 group-hover:opacity-100"
-                    >
-                      <Trash2 className="w-4 h-4" />
-                    </button>
-                  </div>
-                  <span className="text-xs font-semibold text-slate-500">
-                    After Period {b.afterPeriodId} • {b.durationMinutes} mins
-                  </span>
-                </div>
-              ))}
-            </div>
-
-            {!showAddBreak ? (
-              <button
-                onClick={() => setShowAddBreak(true)}
-                className="w-full flex items-center justify-center gap-2 py-3 border-2 border-dashed border-slate-200 hover:border-indigo-300 hover:bg-indigo-50 hover:text-indigo-600 text-slate-500 text-xs font-bold rounded-xl transition-colors"
-              >
-                <Plus className="w-4 h-4" />
-                Add Break
-              </button>
-            ) : (
-              <div className="bg-indigo-50/50 p-4 rounded-xl border border-indigo-100 space-y-3">
-                <div className="flex items-center justify-between mb-2">
-                  <h4 className="text-xs font-bold text-indigo-900">New Break</h4>
-                  <button onClick={() => setShowAddBreak(false)} className="text-slate-400 hover:text-slate-600">
-                    <X className="w-4 h-4" />
-                  </button>
-                </div>
-
-                <div>
-                  <label className="block text-[11px] font-bold text-slate-500 mb-1 uppercase tracking-wider">Break Type</label>
-                  <select
-                    value={breakType}
-                    onChange={(e) => setBreakType(e.target.value as GridBreak['type'])}
-                    className="w-full text-sm p-2 rounded-lg border border-slate-200 outline-none focus:border-indigo-400 bg-white"
-                  >
-                    <option value="Lunch Break">Lunch Break</option>
-                    <option value="Tea Break">Tea Break</option>
-                    <option value="Assembly Break">Assembly Break</option>
-                    <option value="Custom Break">Custom Break</option>
-                  </select>
-                </div>
-
-                <div>
-                  <label className="block text-[11px] font-bold text-slate-500 mb-1 uppercase tracking-wider">Position</label>
-                  <select
-                    value={breakPosition}
-                    onChange={(e) => setBreakPosition(e.target.value)}
-                    className="w-full text-sm p-2 rounded-lg border border-slate-200 outline-none focus:border-indigo-400 bg-white"
-                  >
-                    {config.timeSlots.map((ts, idx) => (
-                      <option key={ts.id} value={ts.id}>After Period {idx + 1} ({ts.endTime})</option>
-                    ))}
-                  </select>
-                </div>
-
-                <div>
-                  <label className="block text-[11px] font-bold text-slate-500 mb-1 uppercase tracking-wider">Duration (mins)</label>
-                  <input
-                    type="number"
-                    value={breakDuration}
-                    onChange={(e) => setBreakDuration(parseInt(e.target.value) || 0)}
-                    className="w-full text-sm p-2 rounded-lg border border-slate-200 outline-none focus:border-indigo-400 bg-white"
-                  />
-                </div>
-
+            {/* Add Buttons */}
+            <div className="grid grid-cols-2 gap-2 mt-4">
                 <button
-                  onClick={handleAddBreak}
-                  className="w-full mt-2 bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs py-2 rounded-lg transition-colors"
+                    onClick={handleAddPeriod}
+                    className="flex h-10 w-full items-center justify-center gap-2 rounded-xl border border-dashed border-[#D6DDF5] bg-white text-sm font-medium text-[#4F6BFF] transition-colors hover:bg-[#F8FAFF]"
                 >
-                  Save Break
+                    <Plus className="h-4 w-4" /> Add Period
                 </button>
-              </div>
-            )}
-
+                <button
+                    onClick={handleAddBreak}
+                    className="flex h-10 w-full items-center justify-center gap-2 rounded-xl border border-dashed border-[#FED7AA] bg-white text-sm font-medium text-[#C2410C] transition-colors hover:bg-[#FFF9F2]"
+                >
+                    <Plus className="h-4 w-4" /> Add Break
+                </button>
+            </div>
+            
           </section>
 
         </div>
-    </div>
+        
+        {/* Footer Actions */}
+        <div className="p-5 sticky bottom-0 bg-white border-t border-[#E5E7EB] z-10">
+            <button
+                onClick={handleSaveGrid}
+                className="flex h-12 w-full items-center justify-center gap-2 rounded-xl bg-[#4F46E5] px-4 text-[15px] font-bold text-white transition-all hover:bg-[#4338CA] shadow-sm"
+            >
+                <Save className="h-5 w-5" />
+                Save Configuration
+            </button>
+        </div>
+    </aside>
   );
 }

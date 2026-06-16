@@ -85,6 +85,9 @@ export const gridConfigSlice = createSlice({
     removeBreak: (state, action: PayloadAction<string>) => {
       state.breaks = state.breaks.filter(b => b.id !== action.payload);
     },
+    setBreaks: (state, action: PayloadAction<GridBreak[]>) => {
+      state.breaks = action.payload;
+    },
     updateBreak: (state, action: PayloadAction<{id: string; updates: Partial<GridBreak>}>) => {
       const idx = state.breaks.findIndex(b => b.id === action.payload.id);
       if (idx !== -1) {
@@ -122,6 +125,7 @@ export const {
   addBreak,
   removeBreak,
   updateBreak,
+  setBreaks,
   updatePeriodStructure
 } = gridConfigSlice.actions;
 

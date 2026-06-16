@@ -24,10 +24,11 @@ export function OnboardingFlow() {
   const [currentStep, setCurrentStep] = useState<OnboardingStepId>(1);
 
   const methods = useForm<OnboardingFormData>({
-    resolver: zodResolver(OnboardingMasterSchema),
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    resolver: zodResolver(OnboardingMasterSchema) as any,
     mode: 'onChange',
     defaultValues: {
-      personType: { personType: null as unknown as "Student" | "Staff" },
+      personType: { personType: null as unknown as "student" | "staff" },
       personalInfo: { sameAsPermanent: false },
       guardian: { hasExistingGuardian: false, isPrimary: false },
       qualifications: {},
@@ -65,7 +66,7 @@ export function OnboardingFlow() {
             <CompletionStatusCard completed={1} inProgress={1} pending={5} total={7} />
             <ValidationStatusCard 
               isValid={!errors.personalInfo} 
-              errors={errors.personalInfo ? Object.values(errors.personalInfo).map(e => (e as {message?: string})?.message) : []} 
+              errors={errors.personalInfo ? Object.values(errors.personalInfo).map(e => (e as {message?: string})?.message).filter(Boolean) as string[] : []} 
             />
             <RequiredFieldsCard sections={[
               { id: '1', label: 'Basic Information', missingCount: 3 },

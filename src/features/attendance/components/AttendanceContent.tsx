@@ -45,7 +45,7 @@ export function AttendanceContent() {
   };
 
   const handleMarkAllPresent = () => {
-    setStudents(students.map(s => ({ ...s, status: 'present' })));
+    setStudents(students.map(s => ({ ...s, status: 'Present' })));
   };
 
   const handleClearAttendance = () => {
@@ -75,9 +75,9 @@ export function AttendanceContent() {
 
   const mockSummary = {
     total: students.length,
-    present: students.filter(s => s.status === 'present').length,
-    absent: students.filter(s => s.status === 'absent').length,
-    late: students.filter(s => s.status === 'late').length,
+    present: students.filter(s => s.status === 'Present').length,
+    absent: students.filter(s => s.status === 'Absent').length,
+    late: students.filter(s => s.status === 'Late').length,
   };
 
   return (

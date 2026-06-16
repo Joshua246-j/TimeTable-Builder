@@ -133,9 +133,10 @@ export default memo(function SubjectClassCard({
   const typeKey = data?.type?.toUpperCase() || "THEORY";
   const styles = BADGE_STYLES[typeKey] || BADGE_STYLES.THEORY;
   const Icon = styles.icon;
+  const rowSpan = scheduleEntry?.rowSpan || 1;
 
   return (
-    <div className="flex-1 p-[14px] flex flex-col relative min-w-0 h-full font-inter bg-white rounded-r-[10px]">
+    <div className={`flex-1 p-[14px] flex flex-col relative min-w-0 h-full font-inter bg-white rounded-r-[10px] ${rowSpan > 1 ? 'justify-center' : ''}`}>
       
         {/* Actions / Conflict indicator */}
       {hasConflict && (
@@ -189,14 +190,14 @@ export default memo(function SubjectClassCard({
                     <Copy className="w-4 h-4 mr-2 text-slate-500" /> Duplicate Assignment
                   </DropdownMenuItem>
                 )}
-                {onMerge && (!scheduleEntry || scheduleEntry.rowSpan === 1) && (
-                  <DropdownMenuItem onClick={(e) => { e.stopPropagation(); onMerge(); }} className="cursor-pointer">
-                    <GitMerge className="w-4 h-4 mr-2 text-slate-500" /> Merge
+                {onMerge && (
+                  <DropdownMenuItem onClick={(e) => { e.stopPropagation(); onMerge(); }} className="cursor-pointer text-blue-600 focus:text-blue-700 focus:bg-blue-50 font-medium">
+                    <GitMerge className="w-4 h-4 mr-2" /> Merge Periods
                   </DropdownMenuItem>
                 )}
                 {onSplit && scheduleEntry && scheduleEntry.rowSpan > 1 && (
-                  <DropdownMenuItem onClick={(e) => { e.stopPropagation(); onSplit(); }} className="cursor-pointer">
-                    <SplitSquareHorizontal className="w-4 h-4 mr-2 text-slate-500" /> Split
+                  <DropdownMenuItem onClick={(e) => { e.stopPropagation(); onSplit(); }} className="cursor-pointer text-orange-600 focus:text-orange-700 focus:bg-orange-50 font-medium">
+                    <SplitSquareHorizontal className="w-4 h-4 mr-2" /> Split Periods
                   </DropdownMenuItem>
                 )}
               </>
@@ -260,14 +261,14 @@ export default memo(function SubjectClassCard({
 
       {/* Main Content Area */}
       <div 
-        className="flex-1 flex flex-col min-h-0 pt-0.5 cursor-pointer"
+        className={`flex-1 flex flex-col min-h-0 pt-0.5 cursor-pointer ${rowSpan > 1 ? 'justify-center' : ''}`}
         onDoubleClick={(e) => { e.stopPropagation(); if (onEdit) onEdit(); }}
       >
         
         {/* Title Area */}
         <div className="flex items-start gap-[12px]">
-          <div className="w-[38px] h-[38px] shrink-0 rounded-[8px] bg-[#EEF2FF] flex items-center justify-center">
-            <Icon className="w-5 h-5 text-[#4F46E5]" />
+          <div className={`w-[38px] h-[38px] shrink-0 rounded-[8px] flex items-center justify-center ${styles.iconBg}`}>
+            <Icon className="w-5 h-5" />
           </div>
 
           <div className="flex-1 min-w-0 pr-6">
@@ -283,7 +284,7 @@ export default memo(function SubjectClassCard({
         </div>
 
         {/* Faculty + Room Chips */}
-        <div className="mt-[14px] flex items-center gap-[8px] min-w-0">
+        <div className="mt-[14px] flex flex-wrap items-center gap-[8px] min-w-0">
           <div className="flex items-center rounded-md border border-[#E2E8F0] bg-white px-[8px] h-[28px] min-w-0 max-w-[150px]">
             <span className="truncate text-[12px] font-[600] text-[#475569] w-full">
               {data?.facultyName || "Faculty"}
@@ -295,11 +296,19 @@ export default memo(function SubjectClassCard({
               {data?.roomName || "Room"}
             </span>
           </div>
+
+          {rowSpan > 1 && (
+            <div className="flex items-center shrink-0 rounded-md bg-purple-50 px-[8px] h-[28px] border border-purple-100">
+              <span className="text-[12px] font-[700] text-purple-600 whitespace-nowrap">
+                {rowSpan} Periods
+              </span>
+            </div>
+          )}
         </div>
       </div>
 
-      {/* Footer Area - Always bottom aligned */}
-      <div className="mt-auto pt-3 flex items-center justify-between bg-transparent shrink-0">
+      {/* Footer Area - Always bottom aligned unless merged */}
+      <div className={`${rowSpan > 1 ? 'mt-4' : 'mt-auto'} pt-3 flex items-center justify-between bg-transparent shrink-0`}>
         <div className="flex items-center gap-1.5 text-[#94A3B8] min-w-0">
           <Users className="w-4 h-4 shrink-0" />
           <span className="text-[12px] font-medium truncate">{data?.section || "Section CSE V A"}</span>

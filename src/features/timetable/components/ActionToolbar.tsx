@@ -11,9 +11,7 @@ import {
 
 import { Button } from "@/components/ui/button";
 import { useDispatch, useSelector } from "react-redux";
-import { enableSelectionMode, disableSelectionMode } from "@/store/timetableEngineSlice";
-import { mergeSelectedPeriods, runValidation } from "@/store/syntheticActions";
-import { undoHistory, redoHistory } from "@/store/historySlice";
+import { runValidation, undoAction, redoAction } from "@/store/syntheticActions";
 import { RootState, AppDispatch } from "@/store/store";
 
 
@@ -25,31 +23,7 @@ export default function ActionToolbar({
   onOpenConflicts,
 }: ActionToolbarProps) {
   const dispatch = useDispatch<AppDispatch>();
-  const { selectionMode, selectedCells } = useSelector((state: RootState) => state.timetableEngine);
   const { conflicts } = useSelector((state: RootState) => state.validation);
-
-  const handleToggleSelectionMode = () => {
-    if (selectionMode) {
-      dispatch(disableSelectionMode());
-    } else {
-      dispatch(enableSelectionMode());
-    }
-  };
-
-  const handleMerge = () => {
-    if (selectedCells.length < 2) return;
-    
-    // In a real scenario, we might prompt for which subject to use, 
-    // or just use the first assigned subject in the selection.
-    // For now, let's take the first assigned subject or error.
-    const firstAssigned = selectedCells.find(c => c.subjectId);
-    if (!firstAssigned || !firstAssigned.subjectId) {
-      alert("Please select slots that have an assigned subject to merge.");
-      return;
-    }
-
-    dispatch(mergeSelectedPeriods({ subjectId: firstAssigned.subjectId }));
-  };
 
   return (
     <div className="flex w-full flex-col gap-4">
@@ -89,32 +63,6 @@ export default function ActionToolbar({
               </p>
             </div>
           </button>
-          
-          {/* Select Mode */}
-          <button 
-            onClick={handleToggleSelectionMode}
-            id="enable-selection-btn"
-            className={`flex items-center gap-3 rounded-2xl border ${selectionMode ? 'border-blue-500 bg-blue-50 ring-2 ring-blue-200' : 'border-[#E5E7EB] bg-white'} px-4 py-3 text-left transition-all hover:border-[#2563EB] hover:bg-blue-50 min-w-[150px]`} style={{ boxShadow: "0 2px 8px -2px rgba(0,0,0,0.05)" }}>
-            <div className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-lg ${selectionMode ? 'bg-blue-600 text-white' : 'bg-[#DBEAFE] text-[#2563EB]'}`}>
-              <LayoutGrid className="h-5 w-5" />
-            </div>
-            <div>
-              <h3 className={`text-sm font-bold ${selectionMode ? 'text-blue-700' : 'text-[#0D2463]'}`}>Select</h3>
-              <p className={`text-xs ${selectionMode ? 'text-blue-500' : 'text-slate-500'}`}>
-                {selectionMode ? 'Mode Active' : 'Enable merge'}
-              </p>
-            </div>
-          </button>
-          
-          {selectionMode && selectedCells.length >= 2 && (
-             <Button 
-               onClick={handleMerge}
-               className="h-12 rounded-2xl bg-indigo-600 px-6 font-bold text-white hover:bg-indigo-700"
-             >
-               Merge {selectedCells.length} Slots
-             </Button>
-          )}
-
         </div>
 
         {/* Right Actions */}
@@ -122,7 +70,7 @@ export default function ActionToolbar({
           <div className="flex items-center gap-1 border border-slate-200 rounded-[10px] p-1 bg-white">
             <button
               onClick={() => {
-                dispatch(undoHistory());
+                dispatch(undoAction());
               }}
               className="p-1.5 text-slate-500 hover:text-blue-600 hover:bg-blue-50 rounded-md transition-colors"
               title="Undo"
@@ -131,7 +79,7 @@ export default function ActionToolbar({
             </button>
             <button
               onClick={() => {
-                dispatch(redoHistory());
+                dispatch(redoAction());
               }}
               className="p-1.5 text-slate-500 hover:text-blue-600 hover:bg-blue-50 rounded-md transition-colors"
               title="Redo"

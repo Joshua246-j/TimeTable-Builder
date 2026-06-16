@@ -104,27 +104,6 @@ export default memo(function SubjectAllocationPanel({
         "
       >
         <div className="space-y-4">
-          {subjects.map((subject) => {
-            if (editingId === subject.id) {
-              return (
-                <div key={`edit-${subject.id}`} className="mb-4">
-                  <SubjectAssignmentEditor
-                    subject={subject}
-                    onCancel={() => setEditingId("")}
-                    onSave={handleSave}
-                  />
-                </div>
-              );
-            }
-            return (
-              <SubjectAllocationCard
-                key={subject.id}
-                subject={subject}
-                onEdit={() => setEditingId(subject.id)}
-              />
-            );
-          })}
-
           {editingId === 'NEW_DRAFT' && (
             <div className="mb-4">
               <SubjectAssignmentEditor
@@ -149,6 +128,27 @@ export default memo(function SubjectAllocationPanel({
               />
             </div>
           )}
+
+          {subjects.map((subject) => {
+            if (editingId === subject.id) {
+              return (
+                <div key={`edit-${subject.id}`} className="mb-4">
+                  <SubjectAssignmentEditor
+                    subject={subject}
+                    onCancel={() => setEditingId("")}
+                    onSave={handleSave}
+                  />
+                </div>
+              );
+            }
+            return (
+              <SubjectAllocationCard
+                key={subject.id}
+                subject={subject}
+                onEdit={() => setEditingId(subject.id)}
+              />
+            );
+          })}
         </div>
       </div>
 

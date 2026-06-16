@@ -70,6 +70,7 @@ export default function SubjectAllocationCard({
       ref={setNodeRef}
       {...listeners}
       {...attributes}
+      onClick={onEdit}
       className={`
         rounded-2xl
         border
@@ -130,6 +131,7 @@ export default function SubjectAllocationCard({
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <button
+                onClick={(e) => e.stopPropagation()}
                 className="
                   flex
                   h-8

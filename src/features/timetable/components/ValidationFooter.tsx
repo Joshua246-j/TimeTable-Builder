@@ -4,9 +4,7 @@ import { CheckCircle2, RotateCcw, RotateCw, Trash2, AlertTriangle, AlertCircle }
 import { Button } from "@/components/ui/button";
 import { useSelector, useDispatch } from "react-redux";
 import { RootState, AppDispatch } from "@/store/store";
-import { undoHistory, redoHistory } from "@/store/historySlice";
-import { clearAllocations } from "@/store/timetableEngineSlice";
-import { runValidation } from "@/store/syntheticActions";
+import { undoAction, redoAction, clearAllAllocations } from "@/store/syntheticActions";
 
 interface ValidationFooterProps {
   onOpenConflicts?: () => void;
@@ -22,13 +20,12 @@ export default function ValidationFooter({ onOpenConflicts }: ValidationFooterPr
 
   const handleClearAll = () => {
     if (confirm("Are you sure you want to clear ALL allocations in the timetable? Subjects, rooms, and faculty will not be deleted.")) {
-      dispatch(clearAllocations());
-      dispatch(runValidation());
+      dispatch(clearAllAllocations());
     }
   };
 
-  const handleUndo = () => dispatch(undoHistory());
-  const handleRedo = () => dispatch(redoHistory());
+  const handleUndo = () => dispatch(undoAction());
+  const handleRedo = () => dispatch(redoAction());
 
   return (
     <div className={`flex flex-col sm:flex-row items-center justify-between rounded-xl border bg-white p-4 shadow-[0_-4px_6px_-1px_rgb(0,0,0,0.05)] lg:shadow-sm transition-colors ${hasConflicts ? 'border-orange-200 cursor-pointer hover:bg-orange-50/30' : hasWarnings ? 'border-yellow-200' : 'border-[#E5E7EB]'}`}

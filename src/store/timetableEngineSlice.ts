@@ -139,6 +139,9 @@ export const timetableEngineSlice = createSlice({
           delete state.allocations[key];
         }
       });
+    },
+    setAllocations: (state, action: PayloadAction<Record<string, ScheduleEntry>>) => {
+      state.allocations = action.payload;
     }
   },
 });
@@ -158,6 +161,7 @@ export const {
   toggleCellSelection,
   clearSelection,
   clearAllocations,
+  setAllocations,
 } = timetableEngineSlice.actions;
 
 export default timetableEngineSlice.reducer;

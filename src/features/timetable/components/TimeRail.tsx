@@ -4,6 +4,8 @@ import { memo, useState, useEffect } from "react";
 import { Clock } from "lucide-react";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Button } from "@/components/ui/button";
+import { parse, format } from "date-fns";
+import { CircularTimePicker } from "./CircularTimePicker";
 
 interface TimeRailProps {
   startTime?: string;
@@ -52,20 +54,18 @@ export default memo(function TimeRail({
         <div className="space-y-3 mb-4">
           <div>
             <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1 block">Start Time</label>
-            <input 
-              type="time" 
-              value={startInput} 
-              onChange={(e) => setStartInput(e.target.value)}
-              className="w-full text-sm border border-slate-200 rounded-md px-2 py-1.5 focus:outline-none focus:ring-2 focus:ring-blue-500"
+            <CircularTimePicker 
+              value={startInput ? parse(startInput, "HH:mm", new Date()) : new Date()} 
+              onChange={(d: Date) => setStartInput(format(d, "HH:mm"))}
+              className="w-full"
             />
           </div>
-          <div>
+          <div className="relative z-[60]">
             <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1 block">End Time</label>
-            <input 
-              type="time" 
-              value={endInput} 
-              onChange={(e) => setEndInput(e.target.value)}
-              className="w-full text-sm border border-slate-200 rounded-md px-2 py-1.5 focus:outline-none focus:ring-2 focus:ring-blue-500"
+            <CircularTimePicker 
+              value={endInput ? parse(endInput, "HH:mm", new Date()) : new Date()} 
+              onChange={(d: Date) => setEndInput(format(d, "HH:mm"))}
+              className="w-full"
             />
           </div>
         </div>

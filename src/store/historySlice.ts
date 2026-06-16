@@ -1,15 +1,9 @@
 import { createSlice, PayloadAction } from '@reduxjs/toolkit';
-
-// A generic action structure for undo/redo
-export interface ActionRecord {
-  type: string;
-  payload: unknown;
-  timestamp: number;
-}
+import { ScheduleEntry } from '@/types/timetable';
 
 export interface HistoryState {
-  past: ActionRecord[];
-  future: ActionRecord[];
+  past: Record<string, ScheduleEntry>[];
+  future: Record<string, ScheduleEntry>[];
 }
 
 const initialState: HistoryState = {
@@ -21,29 +15,32 @@ export const historySlice = createSlice({
   name: 'history',
   initialState,
   reducers: {
-    recordAction: (state, action: PayloadAction<ActionRecord>) => {
+    recordSnapshot: (state, action: PayloadAction<Record<string, ScheduleEntry>>) => {
+      // Don't record if it's identical to the last snapshot
+      const lastSnapshot = state.past[state.past.length - 1];
+      if (lastSnapshot && JSON.stringify(lastSnapshot) === JSON.stringify(action.payload)) {
+        return;
+      }
+      
       state.past.push(action.payload);
       state.future = []; // Clear future on new action
-      // Optional: limit history size to prevent memory bloat
+      
+      // Limit history size to prevent memory bloat
       if (state.past.length > 50) {
         state.past.shift();
       }
     },
-    undoHistory: (state) => {
-      if (state.past.length > 0) {
-        const lastAction = state.past.pop();
-        if (lastAction) {
-          state.future.push(lastAction);
-        }
-      }
+    pushToFuture: (state, action: PayloadAction<Record<string, ScheduleEntry>>) => {
+      state.future.push(action.payload);
     },
-    redoHistory: (state) => {
-      if (state.future.length > 0) {
-        const nextAction = state.future.pop();
-        if (nextAction) {
-          state.past.push(nextAction);
-        }
-      }
+    popPast: (state) => {
+      state.past.pop();
+    },
+    pushToPast: (state, action: PayloadAction<Record<string, ScheduleEntry>>) => {
+      state.past.push(action.payload);
+    },
+    popFuture: (state) => {
+      state.future.pop();
     },
     clearHistory: (state) => {
       state.past = [];
@@ -52,5 +49,5 @@ export const historySlice = createSlice({
   },
 });
 
-export const { recordAction, undoHistory, redoHistory, clearHistory } = historySlice.actions;
+export const { recordSnapshot, pushToFuture, popPast, pushToPast, popFuture, clearHistory } = historySlice.actions;
 export default historySlice.reducer;

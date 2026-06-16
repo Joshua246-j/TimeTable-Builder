@@ -1,7 +1,7 @@
 import { createAsyncThunk } from '@reduxjs/toolkit';
 import { RootState, AppDispatch } from './store';
-import { assign, remove, move, swap, merge, split, updateTime, lock, unlock, clearSelection } from './timetableEngineSlice';
-import { recordAction } from './historySlice';
+import { assign, remove, move, swap, merge, split, updateTime, lock, unlock, clearSelection, clearAllocations, setAllocations } from './timetableEngineSlice';
+import { recordSnapshot, pushToFuture, pushToPast, popPast, popFuture } from './historySlice';
 import { ScheduleEntry } from '@/types/timetable';
 import { validationEngine, ValidationContext } from '@/lib/validationEngine';
 import { mergeEngine } from '@/lib/mergeEngine';
@@ -32,6 +32,64 @@ export const runValidation = createAsyncThunk<
   }
 );
 
+export const undoAction = createAsyncThunk<
+  void,
+  void,
+  { state: RootState; dispatch: AppDispatch }
+>(
+  'actions/undoAction',
+  async (_, { dispatch, getState }) => {
+    const state = getState();
+    const { past } = state.history;
+    
+    if (past.length === 0) return;
+    
+    const previousState = past[past.length - 1];
+    const currentState = state.timetableEngine.allocations;
+    
+    dispatch(pushToFuture(currentState));
+    dispatch(popPast());
+    dispatch(setAllocations(previousState));
+    dispatch(runValidation());
+  }
+);
+
+export const redoAction = createAsyncThunk<
+  void,
+  void,
+  { state: RootState; dispatch: AppDispatch }
+>(
+  'actions/redoAction',
+  async (_, { dispatch, getState }) => {
+    const state = getState();
+    const { future } = state.history;
+    
+    if (future.length === 0) return;
+    
+    const nextState = future[future.length - 1];
+    const currentState = state.timetableEngine.allocations;
+    
+    dispatch(pushToPast(currentState));
+    dispatch(popFuture());
+    dispatch(setAllocations(nextState));
+    dispatch(runValidation());
+  }
+);
+
+export const clearAllAllocations = createAsyncThunk<
+  void,
+  void,
+  { state: RootState; dispatch: AppDispatch }
+>(
+  'actions/clearAllAllocations',
+  async (_, { dispatch, getState }) => {
+    const state = getState();
+    dispatch(recordSnapshot(state.timetableEngine.allocations));
+    dispatch(clearAllocations());
+    dispatch(runValidation());
+  }
+);
+
 export const assignSubject = createAsyncThunk<
   void,
   { cellId: string; subjectId: string; dayId: string; startTime: string; endTime: string; isLocked?: boolean },
@@ -46,6 +104,8 @@ export const assignSubject = createAsyncThunk<
     if (state.timetableEngine.allocations[cellId]?.isLocked) {
       return; 
     }
+
+    dispatch(recordSnapshot(state.timetableEngine.allocations));
 
     // Generate unique ID for allocation
     const allocationId = `alloc-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
@@ -63,13 +123,6 @@ export const assignSubject = createAsyncThunk<
     };
 
     dispatch(assign(allocation));
-    
-    dispatch(recordAction({
-      type: 'ASSIGN_SUBJECT',
-      payload: allocation,
-      timestamp: Date.now()
-    }));
-    
     dispatch(runValidation());
   }
 );
@@ -86,14 +139,8 @@ export const removeSubjectAssignment = createAsyncThunk<
 
     const previousAllocation = state.timetableEngine.allocations[cellId];
     if (previousAllocation && !previousAllocation.isLocked) {
+      dispatch(recordSnapshot(state.timetableEngine.allocations));
       dispatch(remove(cellId));
-      
-      dispatch(recordAction({
-        type: 'REMOVE_SUBJECT',
-        payload: { cellId, previous: previousAllocation },
-        timestamp: Date.now()
-      }));
-      
       dispatch(runValidation());
     }
   }
@@ -113,8 +160,9 @@ export const swapSubjectAssignments = createAsyncThunk<
     const target = state.timetableEngine.allocations[targetCellId];
     
     if (source?.isLocked || target?.isLocked) return;
-
     if (!source && !target) return;
+
+    dispatch(recordSnapshot(state.timetableEngine.allocations));
 
     if (source && target) {
       dispatch(swap({ sourceId: sourceCellId, targetId: targetCellId }));
@@ -141,12 +189,6 @@ export const swapSubjectAssignments = createAsyncThunk<
         }));
       }
     }
-
-    dispatch(recordAction({
-      type: 'SWAP_ASSIGNMENT',
-      payload,
-      timestamp: Date.now()
-    }));
     
     dispatch(runValidation());
   }
@@ -170,19 +212,13 @@ export const mergeSelectedPeriods = createAsyncThunk<
       return;
     }
 
+    dispatch(recordSnapshot(state.timetableEngine.allocations));
+
     // Remove old single allocations that are being merged
     selectedCells.forEach(cell => dispatch(remove(cell.id)));
 
     dispatch(merge(mergedEntry));
-
     dispatch(clearSelection());
-
-    dispatch(recordAction({
-      type: 'MERGE_PERIODS',
-      payload: mergedEntry,
-      timestamp: Date.now()
-    }));
-    
     dispatch(runValidation());
   }
 );
@@ -199,15 +235,14 @@ export const splitMergedPeriod = createAsyncThunk<
 
     if (!merged || merged.isLocked) return;
 
+    dispatch(recordSnapshot(state.timetableEngine.allocations));
     dispatch(split(payload.mergedId));
 
     // Recreate single entries
-    // For simplicity we create 1 hour blocks based on rowSpan
     const startMins = parseTime(merged.startTime);
     for (let i = 0; i < merged.rowSpan; i++) {
         const slotStart = startMins + (i * 60);
         const slotEnd = slotStart + 60;
-        // Mock ID construction
         const timeSlot = state.gridConfig.timeSlots.find(t => t.startTime === formatTime(slotStart));
         if (timeSlot) {
             const allocationId = `alloc-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
@@ -224,12 +259,6 @@ export const splitMergedPeriod = createAsyncThunk<
             }));
         }
     }
-
-    dispatch(recordAction({
-      type: 'SPLIT_PERIODS',
-      payload: merged,
-      timestamp: Date.now()
-    }));
     
     dispatch(runValidation());
   }
@@ -247,17 +276,13 @@ export const toggleLockSlot = createAsyncThunk<
     
     if (!alloc) return;
 
+    dispatch(recordSnapshot(state.timetableEngine.allocations));
+
     if (alloc.isLocked) {
       dispatch(unlock(payload.id));
     } else {
       dispatch(lock(payload.id));
     }
-
-    dispatch(recordAction({
-      type: 'TOGGLE_LOCK',
-      payload: { id: payload.id, wasLocked: alloc.isLocked },
-      timestamp: Date.now()
-    }));
   }
 );
 
@@ -273,6 +298,8 @@ export const updateTimeAllocation = createAsyncThunk<
     
     const durationMins = calculateDurationMinutes(startTime, endTime);
     const rowSpan = Math.max(1, Math.round(durationMins / 60)); // calculateRowSpan(durationMins, 60);
+
+    dispatch(recordSnapshot(state.timetableEngine.allocations));
 
     dispatch(updateTime({
         id,
@@ -306,6 +333,8 @@ export const deleteSubjectGlobal = createAsyncThunk<
     const { subjectId } = payload;
     const state = getState();
     
+    dispatch(recordSnapshot(state.timetableEngine.allocations));
+
     Object.values(state.timetableEngine.allocations).forEach(alloc => {
       if (alloc.subjectId === subjectId) {
         dispatch(remove(alloc.id));
@@ -328,9 +357,10 @@ export const swapAssignmentSubject = createAsyncThunk<
     const state = getState();
     const alloc = state.timetableEngine.allocations[cellId];
 
+    dispatch(recordSnapshot(state.timetableEngine.allocations));
+
     if (alloc && !alloc.isLocked) {
         // Just update the subject ID inline
-        // Redux doesn't have a direct subjectId updater in timetableEngineSlice yet, we can re-assign
         dispatch(assign({
             ...alloc,
             subjectId: newSubjectId

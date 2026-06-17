@@ -474,11 +474,10 @@ export const applyGridConfigurationAndSync = createAsyncThunk<
        if (startSlotIdx !== -1 && startSlotIdx < newTimeSlots.length) {
            const newStart = newTimeSlots[startSlotIdx].startTime;
            
-           let spanCount = 1;
            let endSlotIdx = startSlotIdx;
            for (let i = startSlotIdx + 1; i < oldTimeSlots.length; i++) {
               if (parseTime(oldTimeSlots[i].startTime) < parseTime(alloc.endTime)) {
-                 spanCount++;
+
                  endSlotIdx = i;
               } else {
                  break;
@@ -534,11 +533,10 @@ export const updateBreakDurationAndSync = createAsyncThunk<
        const startSlotIdx = oldTimeSlots.findIndex(ts => ts.startTime === alloc.startTime);
        if (startSlotIdx !== -1 && startSlotIdx < newTimeSlots.length) {
            const newStart = newTimeSlots[startSlotIdx].startTime;
-           let spanCount = 1;
            let endSlotIdx = startSlotIdx;
            for (let i = startSlotIdx + 1; i < oldTimeSlots.length; i++) {
               if (parseTime(oldTimeSlots[i].startTime) < parseTime(alloc.endTime)) {
-                 spanCount++;
+
                  endSlotIdx = i;
               } else {
                  break;
@@ -586,11 +584,10 @@ export const removeBreakAndSync = createAsyncThunk<
        const startSlotIdx = oldTimeSlots.findIndex(ts => ts.startTime === alloc.startTime);
        if (startSlotIdx !== -1 && startSlotIdx < newTimeSlots.length) {
            const newStart = newTimeSlots[startSlotIdx].startTime;
-           let spanCount = 1;
            let endSlotIdx = startSlotIdx;
            for (let i = startSlotIdx + 1; i < oldTimeSlots.length; i++) {
               if (parseTime(oldTimeSlots[i].startTime) < parseTime(alloc.endTime)) {
-                 spanCount++;
+
                  endSlotIdx = i;
               } else {
                  break;

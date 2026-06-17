@@ -230,7 +230,7 @@ export default memo(function SubjectClassCard({
             <Icon className="w-5 h-5" />
           </div>
 
-          <div className="flex-1 min-w-0 pr-6">
+          <div className="flex-1 min-w-0 pr-12">
             <h3 className="font-[700] text-[#0F172A] leading-tight text-[15px] line-clamp-2 mb-0.5" style={{ wordBreak: 'normal', overflowWrap: 'break-word' }}>
               {data?.subjectName || "Subject"}
             </h3>
@@ -243,15 +243,15 @@ export default memo(function SubjectClassCard({
         </div>
 
         {/* Faculty + Room Chips */}
-        <div className="mt-[14px] flex flex-wrap items-center gap-[8px] min-w-0">
-          <div className="flex items-center rounded-md border border-[#E2E8F0] bg-white px-[8px] h-[28px] min-w-0 max-w-[150px]">
+        <div className="mt-[14px] flex flex-nowrap items-center gap-[6px] min-w-0 w-full overflow-hidden">
+          <div className="flex items-center rounded-md border border-[#E2E8F0] bg-white px-[8px] h-[28px] min-w-0 flex-1">
             <span className="truncate text-[12px] font-[600] text-[#475569] w-full">
               {data?.facultyName || "Faculty"}
             </span>
           </div>
 
-          <div className="flex items-center shrink-0 rounded-md bg-[#EEF2FF] px-[8px] h-[28px]">
-            <span className="text-[12px] font-[700] text-[#4F46E5] whitespace-nowrap">
+          <div className="flex items-center shrink-0 rounded-md bg-[#EEF2FF] px-[8px] h-[28px] max-w-[90px]">
+            <span className="truncate text-[12px] font-[700] text-[#4F46E5] w-full">
               {data?.roomName || "Room"}
             </span>
           </div>

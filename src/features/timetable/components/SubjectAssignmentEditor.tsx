@@ -4,7 +4,6 @@ import { useState } from "react";
 import {
   Building2,
   User,
-  Clock,
   BookOpen,
   AlignLeft,
   Repeat
@@ -19,10 +18,8 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import type { SubjectCardData, ScheduleEntry } from "@/types/timetable";
-import { formatTime, parseTime } from "@/lib/timeEngine";
-import { useSelector } from "react-redux";
 import { RootState } from "@/store/store";
-import { CircularTimePicker } from "./CircularTimePicker";
+import { useSelector } from "react-redux";
 
 interface SubjectAssignmentEditorProps {
   subject: SubjectCardData;
@@ -61,21 +58,7 @@ export default function SubjectAssignmentEditor({
   const [facultyName, setFacultyName] = useState(subject.facultyName);
   const [roomName, setRoomName] = useState(subject.roomName);
 
-  // Time editing state
-  const [timeState, setTimeState] = useState(() => {
-    if (!scheduleEntry) return null;
-    const startMins = parseTime(scheduleEntry.startTime);
-    const endMins = parseTime(scheduleEntry.endTime);
-    const to24h = (mins: number) => {
-      const h = Math.floor(mins / 60).toString().padStart(2, '0');
-      const m = (mins % 60).toString().padStart(2, '0');
-      return `${h}:${m}`;
-    };
-    return {
-      startTimeStr: to24h(startMins),
-      endTimeStr: to24h(endMins)
-    };
-  });
+  // Time editing state removed to keep modal simple and concise
 
   const handleSave = () => {
     const updatedSubj = {
@@ -91,22 +74,10 @@ export default function SubjectAssignmentEditor({
       roomName,
     };
     
-    let timeUpdates;
-    if (timeState) {
-      const parse24h = (str: string) => {
-        const [h, m] = str.split(':').map(Number);
-        return (h * 60) + (m || 0);
-      };
-      timeUpdates = {
-        startTime: formatTime(parse24h(timeState.startTimeStr)),
-        endTime: formatTime(parse24h(timeState.endTimeStr))
-      };
-    }
-
     if (isSwapping && swappedSubjectId !== subject.id) {
-      onSave(updatedSubj, timeUpdates, swappedSubjectId);
+      onSave(updatedSubj, undefined, swappedSubjectId);
     } else {
-      onSave(updatedSubj, timeUpdates);
+      onSave(updatedSubj, undefined);
     }
   };
 
@@ -242,20 +213,7 @@ export default function SubjectAssignmentEditor({
             </div>
           </div>
 
-          {/* Time Editing */}
-          {timeState && (
-            <div className="bg-blue-50/50 p-4 rounded-xl border border-blue-100 mt-2 flex flex-col items-center">
-              <div className="w-full flex justify-start mb-2">
-                 <h4 className="text-xs font-bold text-blue-800 flex items-center gap-1.5 uppercase tracking-wide"><Clock className="w-3.5 h-3.5" /> Schedule Time</h4>
-              </div>
-              <CircularTimePicker
-                startTime={timeState.startTimeStr}
-                endTime={timeState.endTimeStr}
-                onStartChange={(time) => setTimeState(s => s ? { ...s, startTimeStr: time } : null)}
-                onEndChange={(time) => setTimeState(s => s ? { ...s, endTimeStr: time } : null)}
-              />
-            </div>
-          )}
+
 
           {/* Extra Options */}
           <div>

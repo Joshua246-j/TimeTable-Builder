@@ -1,10 +1,10 @@
 "use client";
 
-import { memo, useState } from "react";
+import { memo, useState, useEffect } from "react";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { useDispatch } from "react-redux";
 import { AppDispatch } from "@/store/store";
-import { updateTimeAllocation } from "@/store/syntheticActions";
+import { updateTimeAllocation, updatePeriodDurationAndSync } from "@/store/syntheticActions";
 import { CircularTimePicker } from "./CircularTimePicker";
 
 interface TimeRailProps {
@@ -25,8 +25,14 @@ export default memo(function TimeRail({
   onTimeChange,
 }: TimeRailProps) {
   const [isOpen, setIsOpen] = useState(false);
-  const [localStart, setLocalStart] = useState(startTime);
-  const [localEnd, setLocalEnd] = useState(endTime);
+  const [localStart, setLocalStart] = useState(startTime || "09:00");
+  const [localEnd, setLocalEnd] = useState(endTime || "10:00");
+
+  useEffect(() => {
+    if (startTime) setLocalStart(startTime);
+    if (endTime) setLocalEnd(endTime);
+  }, [startTime, endTime]);
+
   const dispatch = useDispatch<AppDispatch>();
 
   const handleOpen = (open: boolean) => {
@@ -119,6 +125,11 @@ export default memo(function TimeRail({
           onStartChange={setLocalStart}
           onEndChange={setLocalEnd}
           onConfirm={handleConfirm}
+          onDurationSync={(mins) => {
+            if (mins > 0) {
+              dispatch(updatePeriodDurationAndSync({ startTime, durationMinutes: mins }));
+            }
+          }}
         />
       </PopoverContent>
     </Popover>

@@ -11,14 +11,15 @@ import type {
   TimetableCell as TimetableCellType,
 } from "@/types/timetable";
 import { useSelector, useDispatch } from "react-redux";
-import { RootState } from "@/store/store";
+import { RootState, AppDispatch } from "@/store/store";
 import { toggleCellSelection } from "@/store/timetableEngineSlice";
 import { toggleGridEditMode } from "@/store/gridConfigSlice";
 import { GridBreak } from "@/store/gridConfigSlice";
+import { updateBreakDurationAndSync, removeBreakAndSync } from "@/store/syntheticActions";
 
 import SelectionToolbar from "./SelectionToolbar";
 import type { SelectedCell } from "@/types/timetableSpan";
-import { isOverlap } from "@/lib/timeEngine";
+import { isOverlap, formatTime, parseTime } from "@/lib/timeEngine";
 
 interface TimeSlot {
   id: string;
@@ -76,7 +77,7 @@ export default memo(function TimetableGrid({
   onCancelEdit,
   onSaveEdit,
 }: TimetableGridProps) {
-  const dispatch = useDispatch();
+  const dispatch = useDispatch<AppDispatch>();
   
   const { selectedCells, selectionMode, allocations } = useSelector((state: RootState) => state.timetableEngine);
   const { conflicts } = useSelector((state: RootState) => state.validation);
@@ -167,12 +168,14 @@ export default memo(function TimetableGrid({
               {breakAfterThis && (
                 <div className="w-full mt-4 mb-4">
                   <BreakRow
+                    id={breakAfterThis.id}
                     label={breakAfterThis.label}
                     startTime={timeSlot.endTime}
-                    endTime={`+${breakAfterThis.durationMinutes}m`}
+                    endTime={formatTime(parseTime(timeSlot.endTime) + breakAfterThis.durationMinutes)}
                     durationMinutes={breakAfterThis.durationMinutes}
                     isGridEditMode={isGridEditMode}
-                    onRemove={() => {}}
+                    onRemove={() => dispatch(removeBreakAndSync({ id: breakAfterThis.id }))}
+                    onEditDuration={(mins) => dispatch(updateBreakDurationAndSync({ id: breakAfterThis.id, durationMinutes: mins }))}
                   />
                 </div>
               )}
@@ -344,11 +347,14 @@ export default memo(function TimetableGrid({
                 {breakAfterThis && (
                   <div style={{ gridColumn: `span ${days.length}` }} className="my-1">
                     <BreakRow
+                      id={breakAfterThis.id}
                       label={breakAfterThis.label}
                       startTime={timeSlot.endTime}
-                      endTime={`+${breakAfterThis.durationMinutes}m`}
+                      endTime={formatTime(parseTime(timeSlot.endTime) + breakAfterThis.durationMinutes)}
                       durationMinutes={breakAfterThis.durationMinutes}
                       isGridEditMode={isGridEditMode}
+                      onRemove={() => dispatch(removeBreakAndSync({ id: breakAfterThis.id }))}
+                      onEditDuration={(mins) => dispatch(updateBreakDurationAndSync({ id: breakAfterThis.id, durationMinutes: mins }))}
                     />
                   </div>
                 )}

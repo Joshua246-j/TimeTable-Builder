@@ -2,7 +2,7 @@ import { SubjectCardData, ScheduleEntry } from '@/types/timetable';
 import { FacultyData } from '@/services/facultyService';
 import { RoomData } from '@/services/roomService';
 import { ValidationIssue } from '@/services/validationService';
-import { isOverlap } from '@/lib/timeEngine';
+import { isOverlap, parseTime, formatTime } from '@/lib/timeEngine';
 
 
 export interface ValidationContext {
@@ -59,6 +59,9 @@ export const validationEngine = {
 
         // Check if times overlap using timeEngine's isOverlap (minute based)
         if (isOverlap(blockA, blockB)) {
+          const overlapStartMins = Math.max(parseTime(blockA.startTime), parseTime(blockB.startTime));
+          const overlapEndMins = Math.min(parseTime(blockA.endTime), parseTime(blockB.endTime));
+          const overlapTimeStr = `${formatTime(overlapStartMins)} - ${formatTime(overlapEndMins)}`;
           
           // FACULTY CONFLICT
           if (subjectA.facultyName && subjectA.facultyName === subjectB.facultyName) {
@@ -66,13 +69,13 @@ export const validationEngine = {
               id: `conflict-faculty-${blockA.id}-${blockB.id}`,
               type: 'conflict',
               code: 'ERR_FACULTY_OVERLAP',
-              message: `Faculty ${subjectA.facultyName} is double-booked on ${blockA.dayId} between ${blockA.startTime} and ${blockB.endTime}.`,
+              message: `Faculty ${subjectA.facultyName} is double-booked on ${blockA.dayId} between ${formatTime(overlapStartMins)} and ${formatTime(overlapEndMins)}.`,
               cellIds: [blockA.id, blockB.id],
               conflictType: 'Faculty Conflict',
               affectedSubject: `${subjectA.subjectName} / ${subjectB.subjectName}`,
               affectedTeacher: subjectA.facultyName,
               affectedRoom: subjectA.roomName || 'Unknown',
-              affectedTime: `${blockA.startTime} - ${blockB.endTime}`
+              affectedTime: overlapTimeStr
             });
           }
 
@@ -88,7 +91,7 @@ export const validationEngine = {
               affectedSubject: `${subjectA.subjectName} / ${subjectB.subjectName}`,
               affectedTeacher: subjectA.facultyName || 'Unknown',
               affectedRoom: subjectA.roomName,
-              affectedTime: `${blockA.startTime} - ${blockB.endTime}`
+              affectedTime: overlapTimeStr
             });
           }
 
@@ -108,7 +111,7 @@ export const validationEngine = {
               affectedSubject: `${subjectA.subjectName} / ${subjectB.subjectName}`,
               affectedTeacher: subjectA.facultyName || 'Unknown',
               affectedRoom: subjectA.roomName || 'Unknown',
-              affectedTime: `${blockA.startTime} - ${blockB.endTime}`
+              affectedTime: overlapTimeStr
             });
           }
         }

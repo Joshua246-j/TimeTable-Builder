@@ -21,7 +21,7 @@ import { DndContext, DragEndEvent, DragStartEvent, PointerSensor, useSensor, use
 import { toast } from "sonner";
 import { mergeEngine } from "@/lib/mergeEngine";
 import { isOverlap, parseTime } from "@/lib/timeEngine";
-import { merge } from "@/store/timetableEngineSlice";
+import { merge, remove } from "@/store/timetableEngineSlice";
 import {
   Dialog,
   DialogContent,
@@ -63,6 +63,10 @@ export default function TimetableInteractiveWorkspace({
     targetSubjectId?: string;
     isConflict: boolean;
   } | null>(null);
+  const [pendingMergeSuggestion, setPendingMergeSuggestion] = useState<{
+    subjectId: string;
+    cellsToMerge: { id: string; rowIndex: number; dayId: string; startTime: string; endTime: string; subjectId: string }[];
+  } | null>(null);
   const sensors = useSensors(
     useSensor(PointerSensor, {
       activationConstraint: {
@@ -89,18 +93,14 @@ export default function TimetableInteractiveWorkspace({
     dispatch(removeSubjectAssignment({ cellId }));
   }, [dispatch]);
 
-  const handleAssignSlot = useCallback((cell: TimetableCellType, subjectId: string) => {
-    dispatch(assignSubject({ cellId: cell.id, subjectId, dayId: cell.day, startTime: cell.startTime, endTime: cell.endTime }));
-    setSelectedCellId(undefined);
-
+  const checkMergeEligibility = useCallback((dayId: string, startTime: string, subjectId: string) => {
     setTimeout(() => {
-      // Small delay to let Redux update
       const latestState = store.getState();
       const latestAllocations = Object.values(latestState.timetableEngine.allocations);
       
       const newAlloc = latestAllocations.find(a => 
-        (a.dayId === cell.day || a.dayId === cell.id.split('-')[0]) && 
-        a.startTime === cell.startTime
+        (a.dayId === dayId || a.dayId === dayId.split('-')[0]) && 
+        a.startTime === startTime
       );
 
       if (newAlloc) {
@@ -116,47 +116,29 @@ export default function TimetableInteractiveWorkspace({
         const suggestions = mergeEngine.suggestAutoMerge(timeSlotIndex, newAlloc.dayId, subjectId, simulatedCells);
 
         if (suggestions.length > 1) {
-          toast("Adjacent periods detected", {
-            description: "Do you want to merge these periods together?",
-            action: {
-              label: "Merge",
-              onClick: () => {
-                const cellsToMerge = simulatedCells.filter(c => suggestions.includes(c.id)).map(c => {
-                   const matchingAlloc = latestAllocations.find(a => a.id === c.id);
-                   return {
-                     id: c.id,
-                     rowIndex: c.rowIndex,
-                     dayId: c.day,
-                     startTime: matchingAlloc?.startTime || "",
-                     endTime: matchingAlloc?.endTime || "",
-                     subjectId
-                   };
-                });
-                const sorted = cellsToMerge.sort((a, b) => a.rowIndex - b.rowIndex);
-                if (sorted.length > 0) {
-                  const startCell = sorted[0];
-                  const endCell = sorted[sorted.length - 1];
-                  const mergeEntry: ScheduleEntry = {
-                    id: `merge-${startCell.id}-${Date.now()}`,
-                    subjectId,
-                    dayId: startCell.dayId,
-                    startTime: startCell.startTime,
-                    endTime: endCell.endTime,
-                    rowStart: startCell.rowIndex,
-                    rowSpan: endCell.rowIndex - startCell.rowIndex + 1,
-                    isEditable: true,
-                    isLocked: false,
-                  };
-                  dispatch(merge(mergeEntry));
-                  toast.success("Merged successfully");
-                }
-              }
-            }
+          const cellsToMerge = simulatedCells.filter(c => suggestions.includes(c.id)).map(c => {
+             const matchingAlloc = latestAllocations.find(a => a.id === c.id);
+             return {
+               id: c.id,
+               rowIndex: c.rowIndex,
+               dayId: c.day,
+               startTime: matchingAlloc?.startTime || "",
+               endTime: matchingAlloc?.endTime || "",
+               subjectId
+             };
           });
+          
+          setPendingMergeSuggestion({ subjectId, cellsToMerge });
         }
       }
     }, 100);
-  }, [dispatch, timetableData.timeSlots]);
+  }, [timetableData.timeSlots]);
+
+  const handleAssignSlot = useCallback((cell: TimetableCellType, subjectId: string) => {
+    dispatch(assignSubject({ cellId: cell.id, subjectId, dayId: cell.day, startTime: cell.startTime, endTime: cell.endTime }));
+    setSelectedCellId(undefined);
+    checkMergeEligibility(cell.day, cell.startTime, subjectId);
+  }, [dispatch, checkMergeEligibility]);
 
   const handleEditTime = useCallback((cell: TimetableCellType) => {
     if (!cell.isAssigned || !cell.assignment) return;
@@ -186,6 +168,7 @@ export default function TimetableInteractiveWorkspace({
       const sourceCellId = sourceData.cellId as string;
       const targetCell = targetData.cell as TimetableCellType;
       const targetCellId = targetCell.id;
+      const sourceSubjectId = sourceData.subjectId as string;
 
       if (sourceCellId === targetCellId) return;
 
@@ -201,6 +184,8 @@ export default function TimetableInteractiveWorkspace({
         targetStartTime: targetCell.startTime,
         targetEndTime: targetCell.endTime
       }));
+      
+      checkMergeEligibility(targetCell.day, targetCell.startTime, sourceSubjectId);
     }
 
     if (sourceData?.type === "SUBJECT" && targetData?.type === "CELL") {
@@ -212,10 +197,12 @@ export default function TimetableInteractiveWorkspace({
         // Instead of error, we can swap/replace the assignment
         dispatch(swapAssignmentSubject({ cellId: targetCellId, newSubjectId: subjectId, dayId: targetCell.day, startTime: targetCell.startTime, endTime: targetCell.endTime }));
         toast.success("Subject assignment replaced");
+        checkMergeEligibility(targetCell.day, targetCell.startTime, subjectId);
         return;
       }
 
       dispatch(assignSubject({ cellId: targetCellId, subjectId, dayId: targetCell.day, startTime: targetCell.startTime, endTime: targetCell.endTime }));
+      checkMergeEligibility(targetCell.day, targetCell.startTime, subjectId);
     }
   };
 
@@ -551,7 +538,70 @@ export default function TimetableInteractiveWorkspace({
         </DialogContent>
       </Dialog>
 
-
+      <Dialog open={!!pendingMergeSuggestion} onOpenChange={(open) => !open && setPendingMergeSuggestion(null)}>
+        <DialogContent className="font-inter sm:max-w-md rounded-2xl p-0 overflow-hidden border-0 shadow-[0_20px_50px_rgba(0,0,0,0.1)]">
+          <div className="p-6 pb-4">
+            <DialogHeader className="space-y-4">
+              <div className="flex items-center gap-4">
+                <div className="w-12 h-12 rounded-full bg-[#E0E7FF] flex items-center justify-center shrink-0">
+                  <div className="w-6 h-6 text-[#4F6BFF] flex items-center justify-center">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m8 6 4-4 4 4"/><path d="M12 2v10.3a4 4 0 0 1-1.172 2.872L4 22"/><path d="m20 22-5-5"/></svg>
+                  </div>
+                </div>
+                <div>
+                  <DialogTitle className="text-[18px] font-bold text-slate-900 leading-tight">
+                    Merge Adjacent Sessions?
+                  </DialogTitle>
+                  <DialogDescription className="text-[14px] text-slate-500 mt-1.5 leading-relaxed">
+                    These adjacent sessions can be merged into a single timetable block. Do you want to merge them?
+                  </DialogDescription>
+                </div>
+              </div>
+            </DialogHeader>
+          </div>
+          
+          <div className="p-6 pt-4 bg-slate-50/50 border-t border-slate-100 flex flex-col sm:flex-row items-center justify-end gap-3">
+            <button 
+              className="w-full sm:w-auto px-4 py-2.5 text-[14px] font-semibold text-slate-500 hover:text-slate-700 hover:bg-slate-100 rounded-xl transition-colors"
+              onClick={() => setPendingMergeSuggestion(null)}
+            >
+              Cancel
+            </button>
+            <button 
+              className="w-full sm:w-auto px-5 py-2.5 text-[14px] font-bold text-white bg-[#4F6BFF] hover:bg-[#4338CA] rounded-xl shadow-md shadow-[#4F6BFF]/20 transition-all"
+              onClick={() => {
+                if (pendingMergeSuggestion) {
+                  const sorted = [...pendingMergeSuggestion.cellsToMerge].sort((a, b) => a.rowIndex - b.rowIndex);
+                  const startCell = sorted[0];
+                  const endCell = sorted[sorted.length - 1];
+                  const mergeEntry: ScheduleEntry = {
+                    id: `merge-${startCell.id}-${Date.now()}`,
+                    subjectId: pendingMergeSuggestion.subjectId,
+                    dayId: startCell.dayId,
+                    startTime: startCell.startTime,
+                    endTime: endCell.endTime,
+                    rowStart: startCell.rowIndex,
+                    rowSpan: endCell.rowIndex - startCell.rowIndex + 1,
+                    isEditable: true,
+                    isLocked: false,
+                  };
+                  
+                  // Remove old allocations
+                  pendingMergeSuggestion.cellsToMerge.forEach(cell => {
+                    dispatch(remove(cell.id));
+                  });
+                  
+                  dispatch(merge(mergeEntry));
+                  toast.success("Merged successfully");
+                  setPendingMergeSuggestion(null);
+                }
+              }}
+            >
+              Merge
+            </button>
+          </div>
+        </DialogContent>
+      </Dialog>
 
       </div>
 

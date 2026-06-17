@@ -1,6 +1,6 @@
 import { createSlice, PayloadAction } from '@reduxjs/toolkit';
 import { TIME_SLOTS, WEEK_DAYS } from '@/constants/timetable';
-import { recalculateSequentialTimes } from '@/lib/timeEngine';
+import { recalculateSequentialTimes, parseTime, formatTime } from '@/lib/timeEngine';
 
 export interface GridTimeSlot {
   id: string;
@@ -94,6 +94,104 @@ export const gridConfigSlice = createSlice({
         state.breaks[idx] = { ...state.breaks[idx], ...action.payload.updates };
       }
     },
+    updateBreakDurationAndRecalculate: (state, action: PayloadAction<{id: string; durationMinutes: number}>) => {
+      const idx = state.breaks.findIndex(b => b.id === action.payload.id);
+      if (idx !== -1) {
+        state.breaks[idx].durationMinutes = action.payload.durationMinutes;
+      }
+      
+      let currentMins = parseTime(state.startTime);
+      
+      const initialBreaks = state.breaks.filter(b => b.afterPeriodId === '0' || !b.afterPeriodId);
+      initialBreaks.forEach(b => {
+         currentMins += b.durationMinutes;
+      });
+
+      const newTimeSlots: GridTimeSlot[] = [];
+      state.timeSlots.forEach(ts => {
+         const itemStart = formatTime(currentMins);
+         currentMins += (ts.durationMinutes || state.defaultPeriodDuration);
+         const itemEnd = formatTime(currentMins);
+         
+         newTimeSlots.push({
+             ...ts,
+             startTime: itemStart,
+             endTime: itemEnd
+         });
+         
+         const breaksAfter = state.breaks.filter(b => b.afterPeriodId === ts.id);
+         breaksAfter.forEach(b => {
+            currentMins += b.durationMinutes;
+         });
+      });
+      
+      state.timeSlots = newTimeSlots;
+    },
+    removeBreakAndRecalculate: (state, action: PayloadAction<string>) => {
+      state.breaks = state.breaks.filter(b => b.id !== action.payload);
+      
+      let currentMins = parseTime(state.startTime);
+      
+      const initialBreaks = state.breaks.filter(b => b.afterPeriodId === '0' || !b.afterPeriodId);
+      initialBreaks.forEach(b => {
+         currentMins += b.durationMinutes;
+      });
+
+      const newTimeSlots: GridTimeSlot[] = [];
+      state.timeSlots.forEach(ts => {
+         const itemStart = formatTime(currentMins);
+         currentMins += (ts.durationMinutes || state.defaultPeriodDuration);
+         const itemEnd = formatTime(currentMins);
+         
+         newTimeSlots.push({
+             ...ts,
+             startTime: itemStart,
+             endTime: itemEnd
+         });
+         
+         const breaksAfter = state.breaks.filter(b => b.afterPeriodId === ts.id);
+         breaksAfter.forEach(b => {
+            currentMins += b.durationMinutes;
+         });
+      });
+      
+      state.timeSlots = newTimeSlots;
+    },
+    updateSinglePeriodDurationByStartTime: (state, action: PayloadAction<{ startTime: string; durationMinutes: number }>) => {
+      const idx = state.timeSlots.findIndex(ts => ts.startTime === action.payload.startTime);
+      if (idx !== -1) {
+        state.timeSlots[idx].durationMinutes = action.payload.durationMinutes;
+      }
+      
+      let currentMins = parseTime(state.startTime);
+      
+      const initialBreaks = state.breaks.filter(b => b.afterPeriodId === '0' || !b.afterPeriodId);
+      initialBreaks.forEach(b => {
+         currentMins += b.durationMinutes;
+      });
+
+      const newTimeSlots: GridTimeSlot[] = [];
+      state.timeSlots.forEach(ts => {
+         const itemStart = formatTime(currentMins);
+         const currentDuration = ts.durationMinutes || state.defaultPeriodDuration;
+         currentMins += currentDuration;
+         const itemEnd = formatTime(currentMins);
+         
+         newTimeSlots.push({
+             ...ts,
+             durationMinutes: currentDuration,
+             startTime: itemStart,
+             endTime: itemEnd
+         });
+         
+         const breaksAfter = state.breaks.filter(b => b.afterPeriodId === ts.id);
+         breaksAfter.forEach(b => {
+            currentMins += b.durationMinutes;
+         });
+      });
+      
+      state.timeSlots = newTimeSlots;
+    },
     updatePeriodStructure: (state, action: PayloadAction<{ startTime: string; duration: number; count: number }>) => {
       state.startTime = action.payload.startTime;
       state.defaultPeriodDuration = action.payload.duration;
@@ -124,7 +222,10 @@ export const {
   updateTimeSlots,
   addBreak,
   removeBreak,
+  removeBreakAndRecalculate,
   updateBreak,
+  updateBreakDurationAndRecalculate,
+  updateSinglePeriodDurationByStartTime,
   setBreaks,
   updatePeriodStructure
 } = gridConfigSlice.actions;

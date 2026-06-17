@@ -1,6 +1,7 @@
 import { createSlice, PayloadAction } from '@reduxjs/toolkit';
 import { ScheduleEntry, SelectedCellData } from '@/types/timetable';
 import { selectionEngine } from '@/lib/selectionEngine';
+import { parseTime, formatTime } from '@/lib/timeEngine';
 
 export interface TimetableEngineState {
   allocations: Record<string, ScheduleEntry>;
@@ -47,23 +48,25 @@ export const timetableEngineSlice = createSlice({
       if (!source || source.isLocked) return;
       if (!target || target.isLocked) return;
 
-      // Swap day and time metadata but keep everything else identical
+      // Swap day and time metadata but recalculate endTime to preserve original durations
+      const sourceDuration = parseTime(source.endTime) - parseTime(source.startTime);
+      const targetDuration = parseTime(target.endTime) - parseTime(target.startTime);
+      
       const tempDay = source.dayId;
       const tempStart = source.startTime;
-      const tempEnd = source.endTime;
 
       state.allocations[sourceId] = {
         ...source,
         dayId: target.dayId,
         startTime: target.startTime,
-        endTime: target.endTime,
+        endTime: formatTime(parseTime(target.startTime) + sourceDuration),
       };
 
       state.allocations[targetId] = {
         ...target,
         dayId: tempDay,
         startTime: tempStart,
-        endTime: tempEnd,
+        endTime: formatTime(parseTime(tempStart) + targetDuration),
       };
     },
     merge: (state, action: PayloadAction<ScheduleEntry>) => {

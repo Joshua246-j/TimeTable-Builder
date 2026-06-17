@@ -4,12 +4,10 @@ import { RootState, AppDispatch } from "@/store/store";
 import {
   toggleGridEditMode,
   toggleDay,
-  setBreaks,
-  updateTimeSlots,
   GridBreak,
-  GridTimeSlot,
-  updatePeriodStructure
+  GridTimeSlot
 } from "@/store/gridConfigSlice";
+import { applyGridConfigurationAndSync } from "@/store/syntheticActions";
 import { X, Clock, Plus, CalendarDays, Trash2, GripVertical, Save, Minus, Settings } from "lucide-react";
 import { toast } from "sonner";
 import { parseTime, formatTime } from "@/lib/timeEngine";
@@ -242,9 +240,12 @@ export default function GridConfigPanel() {
         }
     });
     
-    dispatch(updatePeriodStructure({ startTime, duration: config.defaultPeriodDuration, count: newTimeSlots.length }));
-    dispatch(updateTimeSlots(newTimeSlots));
-    dispatch(setBreaks(newBreaks));
+    dispatch(applyGridConfigurationAndSync({
+      startTime,
+      duration: config.defaultPeriodDuration,
+      newTimeSlots,
+      newBreaks
+    }));
     
     toast.success("Grid configuration saved successfully!");
     dispatch(toggleGridEditMode());

@@ -49,7 +49,12 @@ export function CircularTimePicker({
     if (!newIsPM && hours12 === 12) newHours24 = 0;
     newDate.setHours(newHours24);
     const formatted = format(newDate, "HH:mm");
-    activeTab === "start" ? onStartChange(formatted) : onEndChange(formatted);
+    
+    if (activeTab === "start") {
+      onStartChange(formatted);
+    } else {
+      onEndChange(formatted);
+    }
   };
 
   const handlePointerEvent = (e: React.PointerEvent) => {
@@ -78,7 +83,11 @@ export function CircularTimePicker({
     }
 
     const formatted = format(newDate, "HH:mm");
-    activeTab === "start" ? onStartChange(formatted) : onEndChange(formatted);
+    if (activeTab === "start") {
+      onStartChange(formatted);
+    } else {
+      onEndChange(formatted);
+    }
   };
 
   const onPointerDown = (e: React.PointerEvent) => {

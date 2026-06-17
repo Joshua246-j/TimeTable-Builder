@@ -13,23 +13,11 @@ import {
   Users,
   Pencil,
   Trash2,
-  Copy,
   GitMerge,
   SplitSquareHorizontal,
 } from "lucide-react";
 
 import SubjectPreviewPopover from "./SubjectPreviewPopover";
-
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
-import { Button } from "@/components/ui/button";
-import { useState } from "react";
 
 import {
   DropdownMenu,
@@ -61,7 +49,6 @@ interface SubjectClassCardProps {
   onToggleLock?: () => void;
   onEdit?: () => void;
   onDelete?: () => void;
-  onDuplicate?: () => void;
   onMerge?: () => void;
   onSplit?: () => void;
   assignedTime?: string;
@@ -123,13 +110,11 @@ export default memo(function SubjectClassCard({
   onToggleLock,
   onEdit,
   onDelete,
-  onDuplicate,
   onMerge,
   onSplit,
   assignedTime,
   assignedDay,
 }: SubjectClassCardProps) {
-  const [showRemoveDialog, setShowRemoveDialog] = useState(false);
   const typeKey = data?.type?.toUpperCase() || "THEORY";
   const styles = BADGE_STYLES[typeKey] || BADGE_STYLES.THEORY;
   const Icon = styles.icon;
@@ -185,11 +170,6 @@ export default memo(function SubjectClassCard({
                     <Pencil className="w-4 h-4 mr-2 text-slate-500" /> Edit Subject
                   </DropdownMenuItem>
                 )}
-                {onDuplicate && (
-                  <DropdownMenuItem onClick={(e) => { e.stopPropagation(); onDuplicate(); }} className="cursor-pointer">
-                    <Copy className="w-4 h-4 mr-2 text-slate-500" /> Duplicate Assignment
-                  </DropdownMenuItem>
-                )}
                 {onMerge && (
                   <DropdownMenuItem onClick={(e) => { e.stopPropagation(); onMerge(); }} className="cursor-pointer text-blue-600 focus:text-blue-700 focus:bg-blue-50 font-medium">
                     <GitMerge className="w-4 h-4 mr-2" /> Merge Periods
@@ -221,7 +201,7 @@ export default memo(function SubjectClassCard({
               <>
                 <DropdownMenuSeparator />
                 <DropdownMenuItem 
-                  onClick={(e) => { e.stopPropagation(); setShowRemoveDialog(true); }}
+                  onClick={(e) => { e.stopPropagation(); if (onDelete) onDelete(); }}
                   className="cursor-pointer text-red-600 focus:text-red-600 focus:bg-red-50"
                 >
                   <Trash2 className="w-4 h-4 mr-2" /> Remove Assignment
@@ -231,27 +211,6 @@ export default memo(function SubjectClassCard({
           </DropdownMenuContent>
         </DropdownMenu>
       </div>
-
-      <Dialog open={showRemoveDialog} onOpenChange={setShowRemoveDialog}>
-        <DialogContent onClick={(e) => e.stopPropagation()}>
-          <DialogHeader>
-            <DialogTitle>Remove Assignment</DialogTitle>
-            <DialogDescription>
-              Are you sure you want to remove this subject from the timetable?
-            </DialogDescription>
-          </DialogHeader>
-          <DialogFooter>
-            <Button variant="outline" onClick={(e) => { e.stopPropagation(); setShowRemoveDialog(false); }}>Cancel</Button>
-            <Button variant="destructive" onClick={(e) => { 
-              e.stopPropagation(); 
-              setShowRemoveDialog(false); 
-              if (onDelete) onDelete(); 
-            }}>
-              Remove
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
 
       {isLocked && (
         <div className="absolute bottom-3 right-8 flex items-center z-20 text-slate-400">
@@ -314,13 +273,24 @@ export default memo(function SubjectClassCard({
           <span className="text-[12px] font-medium truncate">{data?.section || "Section CSE V A"}</span>
         </div>
         
-        {data && (
-          <SubjectPreviewPopover 
-            subject={data} 
-            assignedTime={assignedTime} 
-            assignedDay={assignedDay} 
-          />
-        )}
+        <div className="flex items-center gap-1">
+          {onDelete && !isLocked && (
+            <button
+               onClick={(e) => { e.stopPropagation(); onDelete(); }}
+               className="p-1.5 text-slate-300 hover:text-red-500 hover:bg-red-50 rounded-md transition-colors outline-none"
+               title="Unassign Subject"
+            >
+               <Trash2 className="w-[15px] h-[15px]" />
+            </button>
+          )}
+          {data && (
+            <SubjectPreviewPopover 
+              subject={data} 
+              assignedTime={assignedTime} 
+              assignedDay={assignedDay} 
+            />
+          )}
+        </div>
       </div>
 
     </div>

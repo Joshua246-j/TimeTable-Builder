@@ -32,20 +32,18 @@ export function parseTime(timeStr: string): number {
 /**
  * Formats minutes from midnight back to a time string like "09:00 AM" using Intl.DateTimeFormat.
  */
-export function formatTime(minutesFromMidnight: number, locale = "en-US"): string {
-  const hours = Math.floor(minutesFromMidnight / 60);
+export function formatTime(minutesFromMidnight: number): string {
+  const hours24 = Math.floor(minutesFromMidnight / 60);
   const minutes = minutesFromMidnight % 60;
   
-  const date = new Date();
-  date.setHours(hours, minutes, 0, 0);
+  const isPM = hours24 >= 12;
+  const hours12 = hours24 % 12 || 12;
   
-  const formatter = new Intl.DateTimeFormat(locale, {
-    hour: "2-digit",
-    minute: "2-digit",
-    hour12: true,
-  });
+  const hh = hours12.toString().padStart(2, "0");
+  const mm = minutes.toString().padStart(2, "0");
+  const ampm = isPM ? "PM" : "AM";
   
-  return formatter.format(date).toUpperCase().replace(/\u202F/g, ' '); 
+  return `${hh}:${mm} ${ampm}`;
 }
 
 /**

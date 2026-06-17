@@ -9,25 +9,18 @@ interface EmptySlotProps {
   onClick?: () => void;
   startTime?: string;
   endTime?: string;
-  rowSpan?: number;
 }
 
 export default memo(function EmptySlot({
   isSelected = false,
   onClick,
-  rowSpan = 1,
 }: EmptySlotProps) {
-  const baseHeight = 160;
-  const gap = 16;
-  const height = rowSpan > 1 ? baseHeight * rowSpan + gap * (rowSpan - 1) : baseHeight;
-
   return (
     <button
       type="button"
       onClick={onClick}
-      style={{ minHeight: `${height}px` }}
       className={cn(
-        "group relative flex w-full items-center justify-center overflow-hidden rounded-[10px] border border-dashed transition-all duration-200",
+        "group relative flex w-full h-full min-h-[160px] items-center justify-center overflow-hidden rounded-[10px] border border-dashed transition-all duration-200",
         isSelected
           ? "border-blue-500 bg-blue-50/40 ring-2 ring-blue-100"
           : "border-slate-300 bg-white hover:-translate-y-[1px] hover:border-blue-500 hover:bg-blue-50/40"

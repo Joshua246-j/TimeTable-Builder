@@ -297,7 +297,8 @@ export const updateTimeAllocation = createAsyncThunk<
     const state = getState();
     
     const durationMins = calculateDurationMinutes(startTime, endTime);
-    const rowSpan = Math.max(1, Math.round(durationMins / 60)); // calculateRowSpan(durationMins, 60);
+    const defaultDuration = state.gridConfig.defaultPeriodDuration || 60;
+    const rowSpan = Math.max(1, Math.round(durationMins / defaultDuration));
 
     dispatch(recordSnapshot(state.timetableEngine.allocations));
 

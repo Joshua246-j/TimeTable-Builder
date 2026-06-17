@@ -1,6 +1,6 @@
 "use client";
 
-import { Building2, MoreVertical, Pencil, Copy, Trash2, User } from "lucide-react";
+import { Building2, MoreVertical, Pencil, Trash2, User } from "lucide-react";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -9,7 +9,6 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { useDispatch, useSelector } from "react-redux";
 import { RootState, AppDispatch } from "@/store/store";
-import { addSubject } from "@/store/subjectSlice";
 import { useDraggable } from "@dnd-kit/core";
 import { deleteSubjectGlobal } from "@/store/syntheticActions";
 
@@ -54,15 +53,6 @@ export default function SubjectAllocationCard({
     } else {
       dispatch(deleteSubjectGlobal({ subjectId: subject.id }));
     }
-  };
-
-  const handleDuplicate = () => {
-    dispatch(addSubject({
-      ...subject,
-      id: `duplicate-${Date.now()}`,
-      subjectName: `${subject.subjectName} (Copy)`,
-      isEditable: true,
-    }));
   };
 
   return (
@@ -154,10 +144,7 @@ export default function SubjectAllocationCard({
                 <Pencil className="mr-2 h-4 w-4" />
                 <span>Edit Subject</span>
               </DropdownMenuItem>
-              <DropdownMenuItem onClick={handleDuplicate} className="cursor-pointer">
-                <Copy className="mr-2 h-4 w-4" />
-                <span>Duplicate Subject</span>
-              </DropdownMenuItem>
+
               <DropdownMenuItem onClick={handleDelete} className="cursor-pointer text-red-600 focus:bg-red-50 focus:text-red-700">
                 <Trash2 className="mr-2 h-4 w-4" />
                 <span>Delete Subject</span>

@@ -22,7 +22,7 @@ export interface GridBreak {
   afterPeriodId: string; // The break comes after this period ID
   durationMinutes: number;
   label: string;
-  type: 'Lunch Break' | 'Tea Break' | 'Assembly Break' | 'Custom Break';
+  type: 'Lunch Break' | 'Tea Break' | 'Assembly Break' | 'Custom Break' | 'Short Break';
 }
 
 export interface GridConfigState {

@@ -38,7 +38,20 @@ export default memo(function TimeRail({
     setIsOpen(open);
   };
 
+  const parseTimeStr = (t: string) => {
+    const [h, m] = t.split(":").map(Number);
+    return h * 60 + m;
+  };
+
   const handleConfirm = () => {
+    const startMins = parseTimeStr(localStart);
+    const endMins = parseTimeStr(localEnd);
+
+    if (endMins <= startMins) {
+      alert("End time must be after start time");
+      return;
+    }
+
     // Dispatch to Redux if we have allocation context
     if (cellId && subjectId && dayId) {
       dispatch(
@@ -60,16 +73,36 @@ export default memo(function TimeRail({
     setIsOpen(false);
   };
 
+  const formatTimeRailDisplay = (timeStr: string, isStart: boolean, otherTimeStr: string) => {
+    // Both times are guaranteed to be "hh:mm A" based on the new logic
+    const timeMatch = timeStr.match(/^(\d{2}:\d{2})\s*(AM|PM)?$/i);
+    const otherMatch = otherTimeStr.match(/^(\d{2}:\d{2})\s*(AM|PM)?$/i);
+    
+    if (!timeMatch || !otherMatch) return timeStr;
+    
+    const timeBase = timeMatch[1];
+    const timeAmPm = timeMatch[2]?.toUpperCase();
+    
+    const otherAmPm = otherMatch[2]?.toUpperCase();
+    
+    // If it's the start time, and both have the SAME AM/PM, hide AM/PM for the start time
+    if (isStart && timeAmPm && otherAmPm && timeAmPm === otherAmPm) {
+      return timeBase;
+    }
+    
+    return timeStr;
+  };
+
   return (
     <Popover open={isOpen} onOpenChange={handleOpen}>
       <PopoverTrigger asChild>
         <button className="sc-time-panel shrink-0 bg-[#F8FAFC] border-r border-[#E2E8F0] flex flex-col items-center justify-center py-[14px] px-1 relative z-10 rounded-l-[10px] hover:bg-slate-100 transition-colors cursor-pointer outline-none">
           <div className="text-[12px] font-[700] text-[#0D2463] text-center leading-tight tracking-wide">
-            {startTime}
+            {formatTimeRailDisplay(startTime, true, endTime)}
           </div>
           <div className="w-[12px] h-[1.5px] bg-[#0D2463] my-[4px] opacity-60" />
           <div className="text-[12px] font-[700] text-[#0D2463] mb-1 text-center leading-tight tracking-wide">
-            {endTime}
+            {formatTimeRailDisplay(endTime, false, startTime)}
           </div>
         </button>
       </PopoverTrigger>

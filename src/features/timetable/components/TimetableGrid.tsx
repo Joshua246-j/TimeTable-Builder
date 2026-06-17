@@ -4,7 +4,7 @@ import DayHeader from "./DayHeader";
 import TimetableCell from "./TimetableCell";
 import BreakRow from "./BreakRow";
 import { memo, useCallback } from "react";
-import { Edit2 } from "lucide-react";
+import { Settings2 } from "lucide-react";
 
 import type {
   SubjectCardData,
@@ -198,21 +198,23 @@ export default memo(function TimetableGrid({
           relative
         "
       >
-        {/* Edit Grid Button */}
-        <button
-          onClick={() => dispatch(toggleGridEditMode())}
-          className={`absolute top-4 right-4 z-10 flex items-center gap-2 rounded-full px-3 py-1.5 text-xs font-bold transition-all shadow-sm ${
-            isGridEditMode
-              ? "bg-indigo-100 text-indigo-700 ring-2 ring-indigo-500"
-              : "bg-white text-slate-600 border border-slate-200 hover:bg-slate-50 hover:text-slate-900 hover:shadow-md"
-          }`}
-        >
-          <Edit2 className="w-3.5 h-3.5" />
-          Edit Grid
-        </button>
+        {/* Configure Grid Floating Button */}
+        <div className="absolute top-3 right-4 z-20">
+          <button
+            onClick={() => dispatch(toggleGridEditMode())}
+            className={`flex items-center gap-2 rounded-full px-4 py-2 text-[13px] font-bold shadow-md transition-all duration-300 hover:scale-105 active:scale-95 ${
+              isGridEditMode
+                ? "bg-slate-800 text-white shadow-slate-300/50"
+                : "bg-white/90 backdrop-blur-md border border-slate-200 text-slate-700 hover:bg-white hover:text-blue-600 hover:shadow-lg hover:border-blue-200"
+            }`}
+          >
+            <Settings2 className={`h-4 w-4 ${isGridEditMode ? "animate-spin-slow text-white" : ""}`} />
+            {isGridEditMode ? "Finish Editing" : "Configure Grid"}
+          </button>
+        </div>
 
-
-        <div className={`overflow-auto flex-1 ${days.length > 5 ? 'p-2 pt-12' : 'p-4 pt-12'}`}>
+        {/* Grid Content */}
+        <div className={`overflow-auto flex-1 ${days.length > 5 ? 'p-2 pt-16' : 'p-4 pt-16'}`}>
           <div
             className={`grid ${days.length > 5 ? 'gap-x-[4px] gap-y-[4px]' : 'gap-x-[8px] gap-y-[8px]'}`}
             style={{
@@ -242,7 +244,7 @@ export default memo(function TimetableGrid({
 
 
 
-                  const allocation = Object.values(allocations).find((a) => {
+                  const allocationsInCell = Object.values(allocations).filter((a) => {
                     const isSameDay = a.dayId === day.name || a.dayId === day.id;
                     if (!isSameDay) return false;
                     return isOverlap(
@@ -251,14 +253,26 @@ export default memo(function TimetableGrid({
                     );
                   });
 
-                  if (allocation) {
+                  if (allocationsInCell.length > 0) {
+                    // Just take the first one to render, but mark conflict if multiple
+                    const allocation = allocationsInCell[0];
                     const allocSubject = allocation.subjectId ? subjects[allocation.subjectId] : undefined;
                     const isLocked = allocation.isLocked;
                     
+                    // Check for conflicts
                     const allocConflicts = conflicts.filter(c => c.cellIds?.includes(allocation.id));
-                    const isConflict = allocConflicts.length > 0;
+                    const isConflict = allocConflicts.length > 0 || allocationsInCell.length > 1;
                     
-                    if (timeSlot.startTime === allocation.startTime) {
+                    // Calculate how many slots this allocation spans across the whole day
+                    const overlappingSlots = timeSlots.filter(t => 
+                      isOverlap(
+                        { startTime: allocation.startTime, endTime: allocation.endTime }, 
+                        { startTime: t.startTime, endTime: t.endTime }
+                      )
+                    );
+
+                    // Render only in the FIRST slot it overlaps with
+                    if (overlappingSlots.length > 0 && timeSlot.startTime === overlappingSlots[0].startTime) {
                       return (
                         <TimetableCell
                           key={allocation.id}
@@ -281,18 +295,22 @@ export default memo(function TimetableGrid({
                           rowIndex={rowIndex}
                           selectionMode={selectionMode}
                           onSelectionToggle={handleToggleCellSelection}
-                          rowSpan={allocation.rowSpan}
-                          mergedGroup={allocation.rowSpan > 1 ? allocation : undefined}
+                          rowSpan={overlappingSlots.length}
+                          mergedGroup={overlappingSlots.length > 1 ? allocation : undefined}
                           isLocked={isLocked}
                           isEditing={editingGroupId === allocation.id}
                           onCancelEdit={onCancelEdit}
                           onSaveEdit={onSaveEdit}
                           isConflict={isConflict}
-                          conflictData={isConflict ? allocConflicts[0] : undefined}
+                          conflictData={allocConflicts[0]}
                         />
                       );
+                    } else if (overlappingSlots.length > 0 && timeSlot.startTime !== overlappingSlots[0].startTime) {
+                      // Skip rendering this cell because it's covered by the rowSpan of the first cell
+                      return null; 
                     } else {
-                      return null; // Skip rendering cell if it's covered by a rowSpan
+                       // Fallback (shouldn't happen if overlappingSlots > 0)
+                       return null;
                     }
                   }
 

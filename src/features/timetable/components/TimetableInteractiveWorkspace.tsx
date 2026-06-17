@@ -20,17 +20,15 @@ import { swapSubjectAssignments, assignSubject, updateTimeAllocation, removeSubj
 import { DndContext, DragEndEvent, DragStartEvent, PointerSensor, useSensor, useSensors, DragOverlay } from "@dnd-kit/core";
 import { toast } from "sonner";
 import { mergeEngine } from "@/lib/mergeEngine";
-import { isOverlap } from "@/lib/timeEngine";
+import { isOverlap, parseTime } from "@/lib/timeEngine";
 import { merge } from "@/store/timetableEngineSlice";
 import {
   Dialog,
   DialogContent,
   DialogDescription,
-  DialogFooter,
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { Button } from "@/components/ui/button";
 import { AlertTriangle } from "lucide-react";
 
 const MobileFilters = dynamic(() => import("@/features/timetable/components/MobileFilters"), { ssr: false });
@@ -55,7 +53,6 @@ export default function TimetableInteractiveWorkspace({
   const validationState = useSelector((state: RootState) => state.validation);
   const gridConfig = useSelector((state: RootState) => state.gridConfig);
   const [activeDragData, setActiveDragData] = useState<Record<string, unknown> | null>(null);
-
   const [pendingTimeChange, setPendingTimeChange] = useState<{
     sourceCellId: string;
     sourceSubjectId: string;
@@ -66,7 +63,6 @@ export default function TimetableInteractiveWorkspace({
     targetSubjectId?: string;
     isConflict: boolean;
   } | null>(null);
-
   const sensors = useSensors(
     useSensor(PointerSensor, {
       activationConstraint: {
@@ -242,6 +238,29 @@ export default function TimetableInteractiveWorkspace({
     });
   }, [timetableData.cells, allocations]);
 
+  const handlePublish = useCallback(() => {
+    // Generate clean JSON payload
+    const publishedData = {
+      timestamp: new Date().toISOString(),
+      gridConfig: gridConfig,
+      allocations: Object.values(allocations).map(alloc => ({
+        id: alloc.id,
+        subjectId: alloc.subjectId,
+        dayId: alloc.dayId,
+        startTime: alloc.startTime,
+        endTime: alloc.endTime,
+        rowSpan: alloc.rowSpan,
+        isLocked: alloc.isLocked || false
+      }))
+    };
+    
+    // Simulate API call
+    console.log("PUBLISHED TIMETABLE DATA (Backend Ready Payload):");
+    console.log(JSON.stringify(publishedData, null, 2));
+    
+    toast.success("Timetable published successfully! (Check console for payload)");
+  }, [allocations, gridConfig]);
+
   return (
     <DndContext sensors={sensors} onDragStart={handleDragStart} onDragEnd={handleDragEnd}>
       <div className="flex h-full w-full flex-col bg-[#F8FAFC]">
@@ -251,6 +270,7 @@ export default function TimetableInteractiveWorkspace({
             <div className="flex-none">
               <ActionToolbar 
                 onOpenConflicts={() => setIsConflictDrawerOpen(true)}
+                onPublish={handlePublish}
               />
               <div className="mt-4 lg:hidden">
                 <MobileFilters />
@@ -289,15 +309,58 @@ export default function TimetableInteractiveWorkspace({
                         const originalEndTime = entry.endTime;
                         
                         if (updatedTime && (updatedTime.startTime !== originalStartTime || updatedTime.endTime !== originalEndTime)) {
-                           dispatch(updateTimeAllocation({
-                              id: editingGroupId,
-                              subjectId: targetSubjId,
-                              dayId: entry.dayId,
-                              startTime: updatedTime.startTime,
-                              endTime: updatedTime.endTime
-                           }));
+                           // Snap to nearest grid slot start time
+                           const snappedSlot = timetableData.timeSlots.reduce((prev, curr) => {
+                              const diffPrev = Math.abs(parseTime(curr.startTime) - parseTime(updatedTime.startTime));
+                              const diffCurr = Math.abs(parseTime(prev.startTime) - parseTime(updatedTime.startTime));
+                              return diffPrev < diffCurr ? curr : prev;
+                           }, timetableData.timeSlots[0]);
+                           
+                           const finalStartTime = snappedSlot.startTime;
+                           
+                           // Check for conflicts
+                           const targetSlots = timetableData.timeSlots.filter(t => {
+                             return isOverlap({ startTime: t.startTime, endTime: t.endTime }, { startTime: finalStartTime, endTime: updatedTime.endTime });
+                           });
+
+                           let conflictCellId = null;
+
+                           for (const slot of targetSlots) {
+                             const targetCell = timetableData.cells.find(c => c.day === entry.dayId && c.startTime === slot.startTime);
+                             if (targetCell) {
+                               const targetAlloc = Object.values(allocations).find(g => 
+                                 (g.dayId === entry.dayId || g.dayId === targetCell.dayId) && 
+                                 isOverlap({ startTime: g.startTime, endTime: g.endTime }, { startTime: slot.startTime, endTime: slot.endTime })
+                               );
+                               if (targetAlloc && targetAlloc.id !== editingGroupId) {
+                                 conflictCellId = targetAlloc.id;
+                                 break;
+                               }
+                             }
+                           }
+
+                           if (conflictCellId) {
+                              dispatch(swapSubjectAssignments({
+                                 sourceCellId: editingGroupId,
+                                 targetCellId: conflictCellId
+                              }));
+                              toast.success("Assignments swapped successfully");
+                           } else {
+                              dispatch(updateTimeAllocation({
+                                id: editingGroupId,
+                                subjectId: targetSubjId,
+                                dayId: entry.dayId,
+                                startTime: finalStartTime,
+                                endTime: updatedTime.endTime
+                              }));
+                              if (targetSubjId !== entry.subjectId) {
+                                 dispatch(swapAssignmentSubject({ cellId: editingGroupId, newSubjectId: targetSubjId }));
+                              }
+                              toast.success("Time and subject updated");
+                           }
                         } else {
-                           dispatch(assignSubject({ cellId: editingGroupId, subjectId: targetSubjId, dayId: entry.dayId, startTime: originalStartTime, endTime: originalEndTime }));
+                           dispatch(swapAssignmentSubject({ cellId: editingGroupId, newSubjectId: targetSubjId }));
+                           toast.success("Subject updated");
                         }
                       }
                     }
@@ -426,18 +489,35 @@ export default function TimetableInteractiveWorkspace({
       />
 
       <Dialog open={!!pendingTimeChange} onOpenChange={(open) => !open && setPendingTimeChange(null)}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle className="text-orange-600 flex items-center gap-2">
-              <AlertTriangle className="w-5 h-5" /> Time Conflict Detected
-            </DialogTitle>
-            <DialogDescription>
-              The selected time slot already contains another subject ({pendingTimeChange?.targetSubjectId ? subjectsRedux[pendingTimeChange.targetSubjectId]?.subjectName : 'Unknown'}). What would you like to do?
-            </DialogDescription>
-          </DialogHeader>
-          <DialogFooter className="flex-col sm:flex-row gap-2">
-            <Button variant="outline" onClick={() => setPendingTimeChange(null)}>Cancel</Button>
-            <Button variant="secondary" onClick={() => {
+        <DialogContent className="font-inter sm:max-w-md rounded-2xl p-0 overflow-hidden border-0 shadow-[0_20px_50px_rgba(0,0,0,0.1)]">
+          <div className="p-6 pb-4">
+            <DialogHeader className="space-y-4">
+              <div className="flex items-center gap-4">
+                <div className="w-12 h-12 rounded-full bg-orange-50 flex items-center justify-center shrink-0">
+                  <AlertTriangle className="w-6 h-6 text-orange-500" />
+                </div>
+                <div>
+                  <DialogTitle className="text-[18px] font-bold text-slate-900 leading-tight">
+                    Time Conflict Detected
+                  </DialogTitle>
+                  <DialogDescription className="text-[14px] text-slate-500 mt-1.5 leading-relaxed">
+                    The selected time slot already contains another subject (<span className="font-semibold text-slate-700">{pendingTimeChange?.targetSubjectId ? subjectsRedux[pendingTimeChange.targetSubjectId]?.subjectName : 'Unknown'}</span>). How would you like to resolve this?
+                  </DialogDescription>
+                </div>
+              </div>
+            </DialogHeader>
+          </div>
+          
+          <div className="p-6 pt-4 bg-slate-50/50 border-t border-slate-100 flex flex-col sm:flex-row items-center justify-end gap-3">
+            <button 
+              className="w-full sm:w-auto px-4 py-2.5 text-[14px] font-semibold text-slate-500 hover:text-slate-700 hover:bg-slate-100 rounded-xl transition-colors"
+              onClick={() => setPendingTimeChange(null)}
+            >
+              Cancel
+            </button>
+            <button 
+              className="w-full sm:w-auto px-4 py-2.5 text-[14px] font-semibold text-slate-700 bg-white border border-slate-200 hover:bg-slate-50 rounded-xl shadow-sm transition-all"
+              onClick={() => {
               if (pendingTimeChange) {
                 dispatch(removeSubjectAssignment({ cellId: pendingTimeChange.targetCellId! }));
                 dispatch(updateTimeAllocation({
@@ -451,9 +531,11 @@ export default function TimetableInteractiveWorkspace({
                 toast.success("Assignment moved successfully");
               }
             }}>
-              Move Existing Subject
-            </Button>
-            <Button variant="default" onClick={() => {
+              Overwrite Slot
+            </button>
+            <button 
+              className="w-full sm:w-auto px-5 py-2.5 text-[14px] font-bold text-white bg-[#4F6BFF] hover:bg-[#4338CA] rounded-xl shadow-md shadow-[#4F6BFF]/20 transition-all"
+              onClick={() => {
               if (pendingTimeChange) {
                 dispatch(swapSubjectAssignments({
                    sourceCellId: pendingTimeChange.sourceCellId,
@@ -464,10 +546,12 @@ export default function TimetableInteractiveWorkspace({
               }
             }}>
               Swap Subjects
-            </Button>
-          </DialogFooter>
+            </button>
+          </div>
         </DialogContent>
       </Dialog>
+
+
 
       </div>
 
@@ -477,7 +561,6 @@ export default function TimetableInteractiveWorkspace({
             <TimetableSlotCard
               startTime={(activeDragData.startTime as string) || timetableData.timeSlots[0].startTime}
               endTime={(activeDragData.endTime as string) || timetableData.timeSlots[0].endTime}
-              rowSpan={(activeDragData.rowSpan as number) || 1}
               isSelected={true}
               isLocked={false}
               isSelectionMode={false}
@@ -500,13 +583,12 @@ export default function TimetableInteractiveWorkspace({
           </div>
         ) : activeDragData?.type === "SUBJECT" && ((activeDragData.subject as Record<string, unknown>)?.id || activeDragData.subjectId) && subjectsRedux[((activeDragData.subject as Record<string, unknown>)?.id as string || activeDragData.subjectId as string)] ? (
           <div className="opacity-95 shadow-2xl scale-[1.03] rotate-2 cursor-grabbing w-[280px] transition-transform">
-            <TimetableSlotCard
-              startTime={timetableData.timeSlots[0].startTime}
-              endTime={timetableData.timeSlots[0].endTime}
-              rowSpan={1}
-              isSelected={true}
-              isLocked={false}
-              isSelectionMode={false}
+                <TimetableSlotCard
+                  startTime={timetableData.timeSlots[0].startTime}
+                  endTime={timetableData.timeSlots[0].endTime}
+                  isSelected
+                  isLocked={false}
+                  isSelectionMode={false}
             >
               <SubjectClassCard data={subjectsRedux[((activeDragData.subject as Record<string, unknown>)?.id as string || activeDragData.subjectId as string)]} />
             </TimetableSlotCard>

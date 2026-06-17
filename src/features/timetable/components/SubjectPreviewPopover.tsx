@@ -23,7 +23,7 @@ export default memo(function SubjectPreviewPopover({
   return (
     <Popover>
       <PopoverTrigger asChild>
-        <button className="text-slate-400 cursor-pointer hover:text-indigo-600 transition-colors ml-2 p-1 rounded-full hover:bg-indigo-50 outline-none">
+        <button className="text-slate-400 cursor-pointer hover:text-[#4F6BFF] transition-all duration-200 ml-2 p-1.5 rounded-full hover:bg-blue-50 hover:scale-110 hover:shadow-sm outline-none">
           <Eye className="w-[18px] h-[18px]" />
         </button>
       </PopoverTrigger>
@@ -31,47 +31,90 @@ export default memo(function SubjectPreviewPopover({
         align="end" 
         side="left" 
         sideOffset={16}
-        className="w-72 p-0 rounded-xl shadow-lg border border-slate-200 overflow-hidden font-inter z-50 bg-white"
+        className="w-[320px] p-0 rounded-2xl shadow-[0_20px_50px_rgba(0,0,0,0.15)] border border-slate-100 overflow-hidden font-inter z-50 bg-white data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 data-[side=left]:slide-in-from-right-4 transition-all duration-300 ease-out"
         onClick={(e) => e.stopPropagation()}
       >
-        <div className="bg-indigo-50/80 px-4 py-3 border-b border-indigo-100 flex items-start gap-3">
-          <div className="flex-1 min-w-0">
-            <h4 className="font-bold text-slate-900 text-sm leading-tight truncate">{subject.subjectName}</h4>
-            <div className="text-xs font-semibold text-indigo-600 mt-0.5">{subject.code || "CS301"}</div>
+        {/* Dynamic Header */}
+        <div className="bg-gradient-to-br from-[#4F6BFF] to-[#3B4BE5] px-5 py-4 flex items-start gap-4 text-white relative overflow-hidden">
+          {/* Background pattern/glow */}
+          <div className="absolute top-0 right-0 w-32 h-32 bg-white opacity-5 rounded-full blur-2xl transform translate-x-1/2 -translate-y-1/2" />
+          
+          <div className="flex-1 min-w-0 relative z-10">
+            <h4 className="font-bold text-white text-[16px] leading-tight truncate drop-shadow-sm">{subject.subjectName}</h4>
+            <div className="text-[12px] font-bold text-blue-100 mt-1 uppercase tracking-wider drop-shadow-sm">{subject.code || "CS301"}</div>
           </div>
-          <div className="shrink-0 bg-white border border-indigo-200 rounded-md px-2 py-0.5 text-[10px] font-bold text-indigo-700 uppercase tracking-wide">
+          <div className="shrink-0 relative z-10 bg-white/20 backdrop-blur-md border border-white/30 rounded-lg px-2.5 py-1 text-[10px] font-bold text-white uppercase tracking-wider shadow-sm">
             {subject.type}
           </div>
         </div>
         
-        <div className="p-4 space-y-3 bg-white">
-          <div className="flex items-center gap-2.5 text-sm text-slate-600">
-            <GraduationCap className="w-4 h-4 text-slate-400 shrink-0" />
-            <span className="truncate flex-1 font-medium text-slate-700">{subject.facultyName || "Unassigned"}</span>
+        <div className="p-5 space-y-4 bg-white/80 backdrop-blur-lg">
+          {/* Main Info Grid */}
+          <div className="grid grid-cols-2 gap-4">
+              <div className="flex flex-col gap-1.5">
+                  <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Faculty</span>
+                  <div className="flex items-center gap-2 text-[13px] font-bold text-slate-700">
+                      <div className="w-6 h-6 rounded-md bg-blue-50 flex items-center justify-center shrink-0">
+                          <GraduationCap className="w-3.5 h-3.5 text-[#4F6BFF]" />
+                      </div>
+                      <span className="truncate">{subject.facultyName || "Unassigned"}</span>
+                  </div>
+              </div>
+              <div className="flex flex-col gap-1.5">
+                  <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Room</span>
+                  <div className="flex items-center gap-2 text-[13px] font-bold text-slate-700">
+                      <div className="w-6 h-6 rounded-md bg-orange-50 flex items-center justify-center shrink-0">
+                          <Building2 className="w-3.5 h-3.5 text-[#C2410C]" />
+                      </div>
+                      <span className="truncate">{subject.roomName || "Unassigned"}</span>
+                  </div>
+              </div>
           </div>
-          <div className="flex items-center gap-2.5 text-sm text-slate-600">
-            <Building2 className="w-4 h-4 text-slate-400 shrink-0" />
-            <span className="truncate flex-1">{subject.roomName || "Unassigned"}</span>
-          </div>
-          <div className="flex items-center gap-2.5 text-sm text-slate-600">
-            <Users className="w-4 h-4 text-slate-400 shrink-0" />
-            <span className="truncate flex-1">{subject.section || "No Section"}</span>
-          </div>
-          <div className="flex items-center gap-2.5 text-sm text-slate-600">
-            <Hash className="w-4 h-4 text-slate-400 shrink-0" />
-            <span className="truncate flex-1">{subject.credits || 0} Credits</span>
+
+          <div className="grid grid-cols-2 gap-4">
+              <div className="flex flex-col gap-1.5">
+                  <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Section</span>
+                  <div className="flex items-center gap-2 text-[13px] font-bold text-slate-700">
+                      <div className="w-6 h-6 rounded-md bg-purple-50 flex items-center justify-center shrink-0">
+                          <Users className="w-3.5 h-3.5 text-purple-600" />
+                      </div>
+                      <span className="truncate">{subject.section || "No Section"}</span>
+                  </div>
+              </div>
+              <div className="flex flex-col gap-1.5">
+                  <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Credits</span>
+                  <div className="flex items-center gap-2 text-[13px] font-bold text-slate-700">
+                      <div className="w-6 h-6 rounded-md bg-green-50 flex items-center justify-center shrink-0">
+                          <Hash className="w-3.5 h-3.5 text-green-600" />
+                      </div>
+                      <span className="truncate">{subject.credits || 0}</span>
+                  </div>
+              </div>
           </div>
           
-          <div className="border-t border-slate-100 pt-3 mt-3 space-y-2">
-            <div className="flex items-center gap-2.5 text-xs text-slate-500">
-              <Clock className="w-3.5 h-3.5 text-slate-400 shrink-0" />
-              <span className="truncate flex-1 font-medium">{assignedTime}</span>
+          {/* Timing Section */}
+          <div className="bg-slate-50 border border-slate-100 rounded-xl p-3 flex items-center justify-between mt-2">
+            <div className="flex items-center gap-3">
+              <div className="w-8 h-8 rounded-full bg-white shadow-sm flex items-center justify-center text-slate-400">
+                  <CalendarDays className="w-4 h-4" />
+              </div>
+              <div className="flex flex-col">
+                  <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Assigned Day</span>
+                  <span className="text-[12px] font-bold text-slate-700">{assignedDay}</span>
+              </div>
             </div>
-            <div className="flex items-center gap-2.5 text-xs text-slate-500">
-              <CalendarDays className="w-3.5 h-3.5 text-slate-400 shrink-0" />
-              <span className="truncate flex-1 font-medium">{assignedDay}</span>
+            <div className="w-px h-8 bg-slate-200"></div>
+            <div className="flex items-center gap-3">
+              <div className="w-8 h-8 rounded-full bg-white shadow-sm flex items-center justify-center text-slate-400">
+                  <Clock className="w-4 h-4" />
+              </div>
+              <div className="flex flex-col">
+                  <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Time Slot</span>
+                  <span className="text-[12px] font-bold text-slate-700">{assignedTime}</span>
+              </div>
             </div>
           </div>
+
         </div>
       </PopoverContent>
     </Popover>

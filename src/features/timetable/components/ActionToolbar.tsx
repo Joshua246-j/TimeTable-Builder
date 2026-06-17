@@ -17,10 +17,12 @@ import { RootState, AppDispatch } from "@/store/store";
 
 interface ActionToolbarProps {
   onOpenConflicts?: () => void;
+  onPublish?: () => void;
 }
 
 export default function ActionToolbar({
   onOpenConflicts,
+  onPublish,
 }: ActionToolbarProps) {
   const dispatch = useDispatch<AppDispatch>();
   const { conflicts } = useSelector((state: RootState) => state.validation);
@@ -93,7 +95,10 @@ export default function ActionToolbar({
             Preview
           </Button>
 
-          <Button className="h-[36px] rounded-[10px] bg-[#4F46E5] px-5 font-semibold text-white hover:bg-[#4338ca]">
+          <Button 
+            className="h-[36px] rounded-[10px] bg-[#4F46E5] px-5 font-semibold text-white hover:bg-[#4338ca]"
+            onClick={onPublish}
+          >
             <Send className="mr-2 h-4 w-4" />
             Publish Timetable
           </Button>

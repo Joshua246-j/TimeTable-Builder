@@ -26,16 +26,30 @@ export function CircularTimePicker({
   const [isDragging, setIsDragging] = useState(false);
   const dialRef = useRef<HTMLDivElement>(null);
 
-  const parseTime = (t: string) => {
+  const parseTimeLocal = (t: string) => {
     try {
-      const d = parse(t, "HH:mm", new Date());
-      return isNaN(d.getTime()) ? new Date() : d;
+      const match = t.match(/^(\d{1,2}):(\d{2})\s*(AM|PM)?$/i);
+      if (!match) return new Date();
+
+      let hours = parseInt(match[1], 10);
+      const minutes = parseInt(match[2], 10);
+      const modifier = match[3]?.toUpperCase();
+
+      if (modifier === "PM" && hours < 12) {
+        hours += 12;
+      } else if (modifier === "AM" && hours === 12) {
+        hours = 0;
+      }
+
+      const d = new Date();
+      d.setHours(hours, minutes, 0, 0);
+      return d;
     } catch {
       return new Date();
     }
   };
 
-  const activeDate = activeTab === "start" ? parseTime(startTime) : parseTime(endTime);
+  const activeDate = activeTab === "start" ? parseTimeLocal(startTime) : parseTimeLocal(endTime);
   const hours24 = activeDate.getHours();
   const minutes = activeDate.getMinutes();
   const isPM = hours24 >= 12;
@@ -48,7 +62,10 @@ export function CircularTimePicker({
     if (newIsPM && hours12 < 12) newHours24 += 12;
     if (!newIsPM && hours12 === 12) newHours24 = 0;
     newDate.setHours(newHours24);
-    const formatted = format(newDate, "HH:mm");
+    const hh = hours12.toString().padStart(2, "0");
+    const mm = newDate.getMinutes().toString().padStart(2, "0");
+    const ampm = newIsPM ? "PM" : "AM";
+    const formatted = `${hh}:${mm} ${ampm}`;
     
     if (activeTab === "start") {
       onStartChange(formatted);
@@ -82,7 +99,13 @@ export function CircularTimePicker({
       newDate.setMinutes(selectedMinute);
     }
 
-    const formatted = format(newDate, "HH:mm");
+    const currentHours24 = newDate.getHours();
+    const currentIsPM = currentHours24 >= 12;
+    const currentHours12 = currentHours24 % 12 || 12;
+    const hh = currentHours12.toString().padStart(2, "0");
+    const mm = newDate.getMinutes().toString().padStart(2, "0");
+    const ampm = currentIsPM ? "PM" : "AM";
+    const formatted = `${hh}:${mm} ${ampm}`;
     if (activeTab === "start") {
       onStartChange(formatted);
     } else {
@@ -135,8 +158,9 @@ export function CircularTimePicker({
 
   const formatDisplay = (t: string) => {
     try {
-      const d = parse(t, "HH:mm", new Date());
-      return isNaN(d.getTime()) ? "--:--" : format(d, "hh:mm a");
+      const match = t.match(/^(\d{1,2}):(\d{2})\s*(AM|PM)?$/i);
+      if (!match) return "--:--";
+      return t; // It is already formatted perfectly as "hh:mm A" by our new global logic
     } catch {
       return "--:--";
     }

@@ -9,7 +9,6 @@ interface TimetableSlotCardProps {
   startTime?: string;
   endTime?: string;
   duration?: string;
-  rowSpan?: number;
   isSelected?: boolean;
   isConflict?: boolean;
   isLocked?: boolean;
@@ -22,7 +21,6 @@ export default memo(function TimetableSlotCard({
   children,
   startTime,
   endTime,
-  rowSpan = 1,
   isSelected = false,
   isConflict = false,
   isLocked = false,
@@ -31,11 +29,6 @@ export default memo(function TimetableSlotCard({
   onTimeChange,
 }: TimetableSlotCardProps) {
   
-  // Calculate height dynamically based on rowSpan
-  const baseHeight = 160; // single period height
-  const gap = 16; // assuming a gap of 16px between rows in grid
-  const height = rowSpan > 1 ? baseHeight * rowSpan + gap * (rowSpan - 1) : baseHeight;
-
   return (
     <>
       <style>{`
@@ -66,6 +59,8 @@ export default memo(function TimetableSlotCard({
           group
           relative
           w-full
+          h-full
+          min-h-[160px]
           flex
           rounded-[10px]
           border
@@ -86,10 +81,6 @@ export default memo(function TimetableSlotCard({
           isSelected && "border-[#2563EB] ring-2 ring-[#2563EB]/20 shadow-md",
           isLocked && "ring-1 ring-slate-300 bg-slate-50"
         )}
-        style={{
-          minHeight: `${height}px`,
-          gridRow: `span ${rowSpan}`
-        }}
       >
         {/* Selection Indicator */}
         {isSelectionMode && (

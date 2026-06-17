@@ -146,51 +146,51 @@ export const MOBILE_DAY_SELECTOR = [
 export const TIME_SLOTS = [
   {
     id: "1",
-    startTime: "09:00",
-    endTime: "10:00",
-    label: "09:00 - 10:00",
+    startTime: "09:00 AM",
+    endTime: "10:00 AM",
+    label: "09:00 AM - 10:00 AM",
   },
 
   {
     id: "2",
-    startTime: "10:00",
-    endTime: "11:00",
-    label: "10:00 - 11:00",
+    startTime: "10:00 AM",
+    endTime: "11:00 AM",
+    label: "10:00 AM - 11:00 AM",
   },
 
   {
     id: "3",
-    startTime: "11:00",
-    endTime: "12:00",
-    label: "11:00 - 12:00",
+    startTime: "11:00 AM",
+    endTime: "12:00 PM",
+    label: "11:00 AM - 12:00 PM",
   },
 
   {
     id: "4",
-    startTime: "12:00",
-    endTime: "13:00",
-    label: "12:00 - 13:00",
+    startTime: "12:00 PM",
+    endTime: "01:00 PM",
+    label: "12:00 PM - 01:00 PM",
   },
 
   {
     id: "5",
-    startTime: "14:00",
-    endTime: "15:00",
-    label: "14:00 - 15:00",
+    startTime: "02:00 PM",
+    endTime: "03:00 PM",
+    label: "02:00 PM - 03:00 PM",
   },
 
   {
     id: "6",
-    startTime: "15:00",
-    endTime: "16:00",
-    label: "15:00 - 16:00",
+    startTime: "03:00 PM",
+    endTime: "04:00 PM",
+    label: "03:00 PM - 04:00 PM",
   },
 
   {
     id: "7",
-    startTime: "16:00",
-    endTime: "17:00",
-    label: "16:00 - 17:00",
+    startTime: "04:00 PM",
+    endTime: "05:00 PM",
+    label: "04:00 PM - 05:00 PM",
   },
 ] as const;
 
@@ -199,8 +199,8 @@ export const TIME_SLOTS = [
    ========================================================= */
 
 export const LUNCH_BREAK = {
-  startTime: "13:00",
-  endTime: "14:00",
+  startTime: "01:00 PM",
+  endTime: "02:00 PM",
   label: "Lunch Break",
 } as const;
 

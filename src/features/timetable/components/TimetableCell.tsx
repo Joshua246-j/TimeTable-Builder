@@ -132,7 +132,6 @@ export default memo(function TimetableCell({
           <TimetableSlotCard
             startTime={mergedGroup.startTime}
             endTime={mergedGroup.endTime}
-            rowSpan={rowSpan}
             isSelected={selected || isSpanSelected}
             isLocked={mergedGroup.isLocked || isLocked}
             isSelectionMode={selectionMode}
@@ -213,7 +212,6 @@ export default memo(function TimetableCell({
           <TimetableSlotCard
             startTime={cell.startTime}
             endTime={cell.endTime}
-            rowSpan={rowSpan}
             isSelected={selected || isSpanSelected}
             isLocked={isLocked}
             isConflict={isConflict}
@@ -255,7 +253,6 @@ export default memo(function TimetableCell({
           onClick={handleSlotClick}
           startTime={cell.startTime}
           endTime={cell.endTime}
-          rowSpan={rowSpan}
         />
       )}
 

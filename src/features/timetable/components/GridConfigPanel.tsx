@@ -10,7 +10,7 @@ import {
   GridTimeSlot,
   updatePeriodStructure
 } from "@/store/gridConfigSlice";
-import { X, Clock, Plus, CalendarDays, Trash2, GripVertical, Save } from "lucide-react";
+import { X, Clock, Plus, CalendarDays, Trash2, GripVertical, Save, Minus, Settings } from "lucide-react";
 import { toast } from "sonner";
 import { parseTime, formatTime } from "@/lib/timeEngine";
 
@@ -33,7 +33,6 @@ import {
 import { CSS } from "@dnd-kit/utilities";
 
 import { parse, format } from 'date-fns';
-import { CircularTimePicker } from './CircularTimePicker';
 
 type TimelineItem = {
   id: string;
@@ -60,37 +59,42 @@ function SortableItem({ item, timeRange, onDelete, onUpdateDuration }: { item: T
     <div
       ref={setNodeRef}
       style={style}
-      className={`rounded-2xl border transition-all ${isPeriod ? 'border-[#E5E7EB] bg-white hover:border-slate-300 hover:shadow-sm' : 'border-orange-200 bg-[#FFF9F2] hover:shadow-sm'}`}
+      className={`rounded-2xl border transition-all duration-200 ${isPeriod ? 'border-slate-200 bg-white hover:border-[#4F6BFF]/30 hover:shadow-md' : 'border-orange-200 bg-orange-50/50 hover:shadow-md'}`}
     >
-      <div className="p-[16px] flex items-center gap-3">
-        <div {...attributes} {...listeners} className="cursor-grab active:cursor-grabbing text-slate-400 hover:text-slate-600">
-          <GripVertical className="w-4 h-4" />
+      <div className="p-4 flex flex-col gap-3">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-3 flex-1 min-w-0">
+            <div {...attributes} {...listeners} className="cursor-grab active:cursor-grabbing text-slate-300 hover:text-slate-500 transition-colors p-1 -ml-1">
+              <GripVertical className="w-4 h-4" />
+            </div>
+            <h4 className={`text-[14px] font-bold truncate ${isPeriod ? 'text-slate-800' : 'text-[#C2410C]'}`}>
+                {isPeriod ? item.label : item.breakType}
+            </h4>
+          </div>
+          {!isPeriod && (
+            <button onClick={() => onDelete(item.id)} className="text-red-400 hover:text-red-600 transition-colors p-1 rounded-md hover:bg-red-50">
+              <Trash2 className="w-4 h-4" />
+            </button>
+          )}
         </div>
         
-        <div className="flex-1 min-w-0">
-          <div className="flex items-start justify-between">
-             <h4 className={`text-[15px] font-bold truncate pr-2 ${isPeriod ? 'text-slate-900' : 'text-[#C2410C]'}`}>
-                 {isPeriod ? item.label : item.breakType}
-             </h4>
-             {!isPeriod && (
-                <button onClick={() => onDelete(item.id)} className="text-red-400 hover:text-red-600 transition-colors">
-                  <Trash2 className="w-4 h-4" />
+        <div className="flex items-center justify-between pl-8">
+            <span className="text-[11px] font-bold text-slate-400 tracking-wider bg-slate-100/50 px-2 py-1 rounded-md">{timeRange}</span>
+            <div className="flex items-center gap-2 bg-slate-50 border border-slate-100 rounded-lg p-1">
+                <button 
+                  onClick={() => onUpdateDuration(item.id, Math.max(5, item.durationMinutes - 5))}
+                  className="w-6 h-6 flex items-center justify-center rounded-md hover:bg-white hover:shadow-sm text-slate-500 transition-all"
+                >
+                  <Minus className="w-3 h-3" />
                 </button>
-             )}
-          </div>
-          
-          <div className="flex items-center justify-between mt-2">
-              <span className="text-[11px] font-semibold text-slate-500 tracking-wider">{timeRange}</span>
-              <div className="flex items-center gap-1.5">
-                  <input 
-                     type="number" 
-                     value={item.durationMinutes}
-                     onChange={(e) => onUpdateDuration(item.id, parseInt(e.target.value) || 0)}
-                     className="w-12 text-[11px] font-semibold p-1 border border-slate-200 rounded text-center outline-none focus:border-[#4F6BFF] bg-white"
-                  />
-                  <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Mins</span>
-              </div>
-          </div>
+                <span className="text-[12px] font-bold w-6 text-center text-slate-700">{item.durationMinutes}</span>
+                <button 
+                  onClick={() => onUpdateDuration(item.id, item.durationMinutes + 5)}
+                  className="w-6 h-6 flex items-center justify-center rounded-md hover:bg-white hover:shadow-sm text-slate-500 transition-all"
+                >
+                  <Plus className="w-3 h-3" />
+                </button>
+            </div>
         </div>
       </div>
     </div>
@@ -166,16 +170,16 @@ export default function GridConfigPanel() {
     }
   };
 
-  const handleAddBreak = () => {
+  const handleAddBreak = (presetMins: number, type: GridBreak['type']) => {
     const newBreakId = `new-break-${Date.now()}`;
     setTimelineItems(items => [
       ...items,
       {
         id: newBreakId,
         type: 'BREAK',
-        label: 'Custom Break',
-        durationMinutes: 15,
-        breakType: 'Custom Break'
+        label: type,
+        durationMinutes: presetMins,
+        breakType: type
       }
     ]);
   };
@@ -268,64 +272,74 @@ export default function GridConfigPanel() {
     return result;
   }, [timelineItems, startTime]);
 
-  // Safely parse the "09:00 AM" string into a JS Date object for MUI
-  const parsedStartTime = useMemo(() => {
-     try {
-       const d = parse(startTime, "hh:mm a", new Date());
-       return isNaN(d.getTime()) ? new Date() : d;
-     } catch {
-       return new Date();
-     }
-  }, [startTime]);
-
-  const handleTimeChange = (newValue: Date | null) => {
-     if (newValue) {
-        setStartTime(format(newValue, "hh:mm a"));
+  const handleTimeChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+     if (e.target.value) {
+        // e.target.value is in "HH:mm" 24h format
+        try {
+           const d = parse(e.target.value, "HH:mm", new Date());
+           if (!isNaN(d.getTime())) {
+              setStartTime(format(d, "hh:mm a"));
+           }
+        } catch {
+           // ignore
+        }
      }
   };
+
+  const timeInputValue = useMemo(() => {
+     try {
+       const d = parse(startTime, "hh:mm a", new Date());
+       return isNaN(d.getTime()) ? "09:00" : format(d, "HH:mm");
+     } catch {
+       return "09:00";
+     }
+  }, [startTime]);
 
   if (!config.isGridEditMode) return null;
 
   return (
-    <aside className="h-[90dvh] w-[360px] shrink-0 bg-white flex flex-col z-50 border-l border-[#E5E7EB] shadow-2xl">
+    <aside className="h-[90dvh] w-[400px] shrink-0 bg-white/95 backdrop-blur-xl flex flex-col z-50 border-l border-white/50 shadow-[-10px_0_40px_rgba(0,0,0,0.08)] animate-in slide-in-from-right duration-300">
         {/* Header */}
-        <div className="border-b border-[#E5E7EB] px-5 py-5 sticky top-0 bg-white z-10">
-          <div className="flex items-start justify-between">
-            <div>
-              <h2 className="text-[20px] font-semibold text-slate-900">Grid Setup</h2>
-              <p className="mt-1 text-sm text-slate-500">Reorder slots & breaks</p>
+        <div className="border-b border-slate-100 px-6 py-6 sticky top-0 bg-white/80 backdrop-blur-md z-10 flex items-start justify-between">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-xl bg-blue-50 flex items-center justify-center text-blue-600">
+                <Settings className="w-5 h-5" />
+              </div>
+              <div>
+                <h2 className="text-[18px] font-bold text-slate-800 leading-tight">Grid Configuration</h2>
+                <p className="mt-0.5 text-xs font-semibold text-slate-500 uppercase tracking-wider">Setup Working Days & Times</p>
+              </div>
             </div>
             <button
               onClick={() => dispatch(toggleGridEditMode())}
-              className="rounded-md p-1 text-slate-400 transition-colors hover:bg-slate-100 hover:text-slate-700"
+              className="rounded-full p-2 bg-slate-50 text-slate-400 transition-colors hover:bg-red-50 hover:text-red-500"
             >
               <X className="h-4 w-4" />
             </button>
-          </div>
         </div>
 
-        <div className="flex-1 overflow-y-scroll p-5 space-y-6">
+        <div className="flex-1 overflow-y-scroll p-6 space-y-8 scrollbar-hide">
 
           {/* Working Days Section */}
-          <section>
-            <div className="flex items-center gap-2 pb-3">
+          <section className="bg-slate-50/50 p-4 rounded-2xl border border-slate-100">
+            <div className="flex items-center gap-2 pb-4">
               <CalendarDays className="w-4 h-4 text-[#4F6BFF]" />
-              <h3 className="font-semibold text-slate-900 text-[15px]">Working Days</h3>
+              <h3 className="font-bold text-slate-800 text-[14px]">Working Days</h3>
             </div>
-            <div className="grid grid-cols-2 gap-2">
+            <div className="grid grid-cols-2 gap-2.5">
               {config.days.map(day => (
                 <label
                   key={day.id}
-                  className={`flex items-center justify-between p-3 border rounded-xl cursor-pointer transition-all ${day.enabled ? 'border-[#4F6BFF] bg-[#F8FAFF]' : 'border-[#E5E7EB] bg-white hover:border-slate-300'}`}
+                  className={`flex items-center justify-between p-3 border rounded-xl cursor-pointer transition-all duration-200 ${day.enabled ? 'border-[#4F6BFF] bg-[#F8FAFF] shadow-sm' : 'border-slate-200 bg-white hover:border-slate-300'}`}
                 >
-                  <span className={`text-[13px] font-semibold ${day.enabled ? 'text-[#4F6BFF]' : 'text-slate-500'}`}>
+                  <span className={`text-[13px] font-bold ${day.enabled ? 'text-[#4F6BFF]' : 'text-slate-500'}`}>
                     {day.name}
                   </span>
                   <input
                     type="checkbox"
                     checked={day.enabled}
                     onChange={(e) => dispatch(toggleDay({ name: day.name, enabled: e.target.checked }))}
-                    className="w-4 h-4 rounded border-slate-300 text-[#4F6BFF] focus:ring-[#4F6BFF]"
+                    className="w-4 h-4 rounded border-slate-300 text-[#4F6BFF] focus:ring-[#4F6BFF] transition-all"
                   />
                 </label>
               ))}
@@ -334,17 +348,18 @@ export default function GridConfigPanel() {
 
           {/* Timeline Setup Section */}
           <section>
-            <div className="flex items-center justify-between pb-3">
+            <div className="flex items-center justify-between pb-4">
                 <div className="flex items-center gap-2">
                   <Clock className="w-4 h-4 text-[#4F6BFF]" />
-                  <h3 className="font-semibold text-slate-900 text-[15px]">Timeline Config</h3>
+                  <h3 className="font-bold text-slate-800 text-[14px]">Timeline Sequence</h3>
                 </div>
                 <div className="flex items-center gap-2">
-                    <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Start</label>
-                    <CircularTimePicker 
-                        value={parsedStartTime}
-                        onChange={(d: Date) => handleTimeChange(d)}
-                        className="w-[120px]"
+                    <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Start</span>
+                    <input 
+                        type="time"
+                        value={timeInputValue}
+                        onChange={handleTimeChange}
+                        className="h-8 px-2 py-1 bg-slate-50 border border-slate-200 rounded-lg text-[12px] font-bold text-slate-700 outline-none focus:border-[#4F6BFF] focus:ring-1 focus:ring-[#4F6BFF] transition-all"
                     />
                 </div>
             </div>
@@ -367,19 +382,27 @@ export default function GridConfigPanel() {
             </div>
 
             {/* Add Buttons */}
-            <div className="grid grid-cols-2 gap-2 mt-4">
+            <div className="flex flex-col gap-3 mt-5">
                 <button
                     onClick={handleAddPeriod}
-                    className="flex h-10 w-full items-center justify-center gap-2 rounded-xl border border-dashed border-[#D6DDF5] bg-white text-sm font-medium text-[#4F6BFF] transition-colors hover:bg-[#F8FAFF]"
+                    className="flex h-11 w-full items-center justify-center gap-2 rounded-xl border-2 border-dashed border-[#D6DDF5] bg-white text-sm font-bold text-[#4F6BFF] transition-colors hover:bg-[#F8FAFF] hover:border-[#4F6BFF]/30"
                 >
-                    <Plus className="h-4 w-4" /> Add Period
+                    <Plus className="h-4 w-4" /> Add Academic Period
                 </button>
-                <button
-                    onClick={handleAddBreak}
-                    className="flex h-10 w-full items-center justify-center gap-2 rounded-xl border border-dashed border-[#FED7AA] bg-white text-sm font-medium text-[#C2410C] transition-colors hover:bg-[#FFF9F2]"
-                >
-                    <Plus className="h-4 w-4" /> Add Break
-                </button>
+                <div className="grid grid-cols-2 gap-3">
+                    <button
+                        onClick={() => handleAddBreak(15, 'Short Break')}
+                        className="flex h-10 w-full items-center justify-center gap-2 rounded-xl bg-orange-50/50 border border-orange-200 text-xs font-bold text-[#C2410C] transition-colors hover:bg-orange-100"
+                    >
+                        <Plus className="h-3 w-3" /> Short Break (15m)
+                    </button>
+                    <button
+                        onClick={() => handleAddBreak(45, 'Lunch Break')}
+                        className="flex h-10 w-full items-center justify-center gap-2 rounded-xl bg-orange-50/50 border border-orange-200 text-xs font-bold text-[#C2410C] transition-colors hover:bg-orange-100"
+                    >
+                        <Plus className="h-3 w-3" /> Lunch Break (45m)
+                    </button>
+                </div>
             </div>
             
           </section>
@@ -387,13 +410,13 @@ export default function GridConfigPanel() {
         </div>
         
         {/* Footer Actions */}
-        <div className="p-5 sticky bottom-0 bg-white border-t border-[#E5E7EB] z-10">
+        <div className="p-6 sticky bottom-0 bg-white/90 backdrop-blur-md border-t border-slate-100 z-10">
             <button
                 onClick={handleSaveGrid}
-                className="flex h-12 w-full items-center justify-center gap-2 rounded-xl bg-[#4F46E5] px-4 text-[15px] font-bold text-white transition-all hover:bg-[#4338CA] shadow-sm"
+                className="flex h-12 w-full items-center justify-center gap-2 rounded-xl bg-[#4F46E5] px-4 text-[15px] font-bold text-white transition-all duration-300 hover:bg-[#4338CA] hover:shadow-[0_8px_20px_rgba(79,70,229,0.3)] hover:scale-[1.02] active:scale-[0.98]"
             >
                 <Save className="h-5 w-5" />
-                Save Configuration
+                Apply Configuration
             </button>
         </div>
     </aside>

@@ -23,7 +23,6 @@ import { formatTime, parseTime } from "@/lib/timeEngine";
 import { useSelector } from "react-redux";
 import { RootState } from "@/store/store";
 import { CircularTimePicker } from "./CircularTimePicker";
-import { parse, format } from "date-fns";
 
 interface SubjectAssignmentEditorProps {
   subject: SubjectCardData;
@@ -245,26 +244,16 @@ export default function SubjectAssignmentEditor({
 
           {/* Time Editing */}
           {timeState && (
-            <div className="grid grid-cols-2 gap-4 bg-blue-50/50 p-4 rounded-xl border border-blue-100 mt-2">
-              <div className="col-span-2">
+            <div className="bg-blue-50/50 p-4 rounded-xl border border-blue-100 mt-2 flex flex-col items-center">
+              <div className="w-full flex justify-start mb-2">
                  <h4 className="text-xs font-bold text-blue-800 flex items-center gap-1.5 uppercase tracking-wide"><Clock className="w-3.5 h-3.5" /> Schedule Time</h4>
               </div>
-              <div>
-                <label className="mb-1.5 block text-[10px] font-semibold uppercase tracking-wide text-slate-500">Start Time</label>
-                <CircularTimePicker
-                  value={timeState.startTimeStr ? parse(timeState.startTimeStr, "HH:mm", new Date()) : new Date()}
-                  onChange={(d) => setTimeState(s => s ? { ...s, startTimeStr: format(d, "HH:mm") } : null)}
-                  className="h-10 w-full"
-                />
-              </div>
-              <div>
-                <label className="mb-1.5 block text-[10px] font-semibold uppercase tracking-wide text-slate-500">End Time</label>
-                <CircularTimePicker
-                  value={timeState.endTimeStr ? parse(timeState.endTimeStr, "HH:mm", new Date()) : new Date()}
-                  onChange={(d) => setTimeState(s => s ? { ...s, endTimeStr: format(d, "HH:mm") } : null)}
-                  className="h-10 w-full"
-                />
-              </div>
+              <CircularTimePicker
+                startTime={timeState.startTimeStr}
+                endTime={timeState.endTimeStr}
+                onStartChange={(time) => setTimeState(s => s ? { ...s, startTimeStr: time } : null)}
+                onEndChange={(time) => setTimeState(s => s ? { ...s, endTimeStr: time } : null)}
+              />
             </div>
           )}
 

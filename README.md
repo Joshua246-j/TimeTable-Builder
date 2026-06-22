@@ -2,7 +2,7 @@
 
 Microservices platform built with **FastAPI**, containerized with **Docker**, and
 deployed to **AWS ECS Fargate** behind an internal **ALB** fronted by **API Gateway**,
-with **RDS PostgreSQL** for persistence.
+with **Aurora Serverless v2 (PostgreSQL)** for persistence.
 
 ## Services
 
@@ -28,7 +28,7 @@ Client ──HTTPS──> API Gateway (HTTP API)
             ECS Fargate services (awsvpc, private subnets)
                       │
                       ▼
-              RDS PostgreSQL (private subnets)
+        Aurora Serverless v2 · PostgreSQL (private subnets)
 ```
 
 ## Local development
@@ -66,10 +66,11 @@ cd services/iam && pytest -q
      --capabilities CAPABILITY_NAMED_IAM \
      --parameter-overrides file://infra/cloudformation/parameters.json
    ```
-2. **CI/CD** — push to `main`; CircleCI tests and builds each image, pushes to ECR,
+2. **CI/CD** — push to the `deployment` branch; the GitHub Actions workflow
+   (`.github/workflows/deploy.yml`) tests and builds each image, pushes to ECR,
    then the `provision_infra` job runs `aws cloudformation deploy` to **create the
    stack if it is missing** (or update it), rolling out the new images via
-   `ImageTag=$CIRCLE_SHA1`. The first push provisions the whole stack end-to-end.
+   `ImageTag=$GITHUB_SHA`. The first push provisions the whole stack end-to-end.
 
-See `.circleci/config.yml` for the pipeline and `infra/cloudformation/README.md` for
-required parameters and CircleCI environment variables.
+See `.github/workflows/deploy.yml` for the pipeline and `infra/cloudformation/README.md`
+for required parameters and the GitHub Actions secrets/variables.

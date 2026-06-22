@@ -1,0 +1,826 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Description: >-
+  IIS platform — API Gateway (HTTP API) -> VPC Link -> internal ALB ->
+  ECS Fargate services (iam, campus, commerce, observability) with RDS
+  PostgreSQL access. Networking, security groups, ECR-sourced task
+  definitions, and a private database are all provisioned here.
+
+# ===========================================================================
+# Parameters
+# ===========================================================================
+Parameters:
+  EnvironmentName:
+    Type: String
+    Default: dev
+    Description: Prefix for resource names and ECS service names (e.g. dev-iam).
+  VpcCidr:
+    Type: String
+    Default: 10.20.0.0/16
+  EcrRegistry:
+    Type: String
+    Description: >-
+      ECR registry prefix, e.g. 123456789012.dkr.ecr.us-east-1.amazonaws.com
+      Images are pulled as ${EcrRegistry}/iis-<service>:${ImageTag}.
+  ImageTag:
+    Type: String
+    Default: latest
+  ContainerPort:
+    Type: Number
+    Default: 8000
+  DesiredCount:
+    Type: Number
+    Default: 1
+  TaskCpu:
+    Type: String
+    Default: "256"
+  TaskMemory:
+    Type: String
+    Default: "512"
+  DBUsername:
+    Type: String
+    Default: iis_admin
+    NoEcho: true
+  DBPassword:
+    Type: String
+    NoEcho: true
+    Default: ""
+    Description: >-
+      Aurora master password, used only for non-prod (EnvironmentName != prod).
+      Must be >= 8 chars when used. Ignored in prod, where Aurora manages the
+      password in Secrets Manager with automatic rotation.
+  DBName:
+    Type: String
+    Default: iis
+  AuroraEngineVersion:
+    Type: String
+    Default: "16.4"
+    Description: Aurora PostgreSQL engine version.
+  AuroraMinCapacity:
+    Type: Number
+    Default: 0.5
+    Description: Serverless v2 minimum ACUs (set 0 to allow scale-to-zero / auto-pause).
+  AuroraMaxCapacity:
+    Type: Number
+    Default: 4
+    Description: Serverless v2 maximum ACUs.
+
+# ===========================================================================
+# Conditions
+# ===========================================================================
+Conditions:
+  # prod  -> Aurora-managed master password in Secrets Manager (auto-rotation).
+  # other -> password supplied via SSM SecureString (created by the CI job).
+  IsProd: !Equals [!Ref EnvironmentName, "prod"]
+
+# ===========================================================================
+# Resources
+# ===========================================================================
+Resources:
+
+  # ----------------------- Networking -----------------------
+  Vpc:
+    Type: AWS::EC2::VPC
+    Properties:
+      CidrBlock: !Ref VpcCidr
+      EnableDnsSupport: true
+      EnableDnsHostnames: true
+      Tags:
+        - { Key: Name, Value: !Sub "${EnvironmentName}-iis-vpc" }
+
+  InternetGateway:
+    Type: AWS::EC2::InternetGateway
+    Properties:
+      Tags:
+        - { Key: Name, Value: !Sub "${EnvironmentName}-iis-igw" }
+
+  VpcGatewayAttachment:
+    Type: AWS::EC2::VPCGatewayAttachment
+    Properties:
+      VpcId: !Ref Vpc
+      InternetGatewayId: !Ref InternetGateway
+
+  PublicSubnet1:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref Vpc
+      AvailabilityZone: !Select [0, !GetAZs ""]
+      CidrBlock: !Select [0, !Cidr [!Ref VpcCidr, 16, 12]]
+      MapPublicIpOnLaunch: true
+      Tags:
+        - { Key: Name, Value: !Sub "${EnvironmentName}-public-1" }
+
+  PublicSubnet2:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref Vpc
+      AvailabilityZone: !Select [1, !GetAZs ""]
+      CidrBlock: !Select [1, !Cidr [!Ref VpcCidr, 16, 12]]
+      MapPublicIpOnLaunch: true
+      Tags:
+        - { Key: Name, Value: !Sub "${EnvironmentName}-public-2" }
+
+  PrivateSubnet1:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref Vpc
+      AvailabilityZone: !Select [0, !GetAZs ""]
+      CidrBlock: !Select [2, !Cidr [!Ref VpcCidr, 16, 12]]
+      MapPublicIpOnLaunch: false
+      Tags:
+        - { Key: Name, Value: !Sub "${EnvironmentName}-private-1" }
+
+  PrivateSubnet2:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref Vpc
+      AvailabilityZone: !Select [1, !GetAZs ""]
+      CidrBlock: !Select [3, !Cidr [!Ref VpcCidr, 16, 12]]
+      MapPublicIpOnLaunch: false
+      Tags:
+        - { Key: Name, Value: !Sub "${EnvironmentName}-private-2" }
+
+  PublicRouteTable:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId: !Ref Vpc
+      Tags:
+        - { Key: Name, Value: !Sub "${EnvironmentName}-public-rt" }
+
+  PublicDefaultRoute:
+    Type: AWS::EC2::Route
+    DependsOn: VpcGatewayAttachment
+    Properties:
+      RouteTableId: !Ref PublicRouteTable
+      DestinationCidrBlock: 0.0.0.0/0
+      GatewayId: !Ref InternetGateway
+
+  PublicSubnet1RouteAssoc:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      SubnetId: !Ref PublicSubnet1
+      RouteTableId: !Ref PublicRouteTable
+
+  PublicSubnet2RouteAssoc:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      SubnetId: !Ref PublicSubnet2
+      RouteTableId: !Ref PublicRouteTable
+
+  NatEip:
+    Type: AWS::EC2::EIP
+    DependsOn: VpcGatewayAttachment
+    Properties:
+      Domain: vpc
+
+  NatGateway:
+    Type: AWS::EC2::NatGateway
+    Properties:
+      AllocationId: !GetAtt NatEip.AllocationId
+      SubnetId: !Ref PublicSubnet1
+      Tags:
+        - { Key: Name, Value: !Sub "${EnvironmentName}-natgw" }
+
+  PrivateRouteTable:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId: !Ref Vpc
+      Tags:
+        - { Key: Name, Value: !Sub "${EnvironmentName}-private-rt" }
+
+  PrivateDefaultRoute:
+    Type: AWS::EC2::Route
+    Properties:
+      RouteTableId: !Ref PrivateRouteTable
+      DestinationCidrBlock: 0.0.0.0/0
+      NatGatewayId: !Ref NatGateway
+
+  PrivateSubnet1RouteAssoc:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      SubnetId: !Ref PrivateSubnet1
+      RouteTableId: !Ref PrivateRouteTable
+
+  PrivateSubnet2RouteAssoc:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      SubnetId: !Ref PrivateSubnet2
+      RouteTableId: !Ref PrivateRouteTable
+
+  # ----------------------- Security groups -----------------------
+  VpcLinkSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: API Gateway VPC Link ENIs
+      VpcId: !Ref Vpc
+      Tags:
+        - { Key: Name, Value: !Sub "${EnvironmentName}-vpclink-sg" }
+
+  AlbSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: Internal ALB — accepts traffic from the VPC Link only
+      VpcId: !Ref Vpc
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 80
+          ToPort: 80
+          SourceSecurityGroupId: !Ref VpcLinkSecurityGroup
+          Description: HTTP from API Gateway VPC Link
+      Tags:
+        - { Key: Name, Value: !Sub "${EnvironmentName}-alb-sg" }
+
+  EcsSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: ECS Fargate tasks — accept traffic from the ALB only
+      VpcId: !Ref Vpc
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: !Ref ContainerPort
+          ToPort: !Ref ContainerPort
+          SourceSecurityGroupId: !Ref AlbSecurityGroup
+          Description: App traffic from ALB
+      Tags:
+        - { Key: Name, Value: !Sub "${EnvironmentName}-ecs-sg" }
+
+  RdsSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: RDS PostgreSQL — accepts traffic from ECS tasks only
+      VpcId: !Ref Vpc
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 5432
+          ToPort: 5432
+          SourceSecurityGroupId: !Ref EcsSecurityGroup
+          Description: PostgreSQL from ECS tasks
+      Tags:
+        - { Key: Name, Value: !Sub "${EnvironmentName}-rds-sg" }
+
+  # ----------------------- Database (Aurora Serverless v2, PostgreSQL) -----------------------
+  DbSubnetGroup:
+    Type: AWS::RDS::DBSubnetGroup
+    Properties:
+      DBSubnetGroupDescription: IIS Aurora private subnets
+      SubnetIds:
+        - !Ref PrivateSubnet1
+        - !Ref PrivateSubnet2
+
+  DBCluster:
+    Type: AWS::RDS::DBCluster
+    DeletionPolicy: Snapshot
+    UpdateReplacePolicy: Snapshot
+    Properties:
+      Engine: aurora-postgresql
+      EngineVersion: !Ref AuroraEngineVersion
+      DatabaseName: !Ref DBName
+      MasterUsername: !Ref DBUsername
+      # prod: Aurora generates and rotates the password in Secrets Manager.
+      # non-prod: use the supplied password (CI also mirrors it to SSM SecureString).
+      ManageMasterUserPassword: !If [IsProd, true, !Ref "AWS::NoValue"]
+      MasterUserPassword: !If [IsProd, !Ref "AWS::NoValue", !Ref DBPassword]
+      DBSubnetGroupName: !Ref DbSubnetGroup
+      VpcSecurityGroupIds:
+        - !Ref RdsSecurityGroup
+      StorageEncrypted: true
+      BackupRetentionPeriod: 7
+      DeletionProtection: false
+      ServerlessV2ScalingConfiguration:
+        MinCapacity: !Ref AuroraMinCapacity
+        MaxCapacity: !Ref AuroraMaxCapacity
+      Tags:
+        - { Key: Name, Value: !Sub "${EnvironmentName}-iis-db" }
+
+  DBInstance:
+    Type: AWS::RDS::DBInstance
+    Properties:
+      Engine: aurora-postgresql
+      DBClusterIdentifier: !Ref DBCluster
+      DBInstanceClass: db.serverless
+      PubliclyAccessible: false
+      Tags:
+        - { Key: Name, Value: !Sub "${EnvironmentName}-iis-db-1" }
+
+  # ----------------------- ECS cluster & IAM -----------------------
+  EcsCluster:
+    Type: AWS::ECS::Cluster
+    Properties:
+      ClusterName: !Sub "${EnvironmentName}-iis"
+      ClusterSettings:
+        - { Name: containerInsights, Value: enabled }
+
+  TaskExecutionRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub "${EnvironmentName}-iis-exec-role"
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal: { Service: ecs-tasks.amazonaws.com }
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AmazonECSTaskExecutionRolePolicy
+      Policies:
+        - PolicyName: db-credential-access
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement: !If
+              - IsProd
+              - - Effect: Allow
+                  Action: secretsmanager:GetSecretValue
+                  Resource: !GetAtt DBCluster.MasterUserSecret.SecretArn
+              - - Effect: Allow
+                  Action: ssm:GetParameters
+                  Resource: !Sub "arn:${AWS::Partition}:ssm:${AWS::Region}:${AWS::AccountId}:parameter/iis/${EnvironmentName}/db-password"
+                - Effect: Allow
+                  Action: kms:Decrypt
+                  Resource: "*"
+                  Condition:
+                    StringEquals:
+                      kms:ViaService: !Sub "ssm.${AWS::Region}.amazonaws.com"
+
+  TaskRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub "${EnvironmentName}-iis-task-role"
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal: { Service: ecs-tasks.amazonaws.com }
+            Action: sts:AssumeRole
+      # Application-level permissions go here (e.g. S3, SQS). Empty by default.
+
+  # ----------------------- Internal ALB -----------------------
+  LoadBalancer:
+    Type: AWS::ElasticLoadBalancingV2::LoadBalancer
+    Properties:
+      Name: !Sub "${EnvironmentName}-iis-alb"
+      Scheme: internal
+      Type: application
+      Subnets:
+        - !Ref PrivateSubnet1
+        - !Ref PrivateSubnet2
+      SecurityGroups:
+        - !Ref AlbSecurityGroup
+
+  Listener:
+    Type: AWS::ElasticLoadBalancingV2::Listener
+    Properties:
+      LoadBalancerArn: !Ref LoadBalancer
+      Port: 80
+      Protocol: HTTP
+      DefaultActions:
+        - Type: fixed-response
+          FixedResponseConfig:
+            StatusCode: "404"
+            ContentType: application/json
+            MessageBody: '{"error":"no matching service route"}'
+
+  # ----------------------- Per-service: iam -----------------------
+  IamLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub "/ecs/${EnvironmentName}/iam"
+      RetentionInDays: 30
+
+  IamTargetGroup:
+    Type: AWS::ElasticLoadBalancingV2::TargetGroup
+    Properties:
+      Name: !Sub "${EnvironmentName}-iam-tg"
+      VpcId: !Ref Vpc
+      Port: !Ref ContainerPort
+      Protocol: HTTP
+      TargetType: ip
+      HealthCheckPath: /health
+      HealthCheckIntervalSeconds: 30
+      HealthCheckTimeoutSeconds: 5
+      HealthyThresholdCount: 2
+      UnhealthyThresholdCount: 3
+      Matcher: { HttpCode: "200" }
+
+  IamListenerRule:
+    Type: AWS::ElasticLoadBalancingV2::ListenerRule
+    Properties:
+      ListenerArn: !Ref Listener
+      Priority: 10
+      Conditions:
+        - Field: path-pattern
+          PathPatternConfig: { Values: ["/iam", "/iam/*"] }
+      Actions:
+        - Type: forward
+          TargetGroupArn: !Ref IamTargetGroup
+
+  IamTaskDefinition:
+    Type: AWS::ECS::TaskDefinition
+    Properties:
+      Family: !Sub "${EnvironmentName}-iam"
+      Cpu: !Ref TaskCpu
+      Memory: !Ref TaskMemory
+      NetworkMode: awsvpc
+      RequiresCompatibilities: [FARGATE]
+      ExecutionRoleArn: !GetAtt TaskExecutionRole.Arn
+      TaskRoleArn: !GetAtt TaskRole.Arn
+      ContainerDefinitions:
+        - Name: iam
+          Image: !Sub "${EcrRegistry}/iis-iam:${ImageTag}"
+          Essential: true
+          PortMappings:
+            - { ContainerPort: !Ref ContainerPort, Protocol: tcp }
+          Environment:
+            - { Name: SERVICE_NAME, Value: iam }
+            - { Name: ROUTE_PREFIX, Value: /iam }
+            - { Name: DB_HOST, Value: !GetAtt Database.Endpoint.Address }
+            - { Name: DB_PORT, Value: "5432" }
+            - { Name: DB_NAME, Value: !Ref DBName }
+          Secrets:
+            - { Name: DB_USER, ValueFrom: !Sub "${DbSecret}:username::" }
+            - { Name: DB_PASSWORD, ValueFrom: !Sub "${DbSecret}:password::" }
+          LogConfiguration:
+            LogDriver: awslogs
+            Options:
+              awslogs-group: !Ref IamLogGroup
+              awslogs-region: !Ref AWS::Region
+              awslogs-stream-prefix: iam
+
+  IamService:
+    Type: AWS::ECS::Service
+    DependsOn: IamListenerRule
+    Properties:
+      ServiceName: !Sub "${EnvironmentName}-iam"
+      Cluster: !Ref EcsCluster
+      LaunchType: FARGATE
+      DesiredCount: !Ref DesiredCount
+      TaskDefinition: !Ref IamTaskDefinition
+      DeploymentConfiguration:
+        MinimumHealthyPercent: 100
+        MaximumPercent: 200
+      NetworkConfiguration:
+        AwsvpcConfiguration:
+          AssignPublicIp: DISABLED
+          Subnets:
+            - !Ref PrivateSubnet1
+            - !Ref PrivateSubnet2
+          SecurityGroups:
+            - !Ref EcsSecurityGroup
+      LoadBalancers:
+        - ContainerName: iam
+          ContainerPort: !Ref ContainerPort
+          TargetGroupArn: !Ref IamTargetGroup
+
+  # ----------------------- Per-service: campus -----------------------
+  CampusLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub "/ecs/${EnvironmentName}/campus"
+      RetentionInDays: 30
+
+  CampusTargetGroup:
+    Type: AWS::ElasticLoadBalancingV2::TargetGroup
+    Properties:
+      Name: !Sub "${EnvironmentName}-campus-tg"
+      VpcId: !Ref Vpc
+      Port: !Ref ContainerPort
+      Protocol: HTTP
+      TargetType: ip
+      HealthCheckPath: /health
+      HealthCheckIntervalSeconds: 30
+      HealthCheckTimeoutSeconds: 5
+      HealthyThresholdCount: 2
+      UnhealthyThresholdCount: 3
+      Matcher: { HttpCode: "200" }
+
+  CampusListenerRule:
+    Type: AWS::ElasticLoadBalancingV2::ListenerRule
+    Properties:
+      ListenerArn: !Ref Listener
+      Priority: 20
+      Conditions:
+        - Field: path-pattern
+          PathPatternConfig: { Values: ["/campus", "/campus/*"] }
+      Actions:
+        - Type: forward
+          TargetGroupArn: !Ref CampusTargetGroup
+
+  CampusTaskDefinition:
+    Type: AWS::ECS::TaskDefinition
+    Properties:
+      Family: !Sub "${EnvironmentName}-campus"
+      Cpu: !Ref TaskCpu
+      Memory: !Ref TaskMemory
+      NetworkMode: awsvpc
+      RequiresCompatibilities: [FARGATE]
+      ExecutionRoleArn: !GetAtt TaskExecutionRole.Arn
+      TaskRoleArn: !GetAtt TaskRole.Arn
+      ContainerDefinitions:
+        - Name: campus
+          Image: !Sub "${EcrRegistry}/iis-campus:${ImageTag}"
+          Essential: true
+          PortMappings:
+            - { ContainerPort: !Ref ContainerPort, Protocol: tcp }
+          Environment:
+            - { Name: SERVICE_NAME, Value: campus }
+            - { Name: ROUTE_PREFIX, Value: /campus }
+            - { Name: DB_HOST, Value: !GetAtt Database.Endpoint.Address }
+            - { Name: DB_PORT, Value: "5432" }
+            - { Name: DB_NAME, Value: !Ref DBName }
+          Secrets:
+            - { Name: DB_USER, ValueFrom: !Sub "${DbSecret}:username::" }
+            - { Name: DB_PASSWORD, ValueFrom: !Sub "${DbSecret}:password::" }
+          LogConfiguration:
+            LogDriver: awslogs
+            Options:
+              awslogs-group: !Ref CampusLogGroup
+              awslogs-region: !Ref AWS::Region
+              awslogs-stream-prefix: campus
+
+  CampusService:
+    Type: AWS::ECS::Service
+    DependsOn: CampusListenerRule
+    Properties:
+      ServiceName: !Sub "${EnvironmentName}-campus"
+      Cluster: !Ref EcsCluster
+      LaunchType: FARGATE
+      DesiredCount: !Ref DesiredCount
+      TaskDefinition: !Ref CampusTaskDefinition
+      DeploymentConfiguration:
+        MinimumHealthyPercent: 100
+        MaximumPercent: 200
+      NetworkConfiguration:
+        AwsvpcConfiguration:
+          AssignPublicIp: DISABLED
+          Subnets:
+            - !Ref PrivateSubnet1
+            - !Ref PrivateSubnet2
+          SecurityGroups:
+            - !Ref EcsSecurityGroup
+      LoadBalancers:
+        - ContainerName: campus
+          ContainerPort: !Ref ContainerPort
+          TargetGroupArn: !Ref CampusTargetGroup
+
+  # ----------------------- Per-service: commerce -----------------------
+  CommerceLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub "/ecs/${EnvironmentName}/commerce"
+      RetentionInDays: 30
+
+  CommerceTargetGroup:
+    Type: AWS::ElasticLoadBalancingV2::TargetGroup
+    Properties:
+      Name: !Sub "${EnvironmentName}-commerce-tg"
+      VpcId: !Ref Vpc
+      Port: !Ref ContainerPort
+      Protocol: HTTP
+      TargetType: ip
+      HealthCheckPath: /health
+      HealthCheckIntervalSeconds: 30
+      HealthCheckTimeoutSeconds: 5
+      HealthyThresholdCount: 2
+      UnhealthyThresholdCount: 3
+      Matcher: { HttpCode: "200" }
+
+  CommerceListenerRule:
+    Type: AWS::ElasticLoadBalancingV2::ListenerRule
+    Properties:
+      ListenerArn: !Ref Listener
+      Priority: 30
+      Conditions:
+        - Field: path-pattern
+          PathPatternConfig: { Values: ["/commerce", "/commerce/*"] }
+      Actions:
+        - Type: forward
+          TargetGroupArn: !Ref CommerceTargetGroup
+
+  CommerceTaskDefinition:
+    Type: AWS::ECS::TaskDefinition
+    Properties:
+      Family: !Sub "${EnvironmentName}-commerce"
+      Cpu: !Ref TaskCpu
+      Memory: !Ref TaskMemory
+      NetworkMode: awsvpc
+      RequiresCompatibilities: [FARGATE]
+      ExecutionRoleArn: !GetAtt TaskExecutionRole.Arn
+      TaskRoleArn: !GetAtt TaskRole.Arn
+      ContainerDefinitions:
+        - Name: commerce
+          Image: !Sub "${EcrRegistry}/iis-commerce:${ImageTag}"
+          Essential: true
+          PortMappings:
+            - { ContainerPort: !Ref ContainerPort, Protocol: tcp }
+          Environment:
+            - { Name: SERVICE_NAME, Value: commerce }
+            - { Name: ROUTE_PREFIX, Value: /commerce }
+            - { Name: DB_HOST, Value: !GetAtt Database.Endpoint.Address }
+            - { Name: DB_PORT, Value: "5432" }
+            - { Name: DB_NAME, Value: !Ref DBName }
+          Secrets:
+            - { Name: DB_USER, ValueFrom: !Sub "${DbSecret}:username::" }
+            - { Name: DB_PASSWORD, ValueFrom: !Sub "${DbSecret}:password::" }
+          LogConfiguration:
+            LogDriver: awslogs
+            Options:
+              awslogs-group: !Ref CommerceLogGroup
+              awslogs-region: !Ref AWS::Region
+              awslogs-stream-prefix: commerce
+
+  CommerceService:
+    Type: AWS::ECS::Service
+    DependsOn: CommerceListenerRule
+    Properties:
+      ServiceName: !Sub "${EnvironmentName}-commerce"
+      Cluster: !Ref EcsCluster
+      LaunchType: FARGATE
+      DesiredCount: !Ref DesiredCount
+      TaskDefinition: !Ref CommerceTaskDefinition
+      DeploymentConfiguration:
+        MinimumHealthyPercent: 100
+        MaximumPercent: 200
+      NetworkConfiguration:
+        AwsvpcConfiguration:
+          AssignPublicIp: DISABLED
+          Subnets:
+            - !Ref PrivateSubnet1
+            - !Ref PrivateSubnet2
+          SecurityGroups:
+            - !Ref EcsSecurityGroup
+      LoadBalancers:
+        - ContainerName: commerce
+          ContainerPort: !Ref ContainerPort
+          TargetGroupArn: !Ref CommerceTargetGroup
+
+  # ----------------------- Per-service: observability -----------------------
+  ObservabilityLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub "/ecs/${EnvironmentName}/observability"
+      RetentionInDays: 30
+
+  ObservabilityTargetGroup:
+    Type: AWS::ElasticLoadBalancingV2::TargetGroup
+    Properties:
+      Name: !Sub "${EnvironmentName}-obsv-tg"
+      VpcId: !Ref Vpc
+      Port: !Ref ContainerPort
+      Protocol: HTTP
+      TargetType: ip
+      HealthCheckPath: /health
+      HealthCheckIntervalSeconds: 30
+      HealthCheckTimeoutSeconds: 5
+      HealthyThresholdCount: 2
+      UnhealthyThresholdCount: 3
+      Matcher: { HttpCode: "200" }
+
+  ObservabilityListenerRule:
+    Type: AWS::ElasticLoadBalancingV2::ListenerRule
+    Properties:
+      ListenerArn: !Ref Listener
+      Priority: 40
+      Conditions:
+        - Field: path-pattern
+          PathPatternConfig: { Values: ["/observability", "/observability/*"] }
+      Actions:
+        - Type: forward
+          TargetGroupArn: !Ref ObservabilityTargetGroup
+
+  ObservabilityTaskDefinition:
+    Type: AWS::ECS::TaskDefinition
+    Properties:
+      Family: !Sub "${EnvironmentName}-observability"
+      Cpu: !Ref TaskCpu
+      Memory: !Ref TaskMemory
+      NetworkMode: awsvpc
+      RequiresCompatibilities: [FARGATE]
+      ExecutionRoleArn: !GetAtt TaskExecutionRole.Arn
+      TaskRoleArn: !GetAtt TaskRole.Arn
+      ContainerDefinitions:
+        - Name: observability
+          Image: !Sub "${EcrRegistry}/iis-observability:${ImageTag}"
+          Essential: true
+          PortMappings:
+            - { ContainerPort: !Ref ContainerPort, Protocol: tcp }
+          Environment:
+            - { Name: SERVICE_NAME, Value: observability }
+            - { Name: ROUTE_PREFIX, Value: /observability }
+            - { Name: DB_HOST, Value: !GetAtt Database.Endpoint.Address }
+            - { Name: DB_PORT, Value: "5432" }
+            - { Name: DB_NAME, Value: !Ref DBName }
+          Secrets:
+            - { Name: DB_USER, ValueFrom: !Sub "${DbSecret}:username::" }
+            - { Name: DB_PASSWORD, ValueFrom: !Sub "${DbSecret}:password::" }
+          LogConfiguration:
+            LogDriver: awslogs
+            Options:
+              awslogs-group: !Ref ObservabilityLogGroup
+              awslogs-region: !Ref AWS::Region
+              awslogs-stream-prefix: observability
+
+  ObservabilityService:
+    Type: AWS::ECS::Service
+    DependsOn: ObservabilityListenerRule
+    Properties:
+      ServiceName: !Sub "${EnvironmentName}-observability"
+      Cluster: !Ref EcsCluster
+      LaunchType: FARGATE
+      DesiredCount: !Ref DesiredCount
+      TaskDefinition: !Ref ObservabilityTaskDefinition
+      DeploymentConfiguration:
+        MinimumHealthyPercent: 100
+        MaximumPercent: 200
+      NetworkConfiguration:
+        AwsvpcConfiguration:
+          AssignPublicIp: DISABLED
+          Subnets:
+            - !Ref PrivateSubnet1
+            - !Ref PrivateSubnet2
+          SecurityGroups:
+            - !Ref EcsSecurityGroup
+      LoadBalancers:
+        - ContainerName: observability
+          ContainerPort: !Ref ContainerPort
+          TargetGroupArn: !Ref ObservabilityTargetGroup
+
+  # ----------------------- API Gateway (HTTP API) -----------------------
+  HttpApi:
+    Type: AWS::ApiGatewayV2::Api
+    Properties:
+      Name: !Sub "${EnvironmentName}-iis-api"
+      ProtocolType: HTTP
+
+  ApiVpcLink:
+    Type: AWS::ApiGatewayV2::VpcLink
+    Properties:
+      Name: !Sub "${EnvironmentName}-iis-vpclink"
+      SubnetIds:
+        - !Ref PrivateSubnet1
+        - !Ref PrivateSubnet2
+      SecurityGroupIds:
+        - !Ref VpcLinkSecurityGroup
+
+  AlbIntegration:
+    Type: AWS::ApiGatewayV2::Integration
+    Properties:
+      ApiId: !Ref HttpApi
+      IntegrationType: HTTP_PROXY
+      IntegrationMethod: ANY
+      ConnectionType: VPC_LINK
+      ConnectionId: !Ref ApiVpcLink
+      IntegrationUri: !Ref Listener
+      PayloadFormatVersion: "1.0"
+
+  RouteIam:
+    Type: AWS::ApiGatewayV2::Route
+    Properties:
+      ApiId: !Ref HttpApi
+      RouteKey: "ANY /iam/{proxy+}"
+      Target: !Sub "integrations/${AlbIntegration}"
+
+  RouteCampus:
+    Type: AWS::ApiGatewayV2::Route
+    Properties:
+      ApiId: !Ref HttpApi
+      RouteKey: "ANY /campus/{proxy+}"
+      Target: !Sub "integrations/${AlbIntegration}"
+
+  RouteCommerce:
+    Type: AWS::ApiGatewayV2::Route
+    Properties:
+      ApiId: !Ref HttpApi
+      RouteKey: "ANY /commerce/{proxy+}"
+      Target: !Sub "integrations/${AlbIntegration}"
+
+  RouteObservability:
+    Type: AWS::ApiGatewayV2::Route
+    Properties:
+      ApiId: !Ref HttpApi
+      RouteKey: "ANY /observability/{proxy+}"
+      Target: !Sub "integrations/${AlbIntegration}"
+
+  DefaultStage:
+    Type: AWS::ApiGatewayV2::Stage
+    Properties:
+      ApiId: !Ref HttpApi
+      StageName: $default
+      AutoDeploy: true
+
+# ===========================================================================
+# Outputs
+# ===========================================================================
+Outputs:
+  ApiEndpoint:
+    Description: Public HTTPS endpoint for the platform
+    Value: !GetAtt HttpApi.ApiEndpoint
+  ClusterName:
+    Description: ECS cluster name (set as ECS_CLUSTER in CircleCI)
+    Value: !Ref EcsCluster
+  AlbDnsName:
+    Description: Internal ALB DNS name
+    Value: !GetAtt LoadBalancer.DNSName
+  DbEndpoint:
+    Description: RDS PostgreSQL endpoint address
+    Value: !GetAtt Database.Endpoint.Address
+  DbSecretArn:
+    Description: Secrets Manager ARN holding DB credentials
+    Value: !Ref DbSecret

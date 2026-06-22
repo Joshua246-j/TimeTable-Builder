@@ -1,5 +1,11 @@
 import Link from "next/link";
 
+/**
+ * Global Not Found (404) page component.
+ * Rendered when a user navigates to a route that does not exist.
+ * 
+ * @returns {React.ReactElement} The 404 error page with a link to the dashboard.
+ */
 export default function NotFound() {
   return (
     <div className="flex min-h-screen flex-col items-center justify-center gap-4">

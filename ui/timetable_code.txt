@@ -1,0 +1,4354 @@
+﻿==== features\timetable\components\TimetableInteractiveWorkspace.tsx ====
+"use client";
+
+import { useState, useCallback, useMemo, useEffect } from "react";
+import ActionToolbar from "@/features/timetable/components/ActionToolbar";
+import TimetableGrid from "@/features/timetable/components/TimetableGrid";
+import SubjectAllocationPanel from "@/features/timetable/components/SubjectAllocationPanel";
+import ValidationFooter from "@/features/timetable/components/ValidationFooter";
+import FloatingActionButton from "@/features/timetable/components/FloatingActionButton";
+import SubjectClassCard from "@/features/timetable/components/SubjectClassCard";
+import TimetableSlotCard from "@/features/timetable/components/TimetableSlotCard";
+import ConflictDrawer from "@/features/timetable/components/ConflictDrawer";
+import GridConfigPanel from "@/features/timetable/components/GridConfigPanel";
+import type { SubjectCardData, TimetableData, TimetableCell as TimetableCellType, ScheduleEntry } from "@/types/timetable";
+import dynamic from "next/dynamic";
+import { useSelector, useDispatch } from "react-redux";
+import { store, RootState, AppDispatch } from "@/store/store";
+import { setSubjects, updateSubject, addSubject } from "@/store/subjectSlice";
+import { swapSubjectAssignments, assignSubject, updateTimeAllocation, removeSubjectAssignment, swapAssignmentSubject } from "@/store/syntheticActions";
+
+import { DndContext, DragEndEvent, DragStartEvent, PointerSensor, useSensor, useSensors, DragOverlay } from "@dnd-kit/core";
+import { toast } from "sonner";
+import { mergeEngine } from "@/lib/mergeEngine";
+import { isOverlap, parseTime } from "@/lib/timeEngine";
+import { merge, remove } from "@/store/timetableEngineSlice";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { AlertTriangle } from "lucide-react";
+
+const MobileFilters = dynamic(() => import("@/features/timetable/components/MobileFilters"), { ssr: false });
+const MobileSubjectDrawer = dynamic(() => import("@/features/timetable/components/MobileSubjectDrawer"), { ssr: false });
+
+interface TimetableInteractiveWorkspaceProps {
+  initialData: TimetableData;
+}
+
+export default function TimetableInteractiveWorkspace({
+  initialData,
+}: TimetableInteractiveWorkspaceProps) {
+  const [isMobileDrawerOpen, setIsMobileDrawerOpen] = useState(false);
+  const [isConflictDrawerOpen, setIsConflictDrawerOpen] = useState(false);
+  const [timetableData] = useState<TimetableData>(initialData);
+  const [sidebarOpen, setSidebarOpen] = useState(true);
+  const [selectedCellId, setSelectedCellId] = useState<string | undefined>();
+  const [editingGroupId, setEditingGroup] = useState<string | null>(null);
+  const dispatch = useDispatch<AppDispatch>();
+  const subjectsRedux = useSelector((state: RootState) => state.subject.subjects || {});
+  const { allocations } = useSelector((state: RootState) => state.timetableEngine);
+  const validationState = useSelector((state: RootState) => state.validation);
+  const gridConfig = useSelector((state: RootState) => state.gridConfig);
+  const [activeDragData, setActiveDragData] = useState<Record<string, unknown> | null>(null);
+  const [pendingTimeChange, setPendingTimeChange] = useState<{
+    sourceCellId: string;
+    sourceSubjectId: string;
+    dayId: string;
+    newStart: string;
+    newEnd: string;
+    targetCellId?: string;
+    targetSubjectId?: string;
+    isConflict: boolean;
+  } | null>(null);
+  const [pendingMergeSuggestion, setPendingMergeSuggestion] = useState<{
+    subjectId: string;
+    cellsToMerge: { id: string; rowIndex: number; dayId: string; startTime: string; endTime: string; subjectId: string }[];
+  } | null>(null);
+  const sensors = useSensors(
+    useSensor(PointerSensor, {
+      activationConstraint: {
+        distance: 5,
+      },
+    })
+  );
+
+  useEffect(() => {
+    if (initialData.subjects) {
+      dispatch(setSubjects(initialData.subjects));
+    }
+  }, [initialData.subjects, dispatch]);
+
+  const handleUpdateSubject = useCallback((updatedSubject: SubjectCardData) => {
+    dispatch(updateSubject(updatedSubject));
+  }, [dispatch]);
+
+  const handleAddSubject = useCallback((newSubject: SubjectCardData) => {
+    dispatch(addSubject({ ...newSubject, isEditable: true }));
+  }, [dispatch]);
+
+  const handleRemoveSlot = useCallback((cellId: string) => {
+    dispatch(removeSubjectAssignment({ cellId }));
+  }, [dispatch]);
+
+  const checkMergeEligibility = useCallback((dayId: string, startTime: string, subjectId: string) => {
+    setTimeout(() => {
+      const latestState = store.getState();
+      const latestAllocations = Object.values(latestState.timetableEngine.allocations);
+      
+      const newAlloc = latestAllocations.find(a => 
+        (a.dayId === dayId || a.dayId === dayId.split('-')[0]) && 
+        a.startTime === startTime
+      );
+
+      if (newAlloc) {
+        const simulatedCells = latestAllocations.map(a => ({
+          id: a.id,
+          rowIndex: timetableData.timeSlots.findIndex(t => t.startTime === a.startTime),
+          day: a.dayId,
+          assignment: { subjectId: a.subjectId }
+        }));
+
+        const timeSlotIndex = timetableData.timeSlots.findIndex(t => t.startTime === newAlloc.startTime);
+        
+        const suggestions = mergeEngine.suggestAutoMerge(timeSlotIndex, newAlloc.dayId, subjectId, simulatedCells);
+
+        if (suggestions.length > 1) {
+          const cellsToMerge = simulatedCells.filter(c => suggestions.includes(c.id)).map(c => {
+             const matchingAlloc = latestAllocations.find(a => a.id === c.id);
+             return {
+               id: c.id,
+               rowIndex: c.rowIndex,
+               dayId: c.day,
+               startTime: matchingAlloc?.startTime || "",
+               endTime: matchingAlloc?.endTime || "",
+               subjectId
+             };
+          });
+          
+          setPendingMergeSuggestion({ subjectId, cellsToMerge });
+        }
+      }
+    }, 100);
+  }, [timetableData.timeSlots]);
+
+  const handleAssignSlot = useCallback((cell: TimetableCellType, subjectId: string) => {
+    dispatch(assignSubject({ cellId: cell.id, subjectId, dayId: cell.day, startTime: cell.startTime, endTime: cell.endTime }));
+    setSelectedCellId(undefined);
+    checkMergeEligibility(cell.day, cell.startTime, subjectId);
+  }, [dispatch, checkMergeEligibility]);
+
+  const handleEditTime = useCallback((cell: TimetableCellType) => {
+    if (!cell.isAssigned || !cell.assignment) return;
+    const activeGroup = Object.values(allocations).find(a => 
+      (a.dayId === cell.day || a.dayId === cell.dayId) && 
+      isOverlap({ startTime: a.startTime, endTime: a.endTime }, { startTime: cell.startTime, endTime: cell.endTime })
+    );
+    
+    if (activeGroup) {
+      setEditingGroup(activeGroup.id);
+    }
+  }, [allocations]);
+
+  const handleDragStart = (event: DragStartEvent) => {
+    setActiveDragData(event.active.data.current as Record<string, unknown>);
+  };
+
+  const handleDragEnd = (event: DragEndEvent) => {
+    const { active, over } = event;
+    setActiveDragData(null);
+    if (!over) return;
+
+    const sourceData = active.data.current as Record<string, unknown>;
+    const targetData = over.data.current as Record<string, unknown>;
+
+    if (sourceData?.type === "CELL_ITEM" && targetData?.type === "CELL") {
+      const sourceCellId = sourceData.cellId as string;
+      const targetCell = targetData.cell as TimetableCellType;
+      const targetCellId = targetCell.id;
+      const sourceSubjectId = sourceData.subjectId as string;
+
+      if (sourceCellId === targetCellId) return;
+
+      if (allocations[sourceCellId]?.isLocked || allocations[targetCellId]?.isLocked) {
+        toast.error("Cannot swap. One of the slots is locked.");
+        return;
+      }
+
+      dispatch(swapSubjectAssignments({ 
+        sourceCellId, 
+        targetCellId,
+        targetDayId: targetCell.day,
+        targetStartTime: targetCell.startTime,
+        targetEndTime: targetCell.endTime
+      }));
+      
+      checkMergeEligibility(targetCell.day, targetCell.startTime, sourceSubjectId);
+    }
+
+    if (sourceData?.type === "SUBJECT" && targetData?.type === "CELL") {
+      const subjectId = (sourceData.subject as Record<string, unknown>)?.id as string || sourceData.subjectId as string;
+      const targetCell = targetData.cell as TimetableCellType;
+      const targetCellId = targetCell.id;
+
+      if (targetCell.isAssigned) {
+        // Instead of error, we can swap/replace the assignment
+        dispatch(swapAssignmentSubject({ cellId: targetCellId, newSubjectId: subjectId, dayId: targetCell.day, startTime: targetCell.startTime, endTime: targetCell.endTime }));
+        toast.success("Subject assignment replaced");
+        checkMergeEligibility(targetCell.day, targetCell.startTime, subjectId);
+        return;
+      }
+
+      dispatch(assignSubject({ cellId: targetCellId, subjectId, dayId: targetCell.day, startTime: targetCell.startTime, endTime: targetCell.endTime }));
+      checkMergeEligibility(targetCell.day, targetCell.startTime, subjectId);
+    }
+  };
+
+  const timetableSubjectsArr = useMemo(() => {
+    return Object.values(subjectsRedux || {});
+  }, [subjectsRedux]);
+
+  const activeDays = useMemo(() => {
+    return gridConfig.days.filter(d => d.enabled);
+  }, [gridConfig.days]);
+
+  const mappedCells = useMemo(() => {
+    const baseCells = timetableData?.cells || [];
+    return baseCells.map(c => {
+      const alloc = allocations[c.id];
+      if (alloc) {
+        return { ...c, isAssigned: true, assignment: { subjectId: alloc.subjectId } };
+      }
+      return { ...c, isAssigned: false, assignment: undefined };
+    });
+  }, [timetableData.cells, allocations]);
+
+  const handlePublish = useCallback(() => {
+    // Generate clean JSON payload
+    const publishedData = {
+      timestamp: new Date().toISOString(),
+      gridConfig: gridConfig,
+      allocations: Object.values(allocations).map(alloc => ({
+        id: alloc.id,
+        subjectId: alloc.subjectId,
+        dayId: alloc.dayId,
+        startTime: alloc.startTime,
+        endTime: alloc.endTime,
+        rowSpan: alloc.rowSpan,
+        isLocked: alloc.isLocked || false
+      }))
+    };
+    
+    // Simulate API call
+    console.log("PUBLISHED TIMETABLE DATA (Backend Ready Payload):");
+    console.log(JSON.stringify(publishedData, null, 2));
+    
+    toast.success("Timetable published successfully! (Check console for payload)");
+  }, [allocations, gridConfig]);
+
+  return (
+    <DndContext sensors={sensors} onDragStart={handleDragStart} onDragEnd={handleDragEnd}>
+      <div className="flex h-full w-full flex-col bg-[#F8FAFC]">
+        <div className="flex-1 flex overflow-hidden font-inter relative">
+        <div className="flex-1 flex flex-col overflow-hidden bg-[#F8FAFC]">
+          <div className="overflow-y-auto flex flex-col p-4 lg:p-6 lg:pl-8 h-full">
+            <div className="flex-none">
+              <ActionToolbar 
+                onOpenConflicts={() => setIsConflictDrawerOpen(true)}
+                onPublish={handlePublish}
+              />
+              <div className="mt-4 lg:hidden">
+                <MobileFilters />
+              </div>
+            </div>
+
+            <div className="mt-4 lg:mt-6 flex flex-col pb-6">
+              <div
+                className="
+                
+                  bg-transparent lg:bg-white
+                  relative
+                "
+              >
+                <TimetableGrid
+                  days={activeDays}
+                  timeSlots={gridConfig.timeSlots || []}
+                  cells={mappedCells}
+                  subjects={subjectsRedux || {}}
+                  selectedCellId={selectedCellId}
+                  isGridEditMode={gridConfig.isGridEditMode}
+                  breaks={gridConfig.breaks}
+                  editingGroupId={editingGroupId}
+                  onCancelEdit={() => setEditingGroup(null)}
+                  onSaveEdit={(subj, updatedTime, swappedSubjId) => {
+                    const targetSubjId = swappedSubjId || subj.id;
+                    if (!targetSubjId || targetSubjId.startsWith('assign-')) {
+                      toast.error("Please select a valid subject to assign.");
+                      return;
+                    }
+                    
+                    if (editingGroupId) {
+                      const entry = allocations[editingGroupId];
+                      if (entry) {
+                        const originalStartTime = entry.startTime;
+                        const originalEndTime = entry.endTime;
+                        
+                        if (updatedTime && (updatedTime.startTime !== originalStartTime || updatedTime.endTime !== originalEndTime)) {
+                           // Snap to nearest grid slot start time
+                           const snappedSlot = timetableData.timeSlots.reduce((prev, curr) => {
+                              const diffPrev = Math.abs(parseTime(curr.startTime) - parseTime(updatedTime.startTime));
+                              const diffCurr = Math.abs(parseTime(prev.startTime) - parseTime(updatedTime.startTime));
+                              return diffPrev < diffCurr ? curr : prev;
+                           }, timetableData.timeSlots[0]);
+                           
+                           const finalStartTime = snappedSlot.startTime;
+                           
+                           // Check for conflicts
+                           const targetSlots = timetableData.timeSlots.filter(t => {
+                             return isOverlap({ startTime: t.startTime, endTime: t.endTime }, { startTime: finalStartTime, endTime: updatedTime.endTime });
+                           });
+
+                           let conflictCellId = null;
+
+                           for (const slot of targetSlots) {
+                             const targetCell = timetableData.cells.find(c => c.day === entry.dayId && c.startTime === slot.startTime);
+                             if (targetCell) {
+                               const targetAlloc = Object.values(allocations).find(g => 
+                                 (g.dayId === entry.dayId || g.dayId === targetCell.dayId) && 
+                                 isOverlap({ startTime: g.startTime, endTime: g.endTime }, { startTime: slot.startTime, endTime: slot.endTime })
+                               );
+                               if (targetAlloc && targetAlloc.id !== editingGroupId) {
+                                 conflictCellId = targetAlloc.id;
+                                 break;
+                               }
+                             }
+                           }
+
+                           if (conflictCellId) {
+                              dispatch(swapSubjectAssignments({
+                                 sourceCellId: editingGroupId,
+                                 targetCellId: conflictCellId
+                              }));
+                              toast.success("Assignments swapped successfully");
+                           } else {
+                              dispatch(updateTimeAllocation({
+                                id: editingGroupId,
+                                subjectId: targetSubjId,
+                                dayId: entry.dayId,
+                                startTime: finalStartTime,
+                                endTime: updatedTime.endTime
+                              }));
+                              if (targetSubjId !== entry.subjectId) {
+                                 dispatch(swapAssignmentSubject({ cellId: editingGroupId, newSubjectId: targetSubjId }));
+                              }
+                              toast.success("Time and subject updated");
+                           }
+                        } else {
+                           dispatch(swapAssignmentSubject({ cellId: editingGroupId, newSubjectId: targetSubjId }));
+                           toast.success("Subject updated");
+                        }
+                      }
+                    }
+                    setEditingGroup(null);
+                    toast.success("Assignment updated");
+                  }}
+                  onCellClick={(cell) => setSelectedCellId(cell.id)}
+                  onSubjectClick={(cell) => {
+                    handleRemoveSlot(cell.id);
+                  }}
+                  onEditTime={handleEditTime}
+                  onTimeChange={(cell, newStart, newEnd) => {
+                    if (!cell.assignment?.subjectId) return;
+                    const dayId = cell.day;
+                    const targetSlots = timetableData.timeSlots.filter(t => {
+                      return isOverlap({ startTime: t.startTime, endTime: t.endTime }, { startTime: newStart, endTime: newEnd });
+                    });
+                    
+                    let conflictCellId = null;
+                    let conflictSubjectId = null;
+
+                    for (const slot of targetSlots) {
+                      const targetCell = timetableData.cells.find(c => c.day === dayId && c.startTime === slot.startTime);
+                      if (targetCell) {
+                        const targetAlloc = Object.values(allocations).find(g => 
+                          (g.dayId === dayId || g.dayId === targetCell.dayId) && 
+                          isOverlap({ startTime: g.startTime, endTime: g.endTime }, { startTime: slot.startTime, endTime: slot.endTime })
+                        );
+                        if (targetAlloc && targetAlloc.id !== cell.id) {
+                          conflictCellId = targetAlloc.id;
+                          conflictSubjectId = targetAlloc.subjectId;
+                          break;
+                        }
+                      }
+                    }
+
+                    if (conflictCellId && conflictSubjectId) {
+                      setPendingTimeChange({
+                        sourceCellId: cell.id,
+                        sourceSubjectId: cell.assignment.subjectId,
+                        dayId,
+                        newStart,
+                        newEnd,
+                        targetCellId: conflictCellId,
+                        targetSubjectId: conflictSubjectId,
+                        isConflict: true
+                      });
+                    } else {
+                      dispatch(updateTimeAllocation({
+                        id: cell.id,
+                        subjectId: cell.assignment.subjectId,
+                        dayId,
+                        startTime: newStart,
+                        endTime: newEnd
+                      }));
+                      toast.success("Time updated successfully");
+                    }
+                  }}
+                  onAssignSlot={handleAssignSlot}
+                />
+              </div>
+            </div>
+            
+            <div className="flex-none pt-4 lg:pt-6 border-t border-slate-200 bg-white">
+            <ValidationFooter onOpenConflicts={() => setIsConflictDrawerOpen(true)} />
+            </div>
+          </div> 
+        </div>
+
+        <div
+          className={`
+            hidden
+            lg:block
+            shrink-0
+            h-full
+            overflow-y-auto
+            border-l
+            border-[#E5E7EB]
+            bg-white
+            transition-all duration-300
+            ${sidebarOpen ? "w-[320px]" : "w-[0px] border-none"}
+          `}
+        >
+          <div className="w-[320px] h-[80px] ">
+            <SubjectAllocationPanel
+              subjects={timetableSubjectsArr}
+              onUpdateSubject={handleUpdateSubject}
+              onAddSubject={handleAddSubject}
+              onClose={() => setSidebarOpen(false)}
+            />
+          </div>
+        </div>
+        
+        <GridConfigPanel />
+      </div>
+
+      {!sidebarOpen && (
+        <button
+          onClick={() => setSidebarOpen(true)}
+          className="hidden lg:flex fixed right-0 top-1/2 -translate-y-1/2 items-start gap-1 rounded-l-xl bg-white border border-r-0 border-slate-200 p-4 shadow-lg hover:bg-slate-50 transition-all z-40 flex-col"
+        >
+          <span className="text-sm font-bold text-slate-700">Subject</span>
+          <div className="flex items-center gap-1">
+            <span className="text-sm font-bold text-slate-700">Allocation</span>
+            <span className="text-[10px] text-slate-400">â–¶</span>
+          </div>
+        </button>
+      )}
+
+      <FloatingActionButton
+        onOpenSubjectAllocation={() => setIsMobileDrawerOpen(true)}
+      />
+
+      <MobileSubjectDrawer
+        open={isMobileDrawerOpen}
+        onOpenChange={setIsMobileDrawerOpen}
+        subjects={timetableSubjectsArr}
+        onUpdateSubject={handleUpdateSubject}
+        onAddSubject={handleAddSubject}
+      />
+
+      <ConflictDrawer 
+        isOpen={isConflictDrawerOpen}
+        onClose={() => setIsConflictDrawerOpen(false)}
+        conflicts={validationState?.conflicts || []}
+      />
+
+      <Dialog open={!!pendingTimeChange} onOpenChange={(open) => !open && setPendingTimeChange(null)}>
+        <DialogContent className="font-inter sm:max-w-md rounded-2xl p-0 overflow-hidden border-0 shadow-[0_20px_50px_rgba(0,0,0,0.1)]">
+          <div className="p-6 pb-4">
+            <DialogHeader className="space-y-4">
+              <div className="flex items-center gap-4">
+                <div className="w-12 h-12 rounded-full bg-orange-50 flex items-center justify-center shrink-0">
+                  <AlertTriangle className="w-6 h-6 text-orange-500" />
+                </div>
+                <div>
+                  <DialogTitle className="text-[18px] font-bold text-slate-900 leading-tight">
+                    Time Conflict Detected
+                  </DialogTitle>
+                  <DialogDescription className="text-[14px] text-slate-500 mt-1.5 leading-relaxed">
+                    The selected time slot already contains another subject (<span className="font-semibold text-slate-700">{pendingTimeChange?.targetSubjectId ? subjectsRedux[pendingTimeChange.targetSubjectId]?.subjectName : 'Unknown'}</span>). How would you like to resolve this?
+                  </DialogDescription>
+                </div>
+              </div>
+            </DialogHeader>
+          </div>
+          
+          <div className="p-6 pt-4 bg-slate-50/50 border-t border-slate-100 flex flex-col sm:flex-row items-center justify-end gap-3">
+            <button 
+              className="w-full sm:w-auto px-4 py-2.5 text-[14px] font-semibold text-slate-500 hover:text-slate-700 hover:bg-slate-100 rounded-xl transition-colors"
+              onClick={() => setPendingTimeChange(null)}
+            >
+              Cancel
+            </button>
+            <button 
+              className="w-full sm:w-auto px-4 py-2.5 text-[14px] font-semibold text-slate-700 bg-white border border-slate-200 hover:bg-slate-50 rounded-xl shadow-sm transition-all"
+              onClick={() => {
+              if (pendingTimeChange) {
+                dispatch(removeSubjectAssignment({ cellId: pendingTimeChange.targetCellId! }));
+                dispatch(updateTimeAllocation({
+                  id: pendingTimeChange.sourceCellId,
+                  subjectId: pendingTimeChange.sourceSubjectId,
+                  dayId: pendingTimeChange.dayId,
+                  startTime: pendingTimeChange.newStart,
+                  endTime: pendingTimeChange.newEnd
+                }));
+                setPendingTimeChange(null);
+                toast.success("Assignment moved successfully");
+              }
+            }}>
+              Overwrite Slot
+            </button>
+            <button 
+              className="w-full sm:w-auto px-5 py-2.5 text-[14px] font-bold text-white bg-[#4F6BFF] hover:bg-[#4338CA] rounded-xl shadow-md shadow-[#4F6BFF]/20 transition-all"
+              onClick={() => {
+              if (pendingTimeChange) {
+                dispatch(swapSubjectAssignments({
+                   sourceCellId: pendingTimeChange.sourceCellId,
+                   targetCellId: pendingTimeChange.targetCellId!
+                }));
+                setPendingTimeChange(null);
+                toast.success("Subjects swapped successfully");
+              }
+            }}>
+              Swap Subjects
+            </button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={!!pendingMergeSuggestion} onOpenChange={(open) => !open && setPendingMergeSuggestion(null)}>
+        <DialogContent className="font-inter sm:max-w-md rounded-2xl p-0 overflow-hidden border-0 shadow-[0_20px_50px_rgba(0,0,0,0.1)]">
+          <div className="p-6 pb-4">
+            <DialogHeader className="space-y-4">
+              <div className="flex items-center gap-4">
+                <div className="w-12 h-12 rounded-full bg-[#E0E7FF] flex items-center justify-center shrink-0">
+                  <div className="w-6 h-6 text-[#4F6BFF] flex items-center justify-center">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m8 6 4-4 4 4"/><path d="M12 2v10.3a4 4 0 0 1-1.172 2.872L4 22"/><path d="m20 22-5-5"/></svg>
+                  </div>
+                </div>
+                <div>
+                  <DialogTitle className="text-[18px] font-bold text-slate-900 leading-tight">
+                    Merge Adjacent Sessions?
+                  </DialogTitle>
+                  <DialogDescription className="text-[14px] text-slate-500 mt-1.5 leading-relaxed">
+                    These adjacent sessions can be merged into a single timetable block. Do you want to merge them?
+                  </DialogDescription>
+                </div>
+              </div>
+            </DialogHeader>
+          </div>
+          
+          <div className="p-6 pt-4 bg-slate-50/50 border-t border-slate-100 flex flex-col sm:flex-row items-center justify-end gap-3">
+            <button 
+              className="w-full sm:w-auto px-4 py-2.5 text-[14px] font-semibold text-slate-500 hover:text-slate-700 hover:bg-slate-100 rounded-xl transition-colors"
+              onClick={() => setPendingMergeSuggestion(null)}
+            >
+              Cancel
+            </button>
+            <button 
+              className="w-full sm:w-auto px-5 py-2.5 text-[14px] font-bold text-white bg-[#4F6BFF] hover:bg-[#4338CA] rounded-xl shadow-md shadow-[#4F6BFF]/20 transition-all"
+              onClick={() => {
+                if (pendingMergeSuggestion) {
+                  const sorted = [...pendingMergeSuggestion.cellsToMerge].sort((a, b) => a.rowIndex - b.rowIndex);
+                  const startCell = sorted[0];
+                  const endCell = sorted[sorted.length - 1];
+                  const mergeEntry: ScheduleEntry = {
+                    id: `merge-${startCell.id}-${Date.now()}`,
+                    subjectId: pendingMergeSuggestion.subjectId,
+                    dayId: startCell.dayId,
+                    startTime: startCell.startTime,
+                    endTime: endCell.endTime,
+                    rowStart: startCell.rowIndex,
+                    rowSpan: endCell.rowIndex - startCell.rowIndex + 1,
+                    isEditable: true,
+                    isLocked: false,
+                  };
+                  
+                  // Remove old allocations
+                  pendingMergeSuggestion.cellsToMerge.forEach(cell => {
+                    dispatch(remove(cell.id));
+                  });
+                  
+                  dispatch(merge(mergeEntry));
+                  toast.success("Merged successfully");
+                  setPendingMergeSuggestion(null);
+                }
+              }}
+            >
+              Merge
+            </button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      </div>
+
+      <DragOverlay dropAnimation={null}>
+        {activeDragData?.type === "CELL_ITEM" && activeDragData.subjectId && subjectsRedux[activeDragData.subjectId as string] ? (
+          <div className="opacity-95 shadow-2xl scale-[1.03] rotate-2 cursor-grabbing w-[280px] transition-transform">
+            <TimetableSlotCard
+              startTime={(activeDragData.startTime as string) || timetableData.timeSlots[0].startTime}
+              endTime={(activeDragData.endTime as string) || timetableData.timeSlots[0].endTime}
+              isSelected={true}
+              isLocked={false}
+              isSelectionMode={false}
+            >
+                <SubjectClassCard 
+                  data={subjectsRedux[activeDragData.subjectId as string]}
+                  scheduleEntry={((activeDragData.rowSpan as number) || 1) > 1 ? { 
+                    id: activeDragData.cellId as string, 
+                    subjectId: activeDragData.subjectId as string,
+                    dayId: "Monday", 
+                    startTime: (activeDragData.startTime as string) || timetableData.timeSlots[0].startTime, 
+                    endTime: (activeDragData.endTime as string) || timetableData.timeSlots[0].endTime, 
+                    rowSpan: activeDragData.rowSpan as number,
+                    rowStart: 0,
+                    isEditable: true,
+                    isLocked: false
+                  } as ScheduleEntry : undefined} 
+                />
+            </TimetableSlotCard>
+          </div>
+        ) : activeDragData?.type === "SUBJECT" && ((activeDragData.subject as Record<string, unknown>)?.id || activeDragData.subjectId) && subjectsRedux[((activeDragData.subject as Record<string, unknown>)?.id as string || activeDragData.subjectId as string)] ? (
+          <div className="opacity-95 shadow-2xl scale-[1.03] rotate-2 cursor-grabbing w-[280px] transition-transform">
+                <TimetableSlotCard
+                  startTime={timetableData.timeSlots[0].startTime}
+                  endTime={timetableData.timeSlots[0].endTime}
+                  isSelected
+                  isLocked={false}
+                  isSelectionMode={false}
+            >
+              <SubjectClassCard data={subjectsRedux[((activeDragData.subject as Record<string, unknown>)?.id as string || activeDragData.subjectId as string)]} />
+            </TimetableSlotCard>
+          </div>
+        ) : null}
+      </DragOverlay>
+    </DndContext>
+  );
+}
+
+==== features\timetable\components\TimetableGrid.tsx ====
+"use client";
+
+import DayHeader from "./DayHeader";
+import TimetableCell from "./TimetableCell";
+import BreakRow from "./BreakRow";
+import { memo, useCallback } from "react";
+import { Settings2 } from "lucide-react";
+
+import type {
+  SubjectCardData,
+  TimetableCell as TimetableCellType,
+} from "@/types/timetable";
+import { useSelector, useDispatch } from "react-redux";
+import { RootState, AppDispatch } from "@/store/store";
+import { toggleCellSelection } from "@/store/timetableEngineSlice";
+import { toggleGridEditMode } from "@/store/gridConfigSlice";
+import { GridBreak } from "@/store/gridConfigSlice";
+import { updateBreakDurationAndSync, removeBreakAndSync } from "@/store/syntheticActions";
+
+import SelectionToolbar from "./SelectionToolbar";
+import type { SelectedCell } from "@/types/timetableSpan";
+import { isOverlap, formatTime, parseTime } from "@/lib/timeEngine";
+
+interface TimeSlot {
+  id: string;
+  startTime: string;
+  endTime: string;
+}
+
+interface Day {
+  id: string;
+  name: string;
+  shortName?: string;
+}
+
+interface TimetableGridProps {
+  days: Day[];
+  timeSlots: TimeSlot[];
+  cells: TimetableCellType[];
+  subjects?: Record<string, SubjectCardData>;
+  selectedCellId?: string;
+  isGridEditMode?: boolean;
+  breaks?: GridBreak[];
+  onDaySelect?: (day: string) => void;
+  onCellClick?: (cell: TimetableCellType) => void;
+  onSubjectClick?: (cell: TimetableCellType) => void;
+  onEditTime?: (cell: TimetableCellType) => void;
+  onTimeChange?: (cell: TimetableCellType, newStartTime: string, newEndTime: string) => void;
+  onAssignSlot?: (cell: TimetableCellType, subjectId: string) => void;
+  editingGroupId?: string | null;
+  onCancelEdit?: () => void;
+  onSaveEdit?: (subject: SubjectCardData, updatedTime?: {startTime: string; endTime: string}, swappedSubjectId?: string) => void;
+}
+
+const BADGE_STYLES: Record<string, { bg: string; border: string; text: string; label: string }> = {
+  THEORY: { bg: "bg-blue-100/50", border: "border-l-blue-500", text: "text-blue-600", label: "T" },
+  LAB: { bg: "bg-green-100/50", border: "border-l-green-500", text: "text-green-600", label: "L" },
+  TUTORIAL: { bg: "bg-purple-100/50", border: "border-l-purple-500", text: "text-purple-600", label: "TUT" },
+  ELECTIVE: { bg: "bg-orange-100/50", border: "border-l-orange-500", text: "text-orange-600", label: "E" },
+};
+
+export default memo(function TimetableGrid({
+  days,
+  timeSlots,
+  cells,
+  subjects = {},
+  selectedCellId,
+  isGridEditMode = false,
+  breaks = [],
+  onDaySelect,
+  onCellClick,
+  onSubjectClick,
+  onEditTime,
+  onTimeChange,
+  onAssignSlot,
+  editingGroupId,
+  onCancelEdit,
+  onSaveEdit,
+}: TimetableGridProps) {
+  const dispatch = useDispatch<AppDispatch>();
+  
+  const { selectedCells, selectionMode, allocations } = useSelector((state: RootState) => state.timetableEngine);
+  const { conflicts } = useSelector((state: RootState) => state.validation);
+  
+  const handleToggleCellSelection = useCallback((cell: SelectedCell) => {
+    dispatch(toggleCellSelection(cell));
+  }, [dispatch]);
+
+  const getCell = useCallback(
+    (dayName: string, startTime: string, endTime: string) => {
+      return cells.find(
+        (c) =>
+          c.day === dayName &&
+          c.startTime === startTime &&
+          c.endTime === endTime
+      );
+    },
+    [cells]
+  );
+
+  return (
+    <>
+      <SelectionToolbar />
+      {/* MOBILE TIMELINE VIEW */}
+      <div className="flex flex-col gap-4 lg:hidden">
+        {/* Mobile Date Selector (Example static days as per design) */}
+        <div className="flex w-full items-center justify-between overflow-x-auto border-b border-slate-200 bg-white px-2 pt-3">
+          {["MON 12", "TUE 13", "WED 14", "THU 15", "FRI 16"].map((day, i) => (
+            <div key={i} className="flex flex-col items-center justify-center px-4 cursor-pointer relative pb-2">
+              <span className={`text-[10px] font-bold ${i === 0 ? "text-[#0D2463]" : "text-slate-500"}`}>{day.split(" ")[0]}</span>
+              <span className={`text-sm font-semibold mt-1 ${i === 0 ? "text-[#0D2463]" : "text-slate-900"}`}>{day.split(" ")[1]}</span>
+              {i === 0 && <div className="absolute bottom-0 left-0 w-full h-[2px] bg-[#0D2463]" />}
+            </div>
+          ))}
+        </div>
+
+        {/* Legend */}
+        <div className="flex items-center gap-4 px-4 text-[10px] font-semibold text-slate-600">
+          <div className="flex items-center gap-1.5"><span className="h-1.5 w-1.5 rounded-full bg-blue-500" /> Theory</div>
+          <div className="flex items-center gap-1.5"><span className="h-1.5 w-1.5 rounded-full bg-green-500" /> Lab</div>
+          <div className="flex items-center gap-1.5"><span className="h-1.5 w-1.5 rounded-full bg-purple-500" /> Tutorial</div>
+        </div>
+
+        {/* Timeline Items */}
+        <div className="flex flex-col gap-4 px-4 pb-20">
+          {timeSlots.map((timeSlot) => {
+            const day = days[0]?.name || "Monday";
+            const cell = getCell(day, timeSlot.startTime, timeSlot.endTime);
+            const subject = cell?.assignment ? subjects[cell.assignment.subjectId] : undefined;
+            const breakAfterThis = breaks.find(b => b.afterPeriodId === timeSlot.id);
+
+            return (
+              <div key={timeSlot.id} className="contents">
+              <div className="flex items-start gap-3 w-full">
+                <div className="w-[60px] shrink-0 pt-2 text-right text-[10px] font-semibold text-slate-500">
+                  {timeSlot.startTime}
+                  <div className="text-[9px] text-slate-400 opacity-0">{timeSlot.endTime}</div>
+                </div>
+
+                <div className="min-w-0 flex-1">
+                  {subject ? (
+                    <div
+                      className={`relative flex w-full flex-col gap-1 rounded-xl border border-slate-200 border-l-[4px] p-3 shadow-sm ${BADGE_STYLES[subject.type]?.bg || BADGE_STYLES.THEORY.bg
+                        } ${BADGE_STYLES[subject.type]?.border || BADGE_STYLES.THEORY.border}`}
+                    >
+                      <div className="flex items-start justify-between">
+                        <h4 className="text-sm font-bold text-[#0D2463]">{subject.subjectName}</h4>
+                        <span className={`rounded bg-white px-2 py-0.5 text-[9px] font-bold border border-slate-100 ${BADGE_STYLES[subject.type]?.text || BADGE_STYLES.THEORY.text}`}>
+                          {BADGE_STYLES[subject.type]?.label || BADGE_STYLES.THEORY.label}
+                        </span>
+                      </div>
+                      <div className="mt-1 flex items-center gap-1.5 text-[11px] text-slate-600">
+                        <svg className="h-3.5 w-3.5 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2"><path strokeLinecap="round" strokeLinejoin="round" d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z" /></svg>
+                        {subject.facultyName}
+                      </div>
+                      <div className="flex items-center gap-1.5 text-[11px] text-slate-600">
+                        <svg className="h-3.5 w-3.5 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2"><path strokeLinecap="round" strokeLinejoin="round" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" /></svg>
+                        {subject.roomName}
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="flex h-[72px] items-center justify-center rounded-xl border border-dashed border-slate-300 bg-white">
+                      <span className="text-[10px] font-bold text-slate-400">+ ASSIGN</span>
+                    </div>
+                  )}
+                </div>
+              </div>
+              {breakAfterThis && (
+                <div className="w-full mt-4 mb-4">
+                  <BreakRow
+                    id={breakAfterThis.id}
+                    label={breakAfterThis.label}
+                    startTime={timeSlot.endTime}
+                    endTime={formatTime(parseTime(timeSlot.endTime) + breakAfterThis.durationMinutes)}
+                    durationMinutes={breakAfterThis.durationMinutes}
+                    isGridEditMode={isGridEditMode}
+                    onRemove={() => dispatch(removeBreakAndSync({ id: breakAfterThis.id }))}
+                    onEditDuration={(mins) => dispatch(updateBreakDurationAndSync({ id: breakAfterThis.id, durationMinutes: mins }))}
+                  />
+                </div>
+              )}
+              </div>
+            );
+          })}
+        </div>
+      </div>
+
+      {/* DESKTOP GRID VIEW */}
+      <div
+        className="
+          hidden
+          flex-col
+          h-full
+          min-h-0
+          overflow-hidden
+          rounded-[24px]
+          bg-[#F8FAFC]
+          shadow-sm
+          lg:flex
+          border border-slate-200/60
+          relative
+        "
+      >
+        {/* Configure Grid Floating Button */}
+        <div className="absolute top-3 right-4 z-20">
+          <button
+            onClick={() => dispatch(toggleGridEditMode())}
+            className={`flex items-center gap-2 rounded-full px-4 py-2 text-[13px] font-bold shadow-md transition-all duration-300 hover:scale-105 active:scale-95 ${
+              isGridEditMode
+                ? "bg-slate-800 text-white shadow-slate-300/50"
+                : "bg-white/90 backdrop-blur-md border border-slate-200 text-slate-700 hover:bg-white hover:text-blue-600 hover:shadow-lg hover:border-blue-200"
+            }`}
+          >
+            <Settings2 className={`h-4 w-4 ${isGridEditMode ? "animate-spin-slow text-white" : ""}`} />
+            {isGridEditMode ? "Finish Editing" : "Configure Grid"}
+          </button>
+        </div>
+
+        {/* Grid Content */}
+        <div className={`overflow-auto flex-1 ${days.length > 5 ? 'p-2 pt-16' : 'p-4 pt-16'}`}>
+          <div
+            className={`grid ${days.length > 5 ? 'gap-x-[4px] gap-y-[4px]' : 'gap-x-[8px] gap-y-[8px]'}`}
+            style={{
+              gridTemplateColumns: `repeat(${days.length}, minmax(${days.length > 5 ? '250px' : '280px'}, 1fr))`,
+            }}
+          >
+            {/* Day Headers */}
+            {days.map((day) => (
+              <DayHeader
+                key={day.id}
+                day={day.name}
+                shortLabel={day.shortName}
+                onClick={() => onDaySelect?.(day.name)}
+              />
+            ))}
+
+            {/* Rows */}
+            {timeSlots.map((timeSlot, rowIndex) => {
+              const breakAfterThis = breaks.find(b => b.afterPeriodId === timeSlot.id);
+              return (
+              <div key={timeSlot.id} className="contents">
+                {/* Cells */}
+                {days.map((day) => {
+
+
+
+
+
+
+                  const allocationsInCell = Object.values(allocations).filter((a) => {
+                    const isSameDay = a.dayId === day.name || a.dayId === day.id;
+                    if (!isSameDay) return false;
+                    return isOverlap(
+                      { startTime: a.startTime, endTime: a.endTime },
+                      { startTime: timeSlot.startTime, endTime: timeSlot.endTime }
+                    );
+                  });
+
+                  if (allocationsInCell.length > 0) {
+                    // Just take the first one to render, but mark conflict if multiple
+                    const allocation = allocationsInCell[0];
+                    const allocSubject = allocation.subjectId ? subjects[allocation.subjectId] : undefined;
+                    const isLocked = allocation.isLocked;
+                    
+                    // Check for conflicts
+                    const allocConflicts = conflicts.filter(c => c.cellIds?.includes(allocation.id));
+                    const isConflict = allocConflicts.length > 0 || allocationsInCell.length > 1;
+                    
+                    // Calculate how many slots this allocation spans across the whole day
+                    const overlappingSlots = timeSlots.filter(t => 
+                      isOverlap(
+                        { startTime: allocation.startTime, endTime: allocation.endTime }, 
+                        { startTime: t.startTime, endTime: t.endTime }
+                      )
+                    );
+
+                    // Render only in the FIRST slot it overlaps with
+                    if (overlappingSlots.length > 0 && timeSlot.startTime === overlappingSlots[0].startTime) {
+                      return (
+                        <TimetableCell
+                          key={allocation.id}
+                          cell={{
+                            id: allocation.id,
+                            day: day.name,
+                            startTime: allocation.startTime,
+                            endTime: allocation.endTime,
+                            isAssigned: true,
+                            assignment: { subjectId: allocation.subjectId }
+                          }}
+                          subject={allocSubject}
+                          selected={selectedCellId === allocation.id || selectedCells.some(c => c.id === allocation.id)}
+                          onCellClick={onCellClick}
+                          onSubjectClick={onSubjectClick}
+                          onEditTime={onEditTime}
+                          onTimeChange={onTimeChange}
+                          onAssignSlot={onAssignSlot}
+                          availableSubjects={Object.values(subjects)}
+                          rowIndex={rowIndex}
+                          selectionMode={selectionMode}
+                          onSelectionToggle={handleToggleCellSelection}
+                          rowSpan={overlappingSlots.length}
+                          mergedGroup={overlappingSlots.length > 1 ? allocation : undefined}
+                          isLocked={isLocked}
+                          isEditing={editingGroupId === allocation.id}
+                          onCancelEdit={onCancelEdit}
+                          onSaveEdit={onSaveEdit}
+                          isConflict={isConflict}
+                          conflictData={allocConflicts[0]}
+                        />
+                      );
+                    } else if (overlappingSlots.length > 0 && timeSlot.startTime !== overlappingSlots[0].startTime) {
+                      // Skip rendering this cell because it's covered by the rowSpan of the first cell
+                      return null; 
+                    } else {
+                       // Fallback (shouldn't happen if overlappingSlots > 0)
+                       return null;
+                    }
+                  }
+
+                  // Empty Cell
+                  const emptyCellId = `${day.id}-${timeSlot.id}`;
+                  const isSpanSelected = selectedCells.some((c) => c.id === emptyCellId);
+
+                  return (
+                    <TimetableCell
+                      key={emptyCellId}
+                      cell={{
+                        id: emptyCellId,
+                        day: day.name,
+                        startTime: timeSlot.startTime,
+                        endTime: timeSlot.endTime,
+                        isAssigned: false,
+                      }}
+                      selected={selectedCellId === emptyCellId}
+                      onCellClick={onCellClick}
+                      onAssignSlot={onAssignSlot}
+                      availableSubjects={Object.values(subjects)}
+                      rowIndex={rowIndex}
+                      isSpanSelected={isSpanSelected}
+                      selectionMode={selectionMode}
+                      onSelectionToggle={handleToggleCellSelection}
+                    />
+                  );
+                })}
+
+                {/* Optional Break Row */}
+                {breakAfterThis && (
+                  <div style={{ gridColumn: `span ${days.length}` }} className="my-1">
+                    <BreakRow
+                      id={breakAfterThis.id}
+                      label={breakAfterThis.label}
+                      startTime={timeSlot.endTime}
+                      endTime={formatTime(parseTime(timeSlot.endTime) + breakAfterThis.durationMinutes)}
+                      durationMinutes={breakAfterThis.durationMinutes}
+                      isGridEditMode={isGridEditMode}
+                      onRemove={() => dispatch(removeBreakAndSync({ id: breakAfterThis.id }))}
+                      onEditDuration={(mins) => dispatch(updateBreakDurationAndSync({ id: breakAfterThis.id, durationMinutes: mins }))}
+                    />
+                  </div>
+                )}
+              </div>
+            )})}
+          </div>
+        </div>
+      </div>
+    </>
+  );
+});
+
+==== features\timetable\components\TimetableCell.tsx ====
+"use client";
+
+import { memo } from "react";
+import { useDroppable, useDraggable } from "@dnd-kit/core";
+import EmptySlot from "./EmptySlot";
+import SubjectClassCard from "./SubjectClassCard";
+import TimetableSlotCard from "./TimetableSlotCard";
+import SubjectAssignmentEditor from "./SubjectAssignmentEditor";
+import { useDispatch } from "react-redux";
+import { AppDispatch } from "@/store/store";
+import { toggleLockSlot, removeSubjectAssignment, splitMergedPeriod } from "@/store/syntheticActions";
+import { enableSelectionMode, toggleCellSelection } from "@/store/timetableEngineSlice";
+
+import type {
+  SubjectCardData,
+  TimetableCell as TimetableCellType,
+  ScheduleEntry,
+} from "@/types/timetable";
+import { ValidationIssue } from "@/services/validationService";
+
+import type { SelectedCell } from "@/types/timetableSpan";
+
+interface TimetableCellProps {
+  cell: TimetableCellType;
+  subject?: SubjectCardData;
+  selected?: boolean;
+  onCellClick?: (cell: TimetableCellType) => void;
+  onSubjectClick?: (cell: TimetableCellType) => void;
+  onEditTime?: (cell: TimetableCellType) => void;
+  onAssignSlot?: (cell: TimetableCellType, subjectId: string) => void;
+  availableSubjects?: SubjectCardData[];
+  rowIndex?: number;
+  isSpanSelected?: boolean;
+  mergedGroup?: ScheduleEntry;
+  onSelectionToggle?: (cell: SelectedCell) => void;
+  selectionMode?: boolean;
+  rowSpan?: number;
+  isLocked?: boolean;
+  isConflict?: boolean;
+  conflictData?: ValidationIssue;
+  isEditing?: boolean;
+  onCancelEdit?: () => void;
+  onSaveEdit?: (subject: SubjectCardData, updatedTime?: {startTime: string; endTime: string}, swappedSubjectId?: string) => void;
+  onTimeChange?: (cell: TimetableCellType, newStartTime: string, newEndTime: string) => void;
+  isGridEditMode?: boolean;
+}
+
+export default memo(function TimetableCell({
+  cell,
+  subject,
+  selected = false,
+  onCellClick,
+  onSubjectClick,
+  onEditTime,
+  onAssignSlot,
+  availableSubjects = [],
+  rowIndex,
+  isSpanSelected = false,
+  mergedGroup,
+  onSelectionToggle,
+  selectionMode = false,
+  rowSpan = 1,
+  isLocked = false,
+  isConflict = false,
+  conflictData,
+  isEditing = false,
+  onCancelEdit,
+  onSaveEdit,
+  onTimeChange,
+  isGridEditMode = false,
+}: TimetableCellProps) {
+  const dispatch = useDispatch<AppDispatch>();
+  
+  const { setNodeRef, isOver } = useDroppable({
+    id: cell.id,
+    data: {
+      type: "CELL",
+      cell,
+    },
+  });
+  
+  const { setNodeRef: setDragRef, attributes, listeners, isDragging } = useDraggable({
+    id: `drag-${mergedGroup ? mergedGroup.id : cell.id}`,
+    data: {
+      type: "CELL_ITEM",
+      cellId: mergedGroup ? mergedGroup.id : cell.id,
+      subjectId: mergedGroup ? mergedGroup.subjectId : cell.assignment?.subjectId,
+      rowSpan: rowSpan,
+      startTime: mergedGroup ? mergedGroup.startTime : cell.startTime,
+      endTime: mergedGroup ? mergedGroup.endTime : cell.endTime,
+    },
+    disabled: isGridEditMode || (mergedGroup ? (mergedGroup.isLocked || isLocked) : isLocked),
+  });
+
+  const handleSlotClick = () => {
+    if (isGridEditMode) return;
+    if (selectionMode && onSelectionToggle && rowIndex !== undefined) {
+      onSelectionToggle({
+        id: cell.id,
+        day: cell.day,
+        startTime: cell.startTime,
+        endTime: cell.endTime,
+        rowIndex,
+        subjectId: cell.assignment?.subjectId,
+      });
+      return;
+    }
+
+    if (cell.isAssigned && subject) {
+      // SubjectClassCard handles its own interactions (edit, delete, lock, etc.)
+    } else {
+      onCellClick?.(cell);
+    }
+  };
+
+  /* =======================================
+     MERGED CARD
+  ======================================= */
+  if (mergedGroup) {
+    return (
+      <div 
+        ref={isGridEditMode ? undefined : setNodeRef} 
+        className={`relative ${isOver && !isGridEditMode ? "ring-2 ring-blue-500 rounded-[10px]" : ""}`} 
+        style={{ gridRow: `span ${rowSpan}` }}
+      >
+        <div 
+          ref={isGridEditMode ? undefined : (setDragRef as unknown as React.Ref<HTMLDivElement>)}
+          {...attributes} 
+          {...listeners}
+          className={`h-full ${isDragging ? "opacity-50" : ""}`}
+        >
+          <TimetableSlotCard
+            startTime={mergedGroup.startTime}
+            endTime={mergedGroup.endTime}
+            isSelected={selected || isSpanSelected}
+            isLocked={mergedGroup.isLocked || isLocked}
+            isSelectionMode={selectionMode}
+            onClick={handleSlotClick}
+            onTimeChange={(newStart, newEnd) => onTimeChange?.({ ...cell, id: mergedGroup.id, assignment: { subjectId: mergedGroup.subjectId } }, newStart, newEnd)}
+          >
+            <SubjectClassCard 
+              data={subject} 
+              scheduleEntry={mergedGroup}
+              hasConflict={subject?.hasConflict}
+              isLocked={mergedGroup.isLocked || isLocked}
+              onToggleLock={isGridEditMode ? undefined : () => {
+                dispatch(toggleLockSlot({ id: mergedGroup.id }));
+              }}
+              onEdit={isGridEditMode ? undefined : () => onEditTime?.({ ...cell, id: mergedGroup.id, assignment: { subjectId: mergedGroup.subjectId } })}
+              onDelete={isGridEditMode ? undefined : () => {
+                dispatch(removeSubjectAssignment({ cellId: mergedGroup.id }));
+              }}
+              onMerge={isGridEditMode ? undefined : () => {
+                dispatch(enableSelectionMode());
+                if (rowIndex !== undefined) {
+                  dispatch(toggleCellSelection({
+                    id: mergedGroup.id,
+                    day: mergedGroup.dayId,
+                    startTime: mergedGroup.startTime,
+                    endTime: mergedGroup.endTime,
+                    rowIndex,
+                    subjectId: mergedGroup.subjectId,
+                  }));
+                }
+              }}
+              onSplit={isGridEditMode ? undefined : () => {
+                dispatch(splitMergedPeriod({ mergedId: mergedGroup.id }));
+              }}
+              assignedTime={`${mergedGroup.startTime} - ${mergedGroup.endTime}`}
+              assignedDay={mergedGroup.dayId}
+            />
+          </TimetableSlotCard>
+        </div>
+
+        {/* Inline Editor Popup */}
+        {isEditing && subject && !isGridEditMode && (
+          <div className="absolute inset-x-0 top-0 z-[100] min-w-[300px]">
+            <SubjectAssignmentEditor
+              subject={subject}
+              scheduleEntry={{
+                id: mergedGroup.id,
+                subjectId: subject.id,
+                dayId: mergedGroup.dayId,
+                startTime: mergedGroup.startTime,
+                endTime: mergedGroup.endTime,
+                rowSpan: rowSpan,
+                rowStart: 0,
+                isEditable: true,
+                isLocked: mergedGroup.isLocked || isLocked,
+              }}
+              onCancel={() => onCancelEdit?.()}
+              onSave={(s, t, sw) => onSaveEdit?.(s, t, sw)}
+            />
+          </div>
+        )}
+      </div>
+    );
+  }
+
+  /* =======================================
+     NORMAL CELL
+  ======================================= */
+  return (
+    <div ref={isGridEditMode ? undefined : setNodeRef} className={`relative ${isOver && !isGridEditMode ? "ring-2 ring-blue-500 rounded-[10px]" : ""}`} style={{ gridRow: `span ${rowSpan}` }}>
+      {cell.isAssigned && subject ? (
+        <div 
+          ref={isGridEditMode ? undefined : (setDragRef as unknown as React.Ref<HTMLDivElement>)}
+          {...attributes} 
+          {...listeners}
+          className={`h-full ${isDragging ? "opacity-50" : ""}`}
+        >
+          <TimetableSlotCard
+            startTime={cell.startTime}
+            endTime={cell.endTime}
+            isSelected={selected || isSpanSelected}
+            isLocked={isLocked}
+            isConflict={isConflict}
+            isSelectionMode={selectionMode}
+            onClick={handleSlotClick}
+            onTimeChange={(newStart, newEnd) => onTimeChange?.(cell, newStart, newEnd)}
+          >
+            <SubjectClassCard 
+              data={subject} 
+              hasConflict={isConflict}
+              conflictData={conflictData}
+              isLocked={isLocked}
+              onToggleLock={isGridEditMode ? undefined : () => {
+                dispatch(toggleLockSlot({ id: cell.id }));
+              }}
+              onEdit={isGridEditMode ? undefined : () => onEditTime?.(cell)}
+              onDelete={isGridEditMode ? undefined : () => onSubjectClick?.(cell)}
+              onMerge={isGridEditMode ? undefined : () => {
+                dispatch(enableSelectionMode());
+                if (rowIndex !== undefined) {
+                  dispatch(toggleCellSelection({
+                    id: cell.id,
+                    day: cell.day,
+                    startTime: cell.startTime,
+                    endTime: cell.endTime,
+                    rowIndex,
+                    subjectId: cell.assignment?.subjectId,
+                  }));
+                }
+              }}
+              assignedTime={`${cell.startTime} - ${cell.endTime}`}
+              assignedDay={cell.day}
+            />
+          </TimetableSlotCard>
+        </div>
+      ) : (
+        <EmptySlot
+          isSelected={selected || isSpanSelected}
+          onClick={handleSlotClick}
+          startTime={cell.startTime}
+          endTime={cell.endTime}
+        />
+      )}
+
+      {/* Assignment Popup overlaying the card */}
+      {selected && onAssignSlot && !selectionMode && !cell.isAssigned && !isGridEditMode && (
+        <div className="absolute top-0 inset-x-0 z-50 flex flex-col rounded-[10px] border-2 border-blue-400 bg-white shadow-2xl overflow-hidden min-h-[120px] max-h-[300px]">
+          <div className="flex items-center justify-between px-3 py-2 bg-blue-50 border-b border-blue-100 shrink-0">
+            <span className="text-[11px] font-bold text-blue-800 uppercase tracking-wider">Assign Subject</span>
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                onCellClick?.({ ...cell, id: "" });
+              }}
+              className="text-slate-400 hover:text-red-500 hover:bg-white rounded-md w-6 h-6 flex items-center justify-center transition-colors"
+            >
+              âœ•
+            </button>
+          </div>
+          <div className="flex-1 overflow-y-auto p-1.5 scrollbar-thin scrollbar-thumb-slate-200 bg-white">
+            {availableSubjects.map((sub) => (
+              <button
+                key={sub.id}
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onAssignSlot(cell, sub.id);
+                }}
+                className="w-full text-left p-2 hover:bg-blue-50 rounded-lg mb-1 border border-transparent hover:border-blue-200 transition-colors flex flex-col gap-1"
+              >
+                <span className="font-bold text-slate-700 text-[13px] leading-tight line-clamp-2">{sub.subjectName}</span>
+                <span className="text-[10px] uppercase text-slate-500 font-semibold truncate">
+                  {sub.type} â€¢ {sub.facultyName}
+                </span>
+              </button>
+            ))}
+            {availableSubjects.length === 0 && (
+              <div className="text-xs text-slate-400 p-4 text-center">No subjects available</div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* Inline Editor Popup for Normal Cell */}
+      {isEditing && subject && cell.isAssigned && !isGridEditMode && (
+        <div className="absolute inset-x-0 top-0 z-[100] min-w-[300px]">
+          <SubjectAssignmentEditor
+            subject={subject}
+            scheduleEntry={{
+              id: cell.id,
+              subjectId: subject.id,
+              dayId: cell.day,
+              startTime: cell.startTime,
+              endTime: cell.endTime,
+              rowSpan: rowSpan,
+              rowStart: 0,
+              isEditable: true,
+              isLocked: isLocked,
+            }}
+            onCancel={() => onCancelEdit?.()}
+            onSave={(s, t, sw) => onSaveEdit?.(s, t, sw)}
+          />
+        </div>
+      )}
+    </div>
+  );
+});
+
+==== features\timetable\components\TimetableSlotCard.tsx ====
+"use client";
+
+import { memo } from "react";
+import { cn } from "@/lib/utils";
+import TimeRail from "./TimeRail";
+
+interface TimetableSlotCardProps {
+  children?: React.ReactNode;
+  startTime?: string;
+  endTime?: string;
+  duration?: string;
+  isSelected?: boolean;
+  isConflict?: boolean;
+  isLocked?: boolean;
+  isSelectionMode?: boolean;
+  onClick?: () => void;
+  onTimeChange?: (startTime: string, endTime: string) => void;
+}
+
+export default memo(function TimetableSlotCard({
+  children,
+  startTime,
+  endTime,
+  isSelected = false,
+  isConflict = false,
+  isLocked = false,
+  isSelectionMode = false,
+  onClick,
+  onTimeChange,
+}: TimetableSlotCardProps) {
+  
+  return (
+    <>
+      <style>{`
+        .sc-container {
+          container-type: inline-size;
+          container-name: slotcard;
+        }
+        
+        .sc-time-panel {
+          width: 72px; /* Dense */
+          min-width: 72px;
+        }
+        
+        @container slotcard (min-width: 190px) {
+          .sc-time-panel { width: 80px; min-width: 80px; } /* Tablet */
+        }
+        
+        @container slotcard (min-width: 250px) {
+          .sc-time-panel { width: 88px; min-width: 88px; } /* Desktop */
+        }
+      `}</style>
+      <div
+        onClick={onClick}
+        className={cn(
+          `
+          sc-container
+          font-inter
+          group
+          relative
+          w-full
+          h-full
+          min-h-[160px]
+          flex
+          rounded-[10px]
+          border
+          bg-white
+          overflow-hidden
+          transition-all
+          duration-200
+        `,
+          // Base style
+          "border-[#CBD5E1]",
+          
+          // Selection logic
+          isSelectionMode && "cursor-pointer hover:border-blue-400 hover:ring-2 hover:ring-blue-100",
+          (!isSelectionMode && onClick) && "cursor-pointer hover:-translate-y-[2px] hover:shadow-[0_4px_12px_rgba(15,23,42,0.04)]",
+          
+          // States
+          isConflict && "border-orange-500 border-l-[4px] bg-orange-50/30",
+          isSelected && "border-[#2563EB] ring-2 ring-[#2563EB]/20 shadow-md",
+          isLocked && "ring-1 ring-slate-300 bg-slate-50"
+        )}
+      >
+        {/* Selection Indicator */}
+        {isSelectionMode && (
+          <div className="absolute top-2 right-2 z-30">
+            <div className={cn(
+              "w-5 h-5 rounded-full border-2 flex items-center justify-center text-[10px] font-bold transition-colors",
+              isSelected 
+                ? "bg-[#2563EB] border-[#2563EB] text-white" 
+                : "border-slate-300 bg-white/50 text-transparent hover:border-[#2563EB]"
+            )}>
+              âœ“
+            </div>
+          </div>
+        )}
+
+        {/* TimeRail */}
+        <TimeRail startTime={startTime} endTime={endTime} onTimeChange={onTimeChange} />
+
+        {/* Child Content (SubjectClassCard) */}
+        <div className="flex-1 relative min-w-0 bg-transparent flex flex-col z-20">
+          {children}
+        </div>
+      </div>
+    </>
+  );
+});
+
+==== features\timetable\components\SubjectClassCard.tsx ====
+"use client";
+
+import {
+  BookOpen,
+  FlaskConical,
+  PenTool,
+  LayoutDashboard,
+  Briefcase,
+  AlertTriangle,
+  MoreVertical,
+  Lock,
+  Unlock,
+  Users,
+  Pencil,
+  Trash2,
+  GitMerge,
+  SplitSquareHorizontal,
+} from "lucide-react";
+
+import SubjectPreviewPopover from "./SubjectPreviewPopover";
+
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
+
+import type { LucideIcon } from "lucide-react";
+import { memo } from "react";
+import type { SubjectCardData, ScheduleEntry } from "@/types/timetable";
+import { ValidationIssue } from "@/services/validationService";
+
+
+interface SubjectClassCardProps {
+  data?: SubjectCardData;
+  scheduleEntry?: ScheduleEntry;
+  hasConflict?: boolean;
+  conflictData?: ValidationIssue;
+  isLocked?: boolean;
+  onToggleLock?: () => void;
+  onEdit?: () => void;
+  onDelete?: () => void;
+  onMerge?: () => void;
+  onSplit?: () => void;
+  assignedTime?: string;
+  assignedDay?: string;
+}
+
+type BadgeStyle = {
+  bg: string;
+  text: string;
+  iconBg: string;
+  icon: LucideIcon;
+};
+
+const BADGE_STYLES: Record<string, BadgeStyle> = {
+  THEORY: {
+    bg: "bg-blue-50 border-blue-200",
+    text: "text-blue-700",
+    iconBg: "bg-indigo-50 text-indigo-600",
+    icon: BookOpen,
+  },
+  LAB: {
+    bg: "bg-indigo-50 border-indigo-200",
+    text: "text-indigo-700",
+    iconBg: "bg-indigo-50 text-indigo-600",
+    icon: FlaskConical,
+  },
+  TUTORIAL: {
+    bg: "bg-slate-50 border-slate-200",
+    text: "text-slate-700",
+    iconBg: "bg-slate-100 text-slate-600",
+    icon: PenTool,
+  },
+  ELECTIVE: {
+    bg: "bg-emerald-50 border-emerald-200",
+    text: "text-emerald-700",
+    iconBg: "bg-emerald-50 text-emerald-600",
+    icon: LayoutDashboard,
+  },
+  SEMINAR: {
+    bg: "bg-cyan-50 border-cyan-200",
+    text: "text-cyan-700",
+    iconBg: "bg-cyan-50 text-cyan-600",
+    icon: Briefcase,
+  },
+  WORKSHOP: {
+    bg: "bg-purple-50 border-purple-200",
+    text: "text-purple-700",
+    iconBg: "bg-purple-50 text-purple-600",
+    icon: Briefcase,
+  },
+};
+
+export default memo(function SubjectClassCard({
+  data,
+  scheduleEntry,
+  hasConflict = false,
+  conflictData,
+  isLocked = false,
+  onToggleLock,
+  onEdit,
+  onDelete,
+  onMerge,
+  onSplit,
+  assignedTime,
+  assignedDay,
+}: SubjectClassCardProps) {
+  const typeKey = data?.type?.toUpperCase() || "THEORY";
+  const styles = BADGE_STYLES[typeKey] || BADGE_STYLES.THEORY;
+  const Icon = styles.icon;
+  const rowSpan = scheduleEntry?.rowSpan || 1;
+
+  return (
+    <div className={`flex-1 p-[14px] flex flex-col relative min-w-0 h-full font-inter bg-white rounded-r-[10px] ${rowSpan > 1 ? 'justify-center' : ''}`}>
+      
+        {/* Actions / Conflict indicator */}
+      {hasConflict && (
+        <TooltipProvider>
+          <Tooltip delayDuration={200}>
+            <TooltipTrigger asChild>
+              <div className="absolute top-2 right-8 h-4 w-4 rounded bg-orange-100 text-orange-500 flex items-center justify-center z-20 cursor-help">
+                <AlertTriangle className="h-2.5 w-2.5" />
+              </div>
+            </TooltipTrigger>
+            {conflictData && (
+              <TooltipContent className="bg-white text-slate-800 p-3 shadow-lg border border-red-100 min-w-[200px]" side="top" align="center">
+                <div className="font-bold text-red-600 flex items-center gap-2 mb-1 border-b border-red-100 pb-1">
+                  <AlertTriangle className="h-4 w-4" />
+                  {conflictData.conflictType || 'Scheduling Conflict'}
+                </div>
+                <div className="space-y-1 text-[11px]">
+                  {conflictData.affectedSubject && <div className="font-semibold text-slate-900 truncate">{conflictData.affectedSubject}</div>}
+                  {conflictData.affectedTeacher && <div className="text-slate-600">ðŸ‘¤ {conflictData.affectedTeacher}</div>}
+                  {conflictData.affectedRoom && <div className="text-slate-600">ðŸšª {conflictData.affectedRoom}</div>}
+                  {conflictData.affectedTime && <div className="text-slate-600 mt-1 pt-1 border-t border-slate-100">ðŸ•’ {conflictData.affectedTime}</div>}
+                </div>
+              </TooltipContent>
+            )}
+          </Tooltip>
+        </TooltipProvider>
+      )}
+
+      {/* 3 dots Dropdown menu */}
+      <div className="absolute top-3 right-3 flex items-center z-30">
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <button 
+              className="text-slate-300 hover:text-slate-500 transition-colors p-1 rounded-md hover:bg-slate-50 outline-none"
+              title="Options"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <MoreVertical className="w-4 h-4" />
+            </button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end" className="w-48 z-50 font-inter text-sm">
+            {!isLocked && (
+              <>
+                {onEdit && (
+                  <DropdownMenuItem onClick={(e) => { e.stopPropagation(); onEdit(); }} className="cursor-pointer">
+                    <Pencil className="w-4 h-4 mr-2 text-slate-500" /> Edit Subject
+                  </DropdownMenuItem>
+                )}
+                {onMerge && (
+                  <DropdownMenuItem onClick={(e) => { e.stopPropagation(); onMerge(); }} className="cursor-pointer text-blue-600 focus:text-blue-700 focus:bg-blue-50 font-medium">
+                    <GitMerge className="w-4 h-4 mr-2" /> Merge Periods
+                  </DropdownMenuItem>
+                )}
+                {onSplit && scheduleEntry && scheduleEntry.rowSpan > 1 && (
+                  <DropdownMenuItem onClick={(e) => { e.stopPropagation(); onSplit(); }} className="cursor-pointer text-orange-600 focus:text-orange-700 focus:bg-orange-50 font-medium">
+                    <SplitSquareHorizontal className="w-4 h-4 mr-2" /> Split Periods
+                  </DropdownMenuItem>
+                )}
+              </>
+            )}
+            
+            <DropdownMenuItem 
+              onClick={(e) => {
+                e.stopPropagation();
+                if (onToggleLock) onToggleLock();
+              }}
+              className="cursor-pointer"
+            >
+              {isLocked ? (
+                <><Unlock className="w-4 h-4 mr-2 text-blue-600" /> Unlock</>
+              ) : (
+                <><Lock className="w-4 h-4 mr-2" /> Lock</>
+              )}
+            </DropdownMenuItem>
+
+            {!isLocked && onDelete && (
+              <>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem 
+                  onClick={(e) => { e.stopPropagation(); if (onDelete) onDelete(); }}
+                  className="cursor-pointer text-red-600 focus:text-red-600 focus:bg-red-50"
+                >
+                  <Trash2 className="w-4 h-4 mr-2" /> Remove Assignment
+                </DropdownMenuItem>
+              </>
+            )}
+          </DropdownMenuContent>
+        </DropdownMenu>
+      </div>
+
+      {isLocked && (
+        <div className="absolute bottom-3 right-8 flex items-center z-20 text-slate-400">
+          <Lock className="w-3 h-3" />
+        </div>
+      )}
+
+      {/* Main Content Area */}
+      <div 
+        className={`flex-1 flex flex-col min-h-0 pt-0.5 cursor-pointer ${rowSpan > 1 ? 'justify-center' : ''}`}
+        onDoubleClick={(e) => { e.stopPropagation(); if (onEdit) onEdit(); }}
+      >
+        
+        {/* Title Area */}
+        <div className="flex items-start gap-[12px]">
+          <div className={`w-[38px] h-[38px] shrink-0 rounded-[8px] flex items-center justify-center ${styles.iconBg}`}>
+            <Icon className="w-5 h-5" />
+          </div>
+
+          <div className="flex-1 min-w-0 pr-12">
+            <h3 className="font-[700] text-[#0F172A] leading-tight text-[15px] line-clamp-2 mb-0.5" style={{ wordBreak: 'normal', overflowWrap: 'break-word' }}>
+              {data?.subjectName || "Subject"}
+            </h3>
+            <div className="flex flex-wrap items-center font-medium text-[#94A3B8] text-[12px] gap-1.5 mt-1">
+              <span className="truncate">
+                {data?.code || "CODE"} <span className="mx-0.5">â€¢</span> <span className="capitalize">{data?.type === "THEORY" ? "Lecture" : data?.type?.toLowerCase() || "Lecture"}</span>
+              </span>
+            </div>
+          </div>
+        </div>
+
+        {/* Faculty + Room Chips */}
+        <div className="mt-[14px] flex flex-nowrap items-center gap-[6px] min-w-0 w-full overflow-hidden">
+          <div className="flex items-center rounded-md border border-[#E2E8F0] bg-white px-[8px] h-[28px] min-w-0 flex-1">
+            <span className="truncate text-[12px] font-[600] text-[#475569] w-full">
+              {data?.facultyName || "Faculty"}
+            </span>
+          </div>
+
+          <div className="flex items-center shrink-0 rounded-md bg-[#EEF2FF] px-[8px] h-[28px] max-w-[90px]">
+            <span className="truncate text-[12px] font-[700] text-[#4F46E5] w-full">
+              {data?.roomName || "Room"}
+            </span>
+          </div>
+
+          {rowSpan > 1 && (
+            <div className="flex items-center shrink-0 rounded-md bg-purple-50 px-[8px] h-[28px] border border-purple-100">
+              <span className="text-[12px] font-[700] text-purple-600 whitespace-nowrap">
+                {rowSpan} Periods
+              </span>
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* Footer Area - Always bottom aligned unless merged */}
+      <div className={`${rowSpan > 1 ? 'mt-4' : 'mt-auto'} pt-3 flex items-center justify-between bg-transparent shrink-0`}>
+        <div className="flex items-center gap-1.5 text-[#94A3B8] min-w-0">
+          <Users className="w-4 h-4 shrink-0" />
+          <span className="text-[12px] font-medium truncate">{data?.section || "Section CSE V A"}</span>
+        </div>
+        
+        <div className="flex items-center gap-1">
+          {onDelete && !isLocked && (
+            <button
+               onClick={(e) => { e.stopPropagation(); onDelete(); }}
+               className="p-1.5 text-slate-300 hover:text-red-500 hover:bg-red-50 rounded-md transition-colors outline-none"
+               title="Unassign Subject"
+            >
+               <Trash2 className="w-[15px] h-[15px]" />
+            </button>
+          )}
+          {data && (
+            <SubjectPreviewPopover 
+              subject={data} 
+              assignedTime={assignedTime} 
+              assignedDay={assignedDay} 
+            />
+          )}
+        </div>
+      </div>
+
+    </div>
+  );
+});
+
+==== features\timetable\components\SubjectAllocationPanel.tsx ====
+"use client";
+
+import { useState, memo, useCallback } from "react";
+import { Plus, X } from "lucide-react";
+
+import SubjectAllocationCard from "./SubjectAllocationCard";
+import SubjectAssignmentEditor from "./SubjectAssignmentEditor";
+import type { SubjectCardData } from "@/types/timetable";
+
+interface SubjectAllocationPanelProps {
+  subjects: SubjectCardData[];
+  onUpdateSubject: (subject: SubjectCardData) => void;
+  onAddSubject: (subject: SubjectCardData) => void;
+  onClose?: () => void;
+}
+
+export default memo(function SubjectAllocationPanel({
+  subjects,
+  onUpdateSubject,
+  onAddSubject,
+  onClose,
+}: SubjectAllocationPanelProps) {
+  const [editingId, setEditingId] = useState("");
+
+  const handleSave = useCallback((updatedSubject: SubjectCardData) => {
+    onUpdateSubject(updatedSubject);
+    setEditingId("");
+  }, [onUpdateSubject]);
+
+  const handleAddNew = useCallback(() => {
+    setEditingId('NEW_DRAFT');
+  }, []);
+
+  return (
+    <aside
+      className="
+        flex
+        h-[90dvh]
+        flex-col
+        bg-white
+      "
+    >
+      {/* Header */}
+
+      <div
+        className="
+          border-b
+          border-[#E5E7EB]
+          px-5
+          py-5
+          sticky
+          top-0
+          bg-white
+          z-10
+        "
+      >
+        <div className="flex items-start justify-between">
+          <div>
+            <h2
+              className="
+                text-[20px]
+                font-semibold
+                text-slate-900
+              "
+            >
+              Subject Allocation
+            </h2>
+
+            <p
+              className="
+                mt-1
+                text-sm
+                text-slate-500
+              "
+            >
+              Manage faculty & rooms
+            </p>
+          </div>
+
+          <button
+            onClick={onClose}
+            className="
+              rounded-md
+              p-1
+              text-slate-400
+              transition-colors
+              hover:bg-slate-100
+              hover:text-slate-700
+            "
+          >
+            <X className="h-4 w-4" />
+          </button>
+        </div>
+      </div>
+
+      {/* Subject List */}
+
+      <div
+        className="
+          flex-1
+          
+          overflow-y-scroll
+          p-5
+        "
+      >
+        <div className="space-y-4">
+          {editingId === 'NEW_DRAFT' && (
+            <div className="mb-4">
+              <SubjectAssignmentEditor
+                subject={{
+                  id: `new-${Date.now()}`,
+                  subjectName: "",
+                  code: "",
+                  type: "THEORY",
+                  credits: 3,
+                  facultyName: "",
+                  roomName: "",
+                }}
+                onCancel={() => setEditingId("")}
+                onSave={(subj) => {
+                  if (!subj.subjectName) {
+                    alert("Subject Name is required!");
+                    return;
+                  }
+                  onAddSubject(subj);
+                  setEditingId("");
+                }}
+              />
+            </div>
+          )}
+
+          {subjects.map((subject) => {
+            if (editingId === subject.id) {
+              return (
+                <div key={`edit-${subject.id}`} className="mb-4">
+                  <SubjectAssignmentEditor
+                    subject={subject}
+                    onCancel={() => setEditingId("")}
+                    onSave={handleSave}
+                  />
+                </div>
+              );
+            }
+            return (
+              <SubjectAllocationCard
+                key={subject.id}
+                subject={subject}
+                onEdit={() => setEditingId(subject.id)}
+              />
+            );
+          })}
+        </div>
+      </div>
+
+      {/* Editor Modal Removed */}
+
+      {/* Footer - Fixed at bottom */}
+      <div className="p-5 flex flex-col gap-4 sticky bottom-0 bg-white border-t border-slate-200 z-10 shadow-[0_-4px_10px_rgba(0,0,0,0.02)]">
+        <button
+          onClick={handleAddNew}
+          className="
+            flex
+            h-12
+            w-full
+            items-center
+            justify-center
+            gap-2
+            rounded-xl
+            border
+            border-dashed
+            border-[#D6DDF5]
+            bg-white
+            text-sm
+            font-medium
+            text-[#4F6BFF]
+            transition-colors
+            hover:bg-[#F8FAFF]
+          "
+        >
+          <Plus className="h-4 w-4" />
+          Add New Subject
+        </button>
+      </div>
+    </aside>
+  );
+});
+
+==== features\timetable\components\SubjectAllocationCard.tsx ====
+"use client";
+
+import { Building2, MoreVertical, Pencil, Trash2, User } from "lucide-react";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import { useDispatch, useSelector } from "react-redux";
+import { RootState, AppDispatch } from "@/store/store";
+import { useDraggable } from "@dnd-kit/core";
+import { deleteSubjectGlobal } from "@/store/syntheticActions";
+
+interface SubjectAllocationCardProps {
+  subject: {
+    id: string;
+    code?: string;
+    credits?: number;
+    type: string;
+    subjectName: string;
+    facultyName: string;
+    roomName: string;
+  };
+  onEdit: () => void;
+}
+
+export default function SubjectAllocationCard({
+  subject,
+  onEdit,
+}: SubjectAllocationCardProps) {
+
+
+  const dispatch = useDispatch<AppDispatch>();
+  const { allocations } = useSelector((state: RootState) => state.timetableEngine);
+
+  const { attributes, listeners, setNodeRef, isDragging } = useDraggable({
+    id: subject.id,
+    data: {
+      type: "SUBJECT",
+      subject,
+    },
+  });
+
+  const handleDelete = () => {
+    // Check if assigned
+    const isAssigned = Object.values(allocations).some(a => a.subjectId === subject.id);
+    
+    if (isAssigned) {
+      if (confirm("Subject currently used.\n\nDelete subject and ALL timetable allocations globally?")) {
+        dispatch(deleteSubjectGlobal({ subjectId: subject.id }));
+      }
+    } else {
+      dispatch(deleteSubjectGlobal({ subjectId: subject.id }));
+    }
+  };
+
+  return (
+    <div
+      ref={setNodeRef}
+      {...listeners}
+      {...attributes}
+      onClick={onEdit}
+      className={`
+        rounded-2xl
+        border
+        bg-white
+        transition-all
+        cursor-grab
+        active:cursor-grabbing
+        ${isDragging ? "opacity-50 ring-2 ring-blue-500 shadow-xl" : "border-[#E5E7EB] hover:border-slate-300 hover:shadow-sm"}
+      `}
+    >
+      <div className="p-[16px] flex flex-col gap-4">
+        {/* HEADER */}
+        <div className="flex items-start justify-between">
+          <div className="flex-1 min-w-0 pr-4">
+            <h3
+              className="
+                text-[15px]
+                font-bold
+                text-slate-900
+                leading-tight
+                truncate
+              "
+              title={subject.subjectName}
+            >
+              {subject.subjectName}
+            </h3>
+            <div className="mt-1 flex flex-wrap items-center gap-1.5">
+              <span
+                className="
+                  text-[11px]
+                  font-semibold
+                  uppercase
+                  tracking-wider
+                  text-slate-500
+                "
+              >
+                {subject.code || "CODE"}
+              </span>
+
+              <span className="text-[11px] font-semibold text-slate-300">
+                â€¢
+              </span>
+
+              <span
+                className="
+                  text-[11px]
+                  font-semibold
+                  uppercase
+                  tracking-wider
+                  text-slate-500
+                "
+              >
+                {subject.credits || 4} CREDITS
+              </span>
+            </div>
+          </div>
+
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <button
+                onClick={(e) => e.stopPropagation()}
+                className="
+                  flex
+                  h-8
+                  w-8
+                  shrink-0
+                  items-center
+                  justify-center
+                  rounded-full
+                  text-slate-400
+                  transition
+                  hover:bg-slate-50
+                  hover:text-slate-700
+                "
+              >
+                <MoreVertical className="h-4 w-4" />
+              </button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="w-48">
+              <DropdownMenuItem onClick={onEdit} className="cursor-pointer">
+                <Pencil className="mr-2 h-4 w-4" />
+                <span>Edit Subject</span>
+              </DropdownMenuItem>
+
+              <DropdownMenuItem onClick={handleDelete} className="cursor-pointer text-red-600 focus:bg-red-50 focus:text-red-700">
+                <Trash2 className="mr-2 h-4 w-4" />
+                <span>Delete Subject</span>
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+        </div>
+
+        {/* FACULTY + ROOM */}
+        <div className="grid grid-cols-2 gap-4">
+          <div>
+            <p
+              className="
+                text-[10px]
+                font-bold
+                uppercase
+                tracking-wider
+                text-slate-400
+              "
+            >
+              Faculty
+            </p>
+
+            <div
+              className="
+                mt-1
+                flex
+                items-center
+                gap-2
+                text-[13px]
+                font-semibold
+                text-slate-700
+              "
+            >
+              <User className="h-4 w-4 text-[#2563EB]" />
+              <span className="truncate">{subject.facultyName || "Unassigned"}</span>
+            </div>
+          </div>
+
+          <div>
+            <p
+              className="
+                text-[10px]
+                font-bold
+                uppercase
+                tracking-wider
+                text-slate-400
+              "
+            >
+              Room
+            </p>
+
+            <div
+              className="
+                mt-1
+                flex
+                items-center
+                gap-2
+                text-[13px]
+                font-semibold
+                text-slate-700
+              "
+            >
+              <Building2 className="h-4 w-4 text-[#2563EB]" />
+              <span className="truncate">{subject.roomName || "Unassigned"}</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+==== features\timetable\components\ValidationFooter.tsx ====
+"use client";
+
+import { CheckCircle2, RotateCcw, RotateCw, Trash2, AlertTriangle, AlertCircle } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { useSelector, useDispatch } from "react-redux";
+import { RootState, AppDispatch } from "@/store/store";
+import { undoAction, redoAction, clearAllAllocations } from "@/store/syntheticActions";
+
+interface ValidationFooterProps {
+  onOpenConflicts?: () => void;
+}
+
+export default function ValidationFooter({ onOpenConflicts }: ValidationFooterProps) {
+  const dispatch = useDispatch<AppDispatch>();
+  const validation = useSelector((state: RootState) => state.validation);
+  
+  const hasConflicts = validation.conflicts.length > 0;
+  const hasWarnings = validation.warnings.length > 0;
+  const totalIssues = validation.conflicts.length + validation.warnings.length;
+
+  const handleClearAll = () => {
+    if (confirm("Are you sure you want to clear ALL allocations in the timetable? Subjects, rooms, and faculty will not be deleted.")) {
+      dispatch(clearAllAllocations());
+    }
+  };
+
+  const handleUndo = () => dispatch(undoAction());
+  const handleRedo = () => dispatch(redoAction());
+
+  return (
+    <div className={`flex flex-col sm:flex-row items-center justify-between rounded-xl border bg-white p-4 shadow-[0_-4px_6px_-1px_rgb(0,0,0,0.05)] lg:shadow-sm transition-colors ${hasConflicts ? 'border-orange-200 cursor-pointer hover:bg-orange-50/30' : hasWarnings ? 'border-yellow-200' : 'border-[#E5E7EB]'}`}
+         onClick={() => {
+           if (hasConflicts && onOpenConflicts) {
+             onOpenConflicts();
+           }
+         }}
+    >
+      {/* Left side: Status */}
+      <div className="flex items-center gap-3">
+        {hasConflicts ? (
+          <div className="flex h-10 w-10 items-center justify-center rounded-full bg-orange-50">
+            <AlertTriangle className="h-5 w-5 text-orange-500" />
+          </div>
+        ) : hasWarnings ? (
+          <div className="flex h-10 w-10 items-center justify-center rounded-full bg-yellow-50">
+            <AlertCircle className="h-5 w-5 text-yellow-500" />
+          </div>
+        ) : (
+          <div className="flex h-10 w-10 items-center justify-center rounded-full bg-green-50">
+            <CheckCircle2 className="h-5 w-5 text-green-500" />
+          </div>
+        )}
+        <div>
+          <h4 className={`text-sm font-semibold ${hasConflicts ? 'text-slate-900' : 'text-slate-900'}`}>
+            {hasConflicts ? "Scheduling Conflicts Detected" : hasWarnings ? "Scheduling Warnings" : "Schedule Validated"}
+          </h4>
+          <p className="text-xs text-slate-500">
+            {hasConflicts || hasWarnings 
+              ? `${totalIssues} issue(s) found. Check faculty and room availability.`
+              : "No critical conflicts detected for the current week."
+            }
+          </p>
+        </div>
+      </div>
+
+      {/* Right side: Actions */}
+      <div className="mt-4 flex items-center gap-2 sm:mt-0">
+        <Button variant="ghost" className="h-9 gap-2 text-slate-600" onClick={handleUndo}>
+          <RotateCcw className="h-4 w-4" />
+          <span className="hidden sm:inline">Undo</span>
+        </Button>
+        <Button variant="ghost" className="h-9 gap-2 text-slate-600" onClick={handleRedo}>
+          <RotateCw className="h-4 w-4" />
+          <span className="hidden sm:inline">Redo</span>
+        </Button>
+        
+        <div className="mx-2 h-4 w-px bg-slate-200" />
+
+        <Button variant="ghost" className="h-9 gap-2 text-red-600 hover:bg-red-50 hover:text-red-700" onClick={handleClearAll}>
+          <Trash2 className="h-4 w-4" />
+          <span className="hidden sm:inline">Clear All</span>
+        </Button>
+      </div>
+    </div>
+  );
+}
+
+==== features\timetable\components\GridConfigPanel.tsx ====
+import { useState, useEffect, useMemo } from "react";
+import { useDispatch, useSelector } from "react-redux";
+import { RootState, AppDispatch } from "@/store/store";
+import {
+  toggleGridEditMode,
+  toggleDay,
+  GridBreak,
+  GridTimeSlot
+} from "@/store/gridConfigSlice";
+import { applyGridConfigurationAndSync } from "@/store/syntheticActions";
+import { X, Clock, Plus, CalendarDays, Trash2, GripVertical, Save, Minus, Settings } from "lucide-react";
+import { toast } from "sonner";
+import { parseTime, formatTime } from "@/lib/timeEngine";
+
+import {
+  DndContext,
+  closestCenter,
+  KeyboardSensor,
+  PointerSensor,
+  useSensor,
+  useSensors,
+  DragEndEvent
+} from "@dnd-kit/core";
+import {
+  arrayMove,
+  SortableContext,
+  sortableKeyboardCoordinates,
+  verticalListSortingStrategy,
+  useSortable
+} from "@dnd-kit/sortable";
+import { CSS } from "@dnd-kit/utilities";
+
+import { parse, format } from 'date-fns';
+
+type TimelineItem = {
+  id: string;
+  type: 'PERIOD' | 'BREAK';
+  label: string;
+  durationMinutes: number;
+  originalPeriodId?: string;
+  originalBreakId?: string;
+  breakType?: GridBreak['type'];
+};
+
+function SortableItem({ item, timeRange, onDelete, onUpdateDuration }: { item: TimelineItem; timeRange: string; onDelete: (id: string) => void; onUpdateDuration: (id: string, mins: number) => void }) {
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: item.id });
+  const style = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+    zIndex: isDragging ? 50 : 1,
+    opacity: isDragging ? 0.6 : 1,
+  };
+
+  const isPeriod = item.type === 'PERIOD';
+
+  return (
+    <div
+      ref={setNodeRef}
+      style={style}
+      className={`rounded-2xl border transition-all duration-200 ${isPeriod ? 'border-slate-200 bg-white hover:border-[#4F6BFF]/30 hover:shadow-md' : 'border-orange-200 bg-orange-50/50 hover:shadow-md'}`}
+    >
+      <div className="p-4 flex flex-col gap-3">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-3 flex-1 min-w-0">
+            <div {...attributes} {...listeners} className="cursor-grab active:cursor-grabbing text-slate-300 hover:text-slate-500 transition-colors p-1 -ml-1">
+              <GripVertical className="w-4 h-4" />
+            </div>
+            <h4 className={`text-[14px] font-bold truncate ${isPeriod ? 'text-slate-800' : 'text-[#C2410C]'}`}>
+                {isPeriod ? item.label : item.breakType}
+            </h4>
+          </div>
+          {!isPeriod && (
+            <button onClick={() => onDelete(item.id)} className="text-red-400 hover:text-red-600 transition-colors p-1 rounded-md hover:bg-red-50">
+              <Trash2 className="w-4 h-4" />
+            </button>
+          )}
+        </div>
+        
+        <div className="flex items-center justify-between pl-8">
+            <span className="text-[11px] font-bold text-slate-400 tracking-wider bg-slate-100/50 px-2 py-1 rounded-md">{timeRange}</span>
+            <div className="flex items-center gap-2 bg-slate-50 border border-slate-100 rounded-lg p-1">
+                <button 
+                  onClick={() => onUpdateDuration(item.id, Math.max(5, item.durationMinutes - 5))}
+                  className="w-6 h-6 flex items-center justify-center rounded-md hover:bg-white hover:shadow-sm text-slate-500 transition-all"
+                >
+                  <Minus className="w-3 h-3" />
+                </button>
+                <span className="text-[12px] font-bold w-6 text-center text-slate-700">{item.durationMinutes}</span>
+                <button 
+                  onClick={() => onUpdateDuration(item.id, item.durationMinutes + 5)}
+                  className="w-6 h-6 flex items-center justify-center rounded-md hover:bg-white hover:shadow-sm text-slate-500 transition-all"
+                >
+                  <Plus className="w-3 h-3" />
+                </button>
+            </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+export default function GridConfigPanel() {
+  const dispatch = useDispatch<AppDispatch>();
+  const config = useSelector((state: RootState) => state.gridConfig);
+
+  // Local state for Period Structure form
+  const [startTime, setStartTime] = useState(config.startTime);
+  const [timelineItems, setTimelineItems] = useState<TimelineItem[]>([]);
+
+  // Initialize timeline items
+  useEffect(() => {
+    if (!config.isGridEditMode) return;
+    
+    const items: TimelineItem[] = [];
+    
+    const initialBreaks = config.breaks.filter(b => b.afterPeriodId === '0' || !b.afterPeriodId);
+    initialBreaks.forEach(b => {
+       items.push({
+          id: `break-${b.id}`,
+          type: 'BREAK',
+          label: b.label,
+          durationMinutes: b.durationMinutes,
+          originalBreakId: b.id,
+          breakType: b.type
+       });
+    });
+
+    config.timeSlots.forEach(ts => {
+       items.push({
+          id: `period-${ts.id}`,
+          type: 'PERIOD',
+          label: ts.label, 
+          durationMinutes: ts.durationMinutes || config.defaultPeriodDuration,
+          originalPeriodId: ts.id
+       });
+       
+       const breaksAfter = config.breaks.filter(b => b.afterPeriodId === ts.id);
+       breaksAfter.forEach(b => {
+          items.push({
+             id: `break-${b.id}`,
+             type: 'BREAK',
+             label: b.label,
+             durationMinutes: b.durationMinutes,
+             originalBreakId: b.id,
+             breakType: b.type
+          });
+       });
+    });
+    // eslint-disable-next-line
+    setTimelineItems(items);
+  }, [config.timeSlots, config.breaks, config.isGridEditMode, config.defaultPeriodDuration]);
+
+  const sensors = useSensors(
+    useSensor(PointerSensor),
+    useSensor(KeyboardSensor, {
+      coordinateGetter: sortableKeyboardCoordinates,
+    })
+  );
+
+  const handleDragEnd = (event: DragEndEvent) => {
+    const { active, over } = event;
+    if (over && active.id !== over.id) {
+      setTimelineItems((items) => {
+        const oldIndex = items.findIndex((i) => i.id === active.id);
+        const newIndex = items.findIndex((i) => i.id === over.id);
+        return arrayMove(items, oldIndex, newIndex);
+      });
+    }
+  };
+
+  const handleAddBreak = (presetMins: number, type: GridBreak['type']) => {
+    const newBreakId = `new-break-${Date.now()}`;
+    setTimelineItems(items => [
+      ...items,
+      {
+        id: newBreakId,
+        type: 'BREAK',
+        label: type,
+        durationMinutes: presetMins,
+        breakType: type
+      }
+    ]);
+  };
+  
+  const handleAddPeriod = () => {
+    const newPeriodId = `new-period-${Date.now()}`;
+    const periodCount = timelineItems.filter(i => i.type === 'PERIOD').length;
+    setTimelineItems(items => [
+      ...items,
+      {
+        id: newPeriodId,
+        type: 'PERIOD',
+        label: `Period ${periodCount + 1}`,
+        durationMinutes: config.defaultPeriodDuration,
+      }
+    ]);
+  };
+
+  const handleDeleteItem = (id: string) => {
+    setTimelineItems(items => items.filter(i => i.id !== id));
+  };
+
+  const handleUpdateDuration = (id: string, mins: number) => {
+    setTimelineItems(items => items.map(i => i.id === id ? { ...i, durationMinutes: mins } : i));
+  };
+
+  const handleSaveGrid = () => {
+    const newTimeSlots: GridTimeSlot[] = [];
+    const newBreaks: GridBreak[] = [];
+    
+    let periodIndex = 1;
+    let lastPeriodId = "0"; 
+    
+    let currentMins = parseTime(startTime);
+    
+    timelineItems.forEach(item => {
+        const itemStart = formatTime(currentMins);
+        currentMins += item.durationMinutes;
+        const itemEnd = formatTime(currentMins);
+        
+        if (item.type === 'PERIOD') {
+           const pid = item.originalPeriodId || `p-${Date.now()}-${periodIndex}`;
+           newTimeSlots.push({
+               id: pid,
+               startTime: itemStart,
+               endTime: itemEnd,
+               label: `Period ${periodIndex}`,
+               durationMinutes: item.durationMinutes
+           });
+           lastPeriodId = pid;
+           periodIndex++;
+        } else {
+           newBreaks.push({
+               id: item.originalBreakId || `break-${Date.now()}-${Math.random()}`,
+               afterPeriodId: lastPeriodId, 
+               durationMinutes: item.durationMinutes,
+               label: item.label,
+               type: item.breakType || 'Custom Break'
+           });
+        }
+    });
+    
+    dispatch(applyGridConfigurationAndSync({
+      startTime,
+      duration: config.defaultPeriodDuration,
+      newTimeSlots,
+      newBreaks
+    }));
+    
+    toast.success("Grid configuration saved successfully!");
+    dispatch(toggleGridEditMode());
+  };
+
+  const renderedItems = useMemo(() => {
+    const startMins = parseTime(startTime);
+    const result = [];
+    let current = startMins;
+    
+    for (const item of timelineItems) {
+       const itemStart = formatTime(current);
+       const next = current + item.durationMinutes;
+       const itemEnd = formatTime(next);
+       current = next;
+       
+       let label = (item.type === 'PERIOD' ? item.label : item.breakType) || 'Unknown';
+       if (item.type === 'PERIOD' && label.includes(" - ")) {
+           const periodNum = timelineItems.filter(i => i.type === 'PERIOD').indexOf(item) + 1;
+           label = `Period ${periodNum}`;
+       }
+       
+       result.push({ ...item, label, timeRange: `${itemStart} - ${itemEnd}` });
+    }
+    return result;
+  }, [timelineItems, startTime]);
+
+  const handleTimeChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+     if (e.target.value) {
+        // e.target.value is in "HH:mm" 24h format
+        try {
+           const d = parse(e.target.value, "HH:mm", new Date());
+           if (!isNaN(d.getTime())) {
+              setStartTime(format(d, "hh:mm a"));
+           }
+        } catch {
+           // ignore
+        }
+     }
+  };
+
+  const timeInputValue = useMemo(() => {
+     try {
+       const d = parse(startTime, "hh:mm a", new Date());
+       return isNaN(d.getTime()) ? "09:00" : format(d, "HH:mm");
+     } catch {
+       return "09:00";
+     }
+  }, [startTime]);
+
+  if (!config.isGridEditMode) return null;
+
+  return (
+    <aside className="h-[90dvh] w-[400px] shrink-0 bg-white/95 backdrop-blur-xl flex flex-col z-50 border-l border-white/50 shadow-[-10px_0_40px_rgba(0,0,0,0.08)] animate-in slide-in-from-right duration-300">
+        {/* Header */}
+        <div className="border-b border-slate-100 px-6 py-6 sticky top-0 bg-white/80 backdrop-blur-md z-10 flex items-start justify-between">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-xl bg-blue-50 flex items-center justify-center text-blue-600">
+                <Settings className="w-5 h-5" />
+              </div>
+              <div>
+                <h2 className="text-[18px] font-bold text-slate-800 leading-tight">Grid Configuration</h2>
+                <p className="mt-0.5 text-xs font-semibold text-slate-500 uppercase tracking-wider">Setup Working Days & Times</p>
+              </div>
+            </div>
+            <button
+              onClick={() => dispatch(toggleGridEditMode())}
+              className="rounded-full p-2 bg-slate-50 text-slate-400 transition-colors hover:bg-red-50 hover:text-red-500"
+            >
+              <X className="h-4 w-4" />
+            </button>
+        </div>
+
+        <div className="flex-1 overflow-y-scroll p-6 space-y-8 scrollbar-hide">
+
+          {/* Working Days Section */}
+          <section className="bg-slate-50/50 p-4 rounded-2xl border border-slate-100">
+            <div className="flex items-center gap-2 pb-4">
+              <CalendarDays className="w-4 h-4 text-[#4F6BFF]" />
+              <h3 className="font-bold text-slate-800 text-[14px]">Working Days</h3>
+            </div>
+            <div className="grid grid-cols-2 gap-2.5">
+              {config.days.map(day => (
+                <label
+                  key={day.id}
+                  className={`flex items-center justify-between p-3 border rounded-xl cursor-pointer transition-all duration-200 ${day.enabled ? 'border-[#4F6BFF] bg-[#F8FAFF] shadow-sm' : 'border-slate-200 bg-white hover:border-slate-300'}`}
+                >
+                  <span className={`text-[13px] font-bold ${day.enabled ? 'text-[#4F6BFF]' : 'text-slate-500'}`}>
+                    {day.name}
+                  </span>
+                  <input
+                    type="checkbox"
+                    checked={day.enabled}
+                    onChange={(e) => dispatch(toggleDay({ name: day.name, enabled: e.target.checked }))}
+                    className="w-4 h-4 rounded border-slate-300 text-[#4F6BFF] focus:ring-[#4F6BFF] transition-all"
+                  />
+                </label>
+              ))}
+            </div>
+          </section>
+
+          {/* Timeline Setup Section */}
+          <section>
+            <div className="flex items-center justify-between pb-4">
+                <div className="flex items-center gap-2">
+                  <Clock className="w-4 h-4 text-[#4F6BFF]" />
+                  <h3 className="font-bold text-slate-800 text-[14px]">Timeline Sequence</h3>
+                </div>
+                <div className="flex items-center gap-2">
+                    <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Start</span>
+                    <input 
+                        type="time"
+                        value={timeInputValue}
+                        onChange={handleTimeChange}
+                        className="h-8 px-2 py-1 bg-slate-50 border border-slate-200 rounded-lg text-[12px] font-bold text-slate-700 outline-none focus:border-[#4F6BFF] focus:ring-1 focus:ring-[#4F6BFF] transition-all"
+                    />
+                </div>
+            </div>
+
+            {/* DND Timeline */}
+            <div className="space-y-3">
+                <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
+                    <SortableContext items={timelineItems.map(i => i.id)} strategy={verticalListSortingStrategy}>
+                        {renderedItems.map(item => (
+                            <SortableItem 
+                                key={item.id} 
+                                item={item} 
+                                timeRange={item.timeRange} 
+                                onDelete={handleDeleteItem} 
+                                onUpdateDuration={handleUpdateDuration}
+                            />
+                        ))}
+                    </SortableContext>
+                </DndContext>
+            </div>
+
+            {/* Add Buttons */}
+            <div className="flex flex-col gap-3 mt-5">
+                <button
+                    onClick={handleAddPeriod}
+                    className="flex h-11 w-full items-center justify-center gap-2 rounded-xl border-2 border-dashed border-[#D6DDF5] bg-white text-sm font-bold text-[#4F6BFF] transition-colors hover:bg-[#F8FAFF] hover:border-[#4F6BFF]/30"
+                >
+                    <Plus className="h-4 w-4" /> Add Academic Period
+                </button>
+                <div className="grid grid-cols-2 gap-3">
+                    <button
+                        onClick={() => handleAddBreak(15, 'Short Break')}
+                        className="flex h-10 w-full items-center justify-center gap-2 rounded-xl bg-orange-50/50 border border-orange-200 text-xs font-bold text-[#C2410C] transition-colors hover:bg-orange-100"
+                    >
+                        <Plus className="h-3 w-3" /> Short Break (15m)
+                    </button>
+                    <button
+                        onClick={() => handleAddBreak(45, 'Lunch Break')}
+                        className="flex h-10 w-full items-center justify-center gap-2 rounded-xl bg-orange-50/50 border border-orange-200 text-xs font-bold text-[#C2410C] transition-colors hover:bg-orange-100"
+                    >
+                        <Plus className="h-3 w-3" /> Lunch Break (45m)
+                    </button>
+                </div>
+            </div>
+            
+          </section>
+
+        </div>
+        
+        {/* Footer Actions */}
+        <div className="p-6 sticky bottom-0 bg-white/90 backdrop-blur-md border-t border-slate-100 z-10">
+            <button
+                onClick={handleSaveGrid}
+                className="flex h-12 w-full items-center justify-center gap-2 rounded-xl bg-[#4F46E5] px-4 text-[15px] font-bold text-white transition-all duration-300 hover:bg-[#4338CA] hover:shadow-[0_8px_20px_rgba(79,70,229,0.3)] hover:scale-[1.02] active:scale-[0.98]"
+            >
+                <Save className="h-5 w-5" />
+                Apply Configuration
+            </button>
+        </div>
+    </aside>
+  );
+}
+
+==== features\timetable\components\MergeSplitControls.tsx ====
+"use client";
+
+import { memo } from "react";
+import { useDispatch, useSelector } from "react-redux";
+import { RootState } from "@/store/store";
+import { disableSelectionMode, enableSelectionMode } from "@/store/timetableEngineSlice";
+import { splitMergedPeriod } from "@/store/syntheticActions";
+
+import { AppDispatch } from "@/store/store";
+
+export default memo(function MergeSplitControls({ groupId }: { groupId?: string }) {
+  const dispatch = useDispatch<AppDispatch>();
+  const { selectionMode } = useSelector((state: RootState) => state.timetableEngine);
+
+  return (
+    <div className="flex items-center gap-2">
+      {!selectionMode ? (
+        <button
+          onClick={() => dispatch(enableSelectionMode())}
+          className="px-3 py-1.5 text-xs font-semibold bg-blue-50 text-blue-600 rounded-md hover:bg-blue-100 transition-colors border border-blue-200"
+        >
+          Enable Merge Mode
+        </button>
+      ) : (
+        <button
+          onClick={() => dispatch(disableSelectionMode())}
+          className="px-3 py-1.5 text-xs font-semibold bg-slate-50 text-slate-600 rounded-md hover:bg-slate-100 transition-colors border border-slate-200"
+        >
+          Exit Merge Mode
+        </button>
+      )}
+
+      {groupId && (
+        <button
+          onClick={() => dispatch(splitMergedPeriod({ mergedId: groupId }))}
+          className="px-3 py-1.5 text-xs font-semibold bg-orange-50 text-orange-600 rounded-md hover:bg-orange-100 transition-colors border border-orange-200"
+        >
+          Split Period
+        </button>
+      )}
+    </div>
+  );
+});
+
+==== features\timetable\components\ActionToolbar.tsx ====
+"use client";
+
+import {
+  Pencil,
+  Send,
+  Eye,
+  TriangleAlert,
+  LayoutGrid,
+} from "lucide-react";
+
+
+import { Button } from "@/components/ui/button";
+import { useDispatch, useSelector } from "react-redux";
+import { runValidation, undoAction, redoAction } from "@/store/syntheticActions";
+import { RootState, AppDispatch } from "@/store/store";
+
+
+interface ActionToolbarProps {
+  onOpenConflicts?: () => void;
+  onPublish?: () => void;
+}
+
+export default function ActionToolbar({
+  onOpenConflicts,
+  onPublish,
+}: ActionToolbarProps) {
+  const dispatch = useDispatch<AppDispatch>();
+  const { conflicts } = useSelector((state: RootState) => state.validation);
+
+  return (
+    <div className="flex w-full flex-col gap-4">
+      {/* Top Row: Actions */}
+      <div className="flex w-full items-center justify-between">
+        
+        {/* Left Actions */}
+        <div className="flex items-center gap-4">
+          
+          {/* Auto Allocate */}
+          <button className="flex items-center gap-3 rounded-2xl border border-[#E5E7EB] bg-white px-4 py-3 text-left transition-all hover:border-[#4F6BFF] hover:bg-[#F8FAFF] min-w-[200px]" style={{ boxShadow: "0 2px 8px -2px rgba(0,0,0,0.05)" }}>
+            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-[#F0F4FF]">
+              <Pencil className="h-5 w-5 text-[#4F6BFF]" />
+            </div>
+            <div>
+              <h3 className="text-sm font-bold text-[#0D2463]">Auto Allocate</h3>
+              <p className="text-xs text-slate-500">Smart resource mapping</p>
+            </div>
+          </button>
+
+          {/* Detect Conflicts */}
+          <button 
+            onClick={() => {
+              dispatch(runValidation());
+              if (onOpenConflicts) onOpenConflicts();
+            }}
+            className={`flex items-center gap-3 rounded-2xl border ${conflicts.length > 0 ? 'border-red-300 bg-red-50' : 'border-[#E5E7EB] bg-white'} px-4 py-3 text-left transition-all hover:border-red-300 hover:bg-red-50 min-w-[200px]`} 
+            style={{ boxShadow: "0 2px 8px -2px rgba(0,0,0,0.05)" }}
+          >
+            <div className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-lg ${conflicts.length > 0 ? 'bg-red-100 text-red-600' : 'bg-slate-50 text-slate-500'}`}>
+              <TriangleAlert className="h-5 w-5" />
+            </div>
+            <div>
+              <h3 className={`text-sm font-bold ${conflicts.length > 0 ? 'text-red-700' : 'text-[#0D2463]'}`}>Detect Conflicts</h3>
+              <p className={`text-xs ${conflicts.length > 0 ? 'text-red-500 font-semibold' : 'text-slate-500'}`}>
+                {conflicts.length > 0 ? `${conflicts.length} Conflicts Detected` : 'Verify constraints'}
+              </p>
+            </div>
+          </button>
+        </div>
+
+        {/* Right Actions */}
+        <div className="flex items-center gap-3">
+          <div className="flex items-center gap-1 border border-slate-200 rounded-[10px] p-1 bg-white">
+            <button
+              onClick={() => {
+                dispatch(undoAction());
+              }}
+              className="p-1.5 text-slate-500 hover:text-blue-600 hover:bg-blue-50 rounded-md transition-colors"
+              title="Undo"
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 7v6h6"/><path d="M21 17a9 9 0 0 0-9-9 9 9 0 0 0-6 2.3L3 13"/></svg>
+            </button>
+            <button
+              onClick={() => {
+                dispatch(redoAction());
+              }}
+              className="p-1.5 text-slate-500 hover:text-blue-600 hover:bg-blue-50 rounded-md transition-colors"
+              title="Redo"
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 7v6h-6"/><path d="M3 17a9 9 0 0 1 9-9 9 9 0 0 1 6 2.3l3 2.7"/></svg>
+            </button>
+          </div>
+
+          <Button variant="outline" className="h-[36px] rounded-[10px] border-[#E5E7EB] px-5 font-semibold text-slate-700">
+            <Eye className="mr-2 h-4 w-4" />
+            Preview
+          </Button>
+
+          <Button 
+            className="h-[36px] rounded-[10px] bg-[#4F46E5] px-5 font-semibold text-white hover:bg-[#4338ca]"
+            onClick={onPublish}
+          >
+            <Send className="mr-2 h-4 w-4" />
+            Publish Timetable
+          </Button>
+        </div>
+      </div>
+
+      {/* Bottom Row: Filter Bar */}
+      <div className="flex w-full items-center gap-3 py-2">
+        <div className="flex h-8 w-8 items-center justify-center rounded-md border border-slate-200 bg-white text-slate-500">
+          <LayoutGrid className="h-4 w-4" />
+        </div>
+        
+        <div className="flex items-center gap-2">
+          <span className="text-xs font-bold text-blue-500 tracking-wider">â†‘â†“ SELECTED UNIT</span>
+          <select className="bg-transparent text-sm font-bold text-slate-900 outline-none cursor-pointer">
+            <option>Section CSE V A</option>
+            <option>Section CSE V B</option>
+          </select>
+        </div>
+
+      </div>
+    </div>
+  );
+}
+
+==== features\timetable\components\SelectionToolbar.tsx ====
+"use client";
+
+import { memo } from "react";
+import { useDispatch, useSelector } from "react-redux";
+import { RootState, AppDispatch } from "@/store/store";
+import { disableSelectionMode } from "@/store/timetableEngineSlice";
+import { mergeSelectedPeriods } from "@/store/syntheticActions";
+
+import { mergeEngine } from "@/lib/mergeEngine";
+import { cn } from "@/lib/utils";
+
+export default memo(function SelectionToolbar() {
+  const dispatch = useDispatch<AppDispatch>();
+  const { selectedCells, selectionMode } = useSelector((state: RootState) => state.timetableEngine);
+
+  if (!selectionMode && selectedCells.length === 0) return null;
+
+  const canMerge = mergeEngine.canMerge(selectedCells);
+
+  const handleMerge = () => {
+    if (selectedCells.length < 2) return;
+    
+    const subjId = selectedCells[0].subjectId;
+    if (!subjId) {
+      alert("Please assign a subject to the first slot before merging.");
+      return;
+    }
+
+    dispatch(mergeSelectedPeriods({ subjectId: subjId }));
+    dispatch(disableSelectionMode());
+  };
+
+  return (
+    <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 animate-in slide-in-from-bottom-8 fade-in duration-300 font-inter">
+      <div className="flex items-center gap-4 px-6 py-3 bg-white/90 backdrop-blur-md border border-slate-200/50 shadow-2xl rounded-full">
+        <div className="flex items-center gap-2 pr-4 border-r border-slate-200">
+          <div className="flex items-center justify-center w-6 h-6 rounded-full bg-[#DBEAFE] text-[#2563EB] text-xs font-bold">
+            {selectedCells.length}
+          </div>
+          <span className="text-sm font-semibold text-slate-700">Selected</span>
+        </div>
+
+        <div className="flex items-center gap-2 relative group">
+          <button
+            onClick={handleMerge}
+            disabled={!canMerge}
+            className={cn(
+              "px-4 py-1.5 text-sm font-bold rounded-full transition-colors",
+              canMerge 
+                ? "bg-[#2563EB] text-white hover:bg-[#1D4ED8] shadow-md shadow-blue-500/20" 
+                : "bg-slate-100 text-slate-400 cursor-not-allowed"
+            )}
+          >
+            Merge
+          </button>
+          
+          {!canMerge && selectedCells.length > 1 && (
+            <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 hidden group-hover:block w-max">
+              <div className="bg-slate-800 text-white text-xs py-1 px-2 rounded shadow-lg">
+                Only adjacent periods of the same subject can be merged.
+              </div>
+            </div>
+          )}
+          
+          <button
+            onClick={() => dispatch(disableSelectionMode())}
+            className="px-4 py-1.5 text-sm font-bold text-slate-600 hover:bg-slate-100 rounded-full transition-colors"
+          >
+            Cancel
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+});
+
+==== lib\mergeEngine.ts ====
+import { SelectedCell } from "@/types/timetableSpan";
+import { ScheduleEntry, TimetableData } from "@/types/timetable";
+import { selectionEngine } from "./selectionEngine";
+import { calculateDurationMinutes } from "./timeEngine";
+
+export const mergeEngine = {
+  calculateRowSpan: (startRow: number, endRow: number): number => {
+    return endRow - startRow + 1;
+  },
+
+  findMergedGroupForCell: (dayId: string, rowIndex: number, groups: Record<string, ScheduleEntry>): ScheduleEntry | undefined => {
+    return Object.values(groups).find(g => {
+      return g.dayId === dayId && rowIndex >= g.rowStart && rowIndex < g.rowStart + g.rowSpan;
+    });
+  },
+
+  canMerge: (cells: SelectedCell[]): boolean => {
+    if (cells.length < 2) return false;
+    
+    // Check adjacency
+    if (!selectionEngine.isAdjacent(cells)) return false;
+
+    // Must be assigned to a subject to merge
+    const firstSubjectId = cells[0].subjectId;
+    if (!firstSubjectId) return false;
+
+    // Strict Enterprise Validation: Same Day, Same Subject, Same Teacher, Same Room
+    const firstDay = cells[0].day;
+    // (Assuming teacherId and roomId logic will be integrated into the cells if needed, 
+    // for now we enforce exact subjectId and day matching)
+    if (cells.some(c => c.subjectId !== firstSubjectId || c.day !== firstDay)) {
+      return false; 
+    }
+
+    return true;
+  },
+
+  suggestAutoMerge: (
+    newCellIndex: number,
+    dayId: string,
+    subjectId: string,
+    allCells: { id: string; rowIndex: number; day: string; assignment?: { subjectId: string } }[]
+  ): string[] => {
+    const dayCells = allCells.filter(c => c.day === dayId).sort((a, b) => a.rowIndex - b.rowIndex);
+    const mergeGroup = [dayCells.find(c => c.rowIndex === newCellIndex)?.id].filter(Boolean) as string[];
+    
+    for (let i = newCellIndex - 1; i >= 0; i--) {
+      const c = dayCells.find(x => x.rowIndex === i);
+      if (c && c.assignment?.subjectId === subjectId) mergeGroup.unshift(c.id);
+      else break;
+    }
+    
+    for (let i = newCellIndex + 1; i < 24; i++) {
+      const c = dayCells.find(x => x.rowIndex === i);
+      if (c && c.assignment?.subjectId === subjectId) mergeGroup.push(c.id);
+      else break;
+    }
+    
+    return mergeGroup.length > 1 ? mergeGroup : [];
+  },
+
+  createMergeEntry: (cells: SelectedCell[], subjectId: string): ScheduleEntry | null => {
+    if (!mergeEngine.canMerge(cells)) return null;
+
+    const sorted = [...cells].sort((a, b) => a.rowIndex - b.rowIndex);
+    const startCell = sorted[0];
+    const endCell = sorted[sorted.length - 1];
+
+    return {
+      id: `merge-${startCell.id}-${Date.now()}`,
+      subjectId: subjectId,
+      dayId: startCell.day,
+      startTime: startCell.startTime,
+      endTime: endCell.endTime,
+      duration: calculateDurationMinutes(startCell.startTime, endCell.endTime),
+      rowStart: startCell.rowIndex,
+      rowSpan: mergeEngine.calculateRowSpan(startCell.rowIndex, endCell.rowIndex),
+      isEditable: true,
+      isLocked: false,
+    };
+  },
+
+  /**
+   * Auto Merge on Edit:
+   * Re-calculates rowSpan and rowStart based on strict time boundaries.
+   */
+  recalculateMergeBounds: (entry: ScheduleEntry, timetableData: TimetableData): ScheduleEntry => {
+    const newRowStart = timetableData.timeSlots.findIndex(t => t.startTime === entry.startTime);
+    const newRowEnd = timetableData.timeSlots.findIndex(t => t.endTime === entry.endTime);
+    
+    let newRowSpan = entry.rowSpan;
+    if (newRowStart !== -1 && newRowEnd !== -1 && newRowEnd >= newRowStart) {
+      newRowSpan = newRowEnd - newRowStart + 1;
+    }
+
+    return {
+      ...entry,
+      duration: calculateDurationMinutes(entry.startTime, entry.endTime),
+      rowStart: newRowStart !== -1 ? newRowStart : entry.rowStart,
+      rowSpan: newRowSpan
+    };
+  }
+};
+
+==== lib\selectionEngine.ts ====
+import { SelectedCell } from "@/types/timetableSpan";
+import { isAdjacentSlot, compareTimeSlots } from "./timeEngine";
+
+export const selectionEngine = {
+  isAdjacent: (cells: SelectedCell[]): boolean => {
+    if (cells.length <= 1) return true;
+    
+    // Check if they are all on the same day
+    const day = cells[0].day;
+    if (!cells.every(c => c.day === day)) return false;
+
+    // Sort by startTime
+    const sorted = [...cells].sort((a, b) => {
+      if (a.startTime && b.startTime) {
+        return compareTimeSlots(a.startTime, b.startTime);
+      }
+      return a.rowIndex - b.rowIndex;
+    });
+
+    for (let i = 1; i < sorted.length; i++) {
+      const prev = { startTime: sorted[i-1].startTime, endTime: sorted[i-1].endTime };
+      const curr = { startTime: sorted[i].startTime, endTime: sorted[i].endTime };
+      
+      if (!isAdjacentSlot(prev, curr)) {
+        return false;
+      }
+    }
+    
+    return true;
+  },
+
+  validateSelection: (newCell: SelectedCell, currentSelection: SelectedCell[]): boolean => {
+    if (currentSelection.length === 0) return true;
+    
+    if (currentSelection[0].day !== newCell.day) return false;
+
+    const testSelection = [...currentSelection, newCell];
+    return selectionEngine.isAdjacent(testSelection);
+  }
+};
+
+==== lib\timeEngine.ts ====
+import { SelectedCellData } from '@/types/timetable';
+import type { ScheduleEntry } from "@/types/timetable";
+
+export interface TimeSlotData {
+  startTime: string; // e.g., "09:00 AM"
+  endTime: string;   // e.g., "10:00 AM"
+}
+
+/**
+ * Parses a time string (e.g., "09:00 AM" or "14:30") into minutes from midnight.
+ * Example: "09:00 AM" -> 540
+ */
+export function parseTime(timeStr: string): number {
+  if (!timeStr) return 0;
+  
+  const match = timeStr.trim().match(/^(\d{1,2}):(\d{2})\s*(AM|PM)?$/i);
+  if (!match) return 0;
+
+  let hours = parseInt(match[1], 10);
+  const minutes = parseInt(match[2], 10);
+  const modifier = match[3]?.toUpperCase();
+
+  if (modifier === "PM" && hours < 12) {
+    hours += 12;
+  } else if (modifier === "AM" && hours === 12) {
+    hours = 0;
+  }
+
+  return hours * 60 + minutes;
+}
+
+/**
+ * Formats minutes from midnight back to a time string like "09:00 AM" using Intl.DateTimeFormat.
+ */
+export function formatTime(minutesFromMidnight: number): string {
+  const hours24 = Math.floor(minutesFromMidnight / 60);
+  const minutes = minutesFromMidnight % 60;
+  
+  const isPM = hours24 >= 12;
+  const hours12 = hours24 % 12 || 12;
+  
+  const hh = hours12.toString().padStart(2, "0");
+  const mm = minutes.toString().padStart(2, "0");
+  const ampm = isPM ? "PM" : "AM";
+  
+  return `${hh}:${mm} ${ampm}`;
+}
+
+/**
+ * Compares two time strings.
+ * Returns negative if timeA is before timeB, positive if timeA is after timeB, 0 if equal.
+ */
+export function compareTimes(timeA: string | number, timeB: string | number): number {
+  const minsA = typeof timeA === 'string' ? parseTime(timeA) : timeA;
+  const minsB = typeof timeB === 'string' ? parseTime(timeB) : timeB;
+  return minsA - minsB;
+}
+
+// Alias for backward compatibility
+export function compareTimeSlots(timeA: string, timeB: string): number {
+  return compareTimes(timeA, timeB);
+}
+
+/**
+ * Calculates the duration between two time strings in minutes.
+ */
+export function calculateDurationMinutes(startTime: string, endTime: string): number {
+  const startMins = parseTime(startTime);
+  let endMins = parseTime(endTime);
+  
+  if (endMins <= startMins) {
+    endMins += 24 * 60; // Handle overnight
+  }
+  
+  return endMins - startMins;
+}
+
+/**
+ * Formats a duration in minutes to a human readable string.
+ */
+export function formatDuration(minutes: number): string {
+  const hours = Math.floor(minutes / 60);
+  const mins = minutes % 60;
+  if (hours > 0 && mins > 0) return `${hours}h ${mins.toString().padStart(2, "0")}m`;
+  if (hours > 0) return `${hours}h`;
+  return `${mins}m`;
+}
+
+/**
+ * Calculates the end time given a start time and duration in minutes.
+ */
+export function calculateEndTime(startTime: string, durationMinutes: number): string {
+  const startMins = parseTime(startTime);
+  return formatTime(startMins + durationMinutes);
+}
+
+/**
+ * Calculates how many grid rows a duration spans.
+ */
+export function calculateRowSpan(durationMinutes: number, slotIntervalMinutes: number = 60): number {
+  if (slotIntervalMinutes <= 0) return 1;
+  return Math.max(1, Math.round(durationMinutes / slotIntervalMinutes));
+}
+
+/**
+ * Checks if two time slots overlap based strictly on minutes.
+ */
+export function isOverlap(slot1: TimeSlotData, slot2: TimeSlotData): boolean {
+  const s1 = parseTime(slot1.startTime);
+  const e1 = parseTime(slot1.endTime);
+  const s2 = parseTime(slot2.startTime);
+  const e2 = parseTime(slot2.endTime);
+  
+  return s1 < e2 && s2 < e1;
+}
+
+// Alias for backward compatibility
+export function isTimeOverlap(slot1: TimeSlotData, slot2: TimeSlotData): boolean {
+  return isOverlap(slot1, slot2);
+}
+
+/**
+ * Checks if two time slots are exactly adjacent.
+ */
+export function isAdjacentSlot(slot1: TimeSlotData, slot2: TimeSlotData): boolean {
+  const s1 = parseTime(slot1.startTime);
+  const e1 = parseTime(slot1.endTime);
+  const s2 = parseTime(slot2.startTime);
+  const e2 = parseTime(slot2.endTime);
+
+  return e1 === s2 || e2 === s1;
+}
+
+/**
+ * Sorts allocations chronologically by start time.
+ */
+export function sortAllocations<T extends { startTime: string }>(allocations: T[]): T[] {
+  return [...allocations].sort((a, b) => compareTimes(a.startTime, b.startTime));
+}
+
+/**
+ * Creates a merged duration spanning multiple time slots.
+ */
+export function createMergedDuration(slots: TimeSlotData[]): TimeSlotData {
+  if (slots.length === 0) throw new Error("Cannot merge empty slots array");
+  if (slots.length === 1) return slots[0];
+
+  const sorted = sortAllocations(slots);
+  
+  return {
+    startTime: sorted[0].startTime,
+    endTime: sorted[sorted.length - 1].endTime,
+  };
+}
+
+export function splitSlots(groupId: string, mergedGroups: Record<string, ScheduleEntry>) {
+  const group = mergedGroups[groupId];
+  if (!group || group.isLocked) return null;
+  return group;
+}
+
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+export function validateFaculty(_facultyId: string, _timeRange: string, _day: string): boolean {
+  return true;
+}
+
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+export function validateRoom(_roomId: string, _timeRange: string, _day: string): boolean {
+  return true;
+}
+
+export function isAdjacentSelection(selectedCells: SelectedCellData[]): boolean {
+  if (!selectedCells || selectedCells.length === 0) return false;
+  if (selectedCells.length === 1) return true;
+
+  const dayId = selectedCells[0].dayId;
+  const isSameDay = selectedCells.every((cell) => cell.dayId === dayId);
+  if (!isSameDay) return false;
+
+  const sorted = sortAllocations(selectedCells);
+  for (let i = 1; i < sorted.length; i++) {
+    if (!isAdjacentSlot(sorted[i - 1], sorted[i])) {
+      return false;
+    }
+  }
+
+  return true;
+}
+
+/**
+ * Recalculates sequential start and end times given an initial start time and an array of ordered durations.
+ * Useful for grid configuration mode when inserting breaks or changing period durations.
+ */
+export function recalculateSequentialTimes(
+  initialStartTime: string,
+  items: { id: string; durationMinutes: number }[]
+): { id: string; startTime: string; endTime: string; durationMinutes: number }[] {
+  let currentMins = parseTime(initialStartTime);
+  return items.map(item => {
+    const startMins = currentMins;
+    const endMins = currentMins + item.durationMinutes;
+    currentMins = endMins;
+    return {
+      id: item.id,
+      durationMinutes: item.durationMinutes,
+      startTime: formatTime(startMins),
+      endTime: formatTime(endMins)
+    };
+  });
+}
+
+==== lib\timetableEngine.ts ====
+/* eslint-disable @typescript-eslint/no-unused-vars */
+import { SelectedCellData } from '@/types/timetable';
+import type { ScheduleEntry } from "@/types/timetable";
+
+export function calculateDuration(startTime: string, endTime: string): string {
+  if (!startTime || !endTime) return "";
+  try {
+    const parseTime = (t: string) => {
+      const match = t.match(/(\d+):(\d+)\s*(AM|PM)?/i);
+      if (!match) return null;
+      let hours = parseInt(match[1]);
+      const minutes = parseInt(match[2]);
+      const ampm = match[3]?.toUpperCase();
+      if (ampm === "PM" && hours < 12) hours += 12;
+      if (ampm === "AM" && hours === 12) hours = 0;
+      return hours * 60 + minutes;
+    };
+    const s = parseTime(startTime);
+    const e = parseTime(endTime);
+    if (s === null || e === null) return "";
+    const diff = e - s;
+    if (diff <= 0) return "";
+    const h = Math.floor(diff / 60);
+    const m = diff % 60;
+    if (h > 0 && m > 0) return `${h}h ${m.toString().padStart(2, "0")}m`;
+    if (h > 0) return `${h}h 00m`;
+    return `${m}m`;
+  } catch {
+    return "";
+  }
+}
+
+export function calculateRowSpan(startRow: number, endRow: number): number {
+  return endRow - startRow + 1;
+}
+
+export function checkConflict(
+  cells: SelectedCellData[], 
+  occupiedSlots: Record<string, boolean>, 
+  lockedSlots: Record<string, boolean>
+): boolean {
+  for (const cell of cells) {
+    const key = `${cell.dayId}-${cell.id}`;
+    if (occupiedSlots[key] || lockedSlots[key]) {
+      return true;
+    }
+  }
+  return false;
+}
+
+export function mergeSlots(selectedCells: SelectedCellData[], subjectId: string): ScheduleEntry | null {
+  if (!selectedCells || selectedCells.length === 0) return null;
+
+  // Verify same day
+  const dayId = selectedCells[0].dayId;
+  const isSameDay = selectedCells.every((cell) => cell.dayId === dayId);
+  if (!isSameDay) return null;
+
+  // Sort by rowIndex
+  const sorted = [...selectedCells].sort((a, b) => a.rowIndex - b.rowIndex);
+
+  // Check continuous
+  for (let i = 1; i < sorted.length; i++) {
+    if (sorted[i].rowIndex !== sorted[i - 1].rowIndex + 1) {
+      return null;
+    }
+  }
+
+  const startCell = sorted[0];
+  const endCell = sorted[sorted.length - 1];
+
+  const entry: ScheduleEntry = {
+    id: `merge-${Date.now()}`,
+    subjectId: subjectId,
+    dayId: dayId || selectedCells[0].day,
+    startTime: startCell.startTime,
+    endTime: endCell.endTime,
+    rowStart: startCell.rowIndex,
+    rowSpan: calculateRowSpan(startCell.rowIndex, endCell.rowIndex),
+    isEditable: true,
+    isLocked: false,
+  };
+
+  return entry;
+}
+
+export function splitSlots(groupId: string, mergedGroups: Record<string, ScheduleEntry>) {
+  const group = mergedGroups[groupId];
+  if (!group || group.isLocked) return null;
+  return group;
+}
+
+export function validateFaculty(_facultyId: string, _timeRange: string, _day: string): boolean {
+  // Logic to prevent faculty double booking
+  // Assumes returning true means valid
+  return true;
+}
+
+export function validateRoom(_roomId: string, _timeRange: string, _day: string): boolean {
+  // Logic to prevent room double booking
+  return true;
+}
+
+export function isAdjacentSelection(selectedCells: SelectedCellData[]): boolean {
+  if (!selectedCells || selectedCells.length === 0) return false;
+  if (selectedCells.length === 1) return true;
+
+  const dayId = selectedCells[0].dayId;
+  const isSameDay = selectedCells.every((cell) => cell.dayId === dayId);
+  if (!isSameDay) return false;
+
+  const sorted = [...selectedCells].sort((a, b) => a.rowIndex - b.rowIndex);
+  for (let i = 1; i < sorted.length; i++) {
+    if (sorted[i].rowIndex !== sorted[i - 1].rowIndex + 1) {
+      return false;
+    }
+  }
+
+  return true;
+}
+
+==== lib\timetableValidation.ts ====
+import { SelectedCell } from '@/types/timetableSpan';
+import { SubjectCardData } from '@/types/timetable';
+
+export const timetableValidation = {
+  isAdjacent: (cells: SelectedCell[]): boolean => {
+    if (cells.length < 2) return true;
+    
+    const sorted = [...cells].sort((a, b) => a.rowIndex - b.rowIndex);
+    const day = sorted[0].day;
+    
+    for (let i = 1; i < sorted.length; i++) {
+      if (sorted[i].day !== day) return false;
+      if (sorted[i].rowIndex !== sorted[i - 1].rowIndex + 1) return false;
+    }
+    
+    return true;
+  },
+
+  isSameDay: (cells: SelectedCell[]): boolean => {
+    if (cells.length === 0) return true;
+    const day = cells[0].day;
+    return cells.every(c => c.day === day);
+  },
+
+  isSameSubject: (cells: SelectedCell[]): boolean => {
+    if (cells.length === 0) return true;
+    const firstSubjectId = cells[0].subjectId;
+    if (!firstSubjectId) return false; // Must be assigned a subject
+    return cells.every(c => c.subjectId === firstSubjectId);
+  },
+
+  // Note: we'd also want same faculty, same room, but right now
+  // SelectedCell only has subjectId. In a real scenario, we check the subject's properties too.
+  canMerge: (cells: SelectedCell[], subjectDataFn?: (subjectId: string) => SubjectCardData | undefined): boolean => {
+    if (cells.length < 2) return false;
+    
+    if (!timetableValidation.isSameDay(cells)) return false;
+    if (!timetableValidation.isAdjacent(cells)) return false;
+    if (!timetableValidation.isSameSubject(cells)) return false;
+    
+    // Check same faculty and room if subject data resolver is provided
+    if (subjectDataFn) {
+      const subjectId = cells[0].subjectId;
+      if (subjectId) {
+         const subject = subjectDataFn(subjectId);
+         if (subject) {
+             // In full implementation, verify same faculty and room
+             // For now we assume if same subjectId, it's the same subject class
+         }
+      }
+    }
+
+    return true;
+  }
+};
+
+==== lib\validationEngine.ts ====
+import { SubjectCardData, ScheduleEntry } from '@/types/timetable';
+import { FacultyData } from '@/services/facultyService';
+import { RoomData } from '@/services/roomService';
+import { ValidationIssue } from '@/services/validationService';
+import { isOverlap, parseTime, formatTime } from '@/lib/timeEngine';
+
+
+export interface ValidationContext {
+  allocations: Record<string, ScheduleEntry>;
+  subjects: Record<string, SubjectCardData>;
+  faculty: Record<string, FacultyData>;
+  rooms: Record<string, RoomData>;
+}
+
+// Set to true to inject artificial conflicts for UI demonstration
+const DEMO_CONFLICT_MODE = false;
+
+interface ScheduledBlock {
+  id: string; // cellId or mergedId
+  subjectId: string;
+  dayId: string;
+  startTime: string;
+  endTime: string;
+  isMerged: boolean;
+}
+
+export const validationEngine = {
+  validateAll: (context: ValidationContext): { isValid: boolean, conflicts: ValidationIssue[], warnings: ValidationIssue[] } => {
+    const conflicts: ValidationIssue[] = [];
+    const warnings: ValidationIssue[] = [];
+    
+    // Normalize all allocations into a single flat list of scheduled blocks with real start/end times
+    const allBlocks: ScheduledBlock[] = [];
+
+    Object.values(context.allocations).forEach(alloc => {
+      allBlocks.push({
+        id: alloc.id,
+        subjectId: alloc.subjectId,
+        dayId: alloc.dayId,
+        startTime: alloc.startTime,
+        endTime: alloc.endTime,
+        isMerged: alloc.rowSpan > 1
+      });
+    });
+
+    // 3. Compare every block against every other block to find overlaps
+    for (let i = 0; i < allBlocks.length; i++) {
+      const blockA = allBlocks[i];
+      const subjectA = context.subjects[blockA.subjectId];
+      if (!subjectA) continue; // Skip if subject doesn't exist
+
+      for (let j = i + 1; j < allBlocks.length; j++) {
+        const blockB = allBlocks[j];
+        const subjectB = context.subjects[blockB.subjectId];
+        if (!subjectB) continue;
+
+        // Conflicts only happen on the same day
+        if (blockA.dayId !== blockB.dayId) continue;
+
+        // Check if times overlap using timeEngine's isOverlap (minute based)
+        if (isOverlap(blockA, blockB)) {
+          const overlapStartMins = Math.max(parseTime(blockA.startTime), parseTime(blockB.startTime));
+          const overlapEndMins = Math.min(parseTime(blockA.endTime), parseTime(blockB.endTime));
+          const overlapTimeStr = `${formatTime(overlapStartMins)} - ${formatTime(overlapEndMins)}`;
+          
+          // FACULTY CONFLICT
+          if (subjectA.facultyName && subjectA.facultyName === subjectB.facultyName) {
+            conflicts.push({
+              id: `conflict-faculty-${blockA.id}-${blockB.id}`,
+              type: 'conflict',
+              code: 'ERR_FACULTY_OVERLAP',
+              message: `Faculty ${subjectA.facultyName} is double-booked on ${blockA.dayId} between ${formatTime(overlapStartMins)} and ${formatTime(overlapEndMins)}.`,
+              cellIds: [blockA.id, blockB.id],
+              conflictType: 'Faculty Conflict',
+              affectedSubject: `${subjectA.subjectName} / ${subjectB.subjectName}`,
+              affectedTeacher: subjectA.facultyName,
+              affectedRoom: subjectA.roomName || 'Unknown',
+              affectedTime: overlapTimeStr
+            });
+          }
+
+          // ROOM CONFLICT
+          if (subjectA.roomName && subjectA.roomName === subjectB.roomName) {
+            conflicts.push({
+              id: `conflict-room-${blockA.id}-${blockB.id}`,
+              type: 'conflict',
+              code: 'ERR_ROOM_OVERLAP',
+              message: `Room ${subjectA.roomName} is double-booked on ${blockA.dayId}.`,
+              cellIds: [blockA.id, blockB.id],
+              conflictType: 'Room Conflict',
+              affectedSubject: `${subjectA.subjectName} / ${subjectB.subjectName}`,
+              affectedTeacher: subjectA.facultyName || 'Unknown',
+              affectedRoom: subjectA.roomName,
+              affectedTime: overlapTimeStr
+            });
+          }
+
+          // SECTION CONFLICT (Same section cannot be in two places at once)
+          // Defaulting to "Section CSE V A" since that's what we have in mock data. 
+          // Ideally, section is tracked per allocation or subject.
+          const secA = subjectA.section || "Section CSE V A";
+          const secB = subjectB.section || "Section CSE V A";
+          if (secA === secB) {
+            conflicts.push({
+              id: `conflict-section-${blockA.id}-${blockB.id}`,
+              type: 'conflict',
+              code: 'ERR_SECTION_OVERLAP',
+              message: `${secA} has multiple classes scheduled at the same time on ${blockA.dayId}.`,
+              cellIds: [blockA.id, blockB.id],
+              conflictType: 'Section Conflict',
+              affectedSubject: `${subjectA.subjectName} / ${subjectB.subjectName}`,
+              affectedTeacher: subjectA.facultyName || 'Unknown',
+              affectedRoom: subjectA.roomName || 'Unknown',
+              affectedTime: overlapTimeStr
+            });
+          }
+        }
+      }
+
+      // WARNINGS (Missing details)
+      if (!subjectA.facultyName) {
+        warnings.push({
+          id: `warn-missing-fac-${blockA.id}`,
+          type: 'warning',
+          code: 'WARN_NO_FACULTY',
+          message: `Subject ${subjectA.subjectName} has no assigned faculty.`,
+          cellIds: [blockA.id]
+        });
+      }
+      if (!subjectA.roomName) {
+        warnings.push({
+          id: `warn-missing-room-${blockA.id}`,
+          type: 'warning',
+          code: 'WARN_NO_ROOM',
+          message: `Subject ${subjectA.subjectName} has no assigned room.`,
+          cellIds: [blockA.id]
+        });
+      }
+    }
+
+    // DEMO MODE: Inject artificial conflicts if enabled
+    if (DEMO_CONFLICT_MODE) {
+      // Find two random allocated cells to flag as conflicting for demo
+      const allocatedCellIds = Object.keys(context.allocations);
+      if (allocatedCellIds.length >= 2) {
+        conflicts.push({
+          id: 'demo-conflict-1',
+          type: 'conflict',
+          code: 'ERR_DEMO',
+          message: 'Demo Faculty Conflict Generated',
+          cellIds: [allocatedCellIds[0], allocatedCellIds[1]],
+          conflictType: 'Faculty Conflict',
+          affectedSubject: 'Data Structures / Computer Networks',
+          affectedTeacher: 'Dr. Anil Kumar',
+          affectedRoom: 'A-301',
+          affectedTime: '09:00 AM - 10:00 AM'
+        });
+      }
+    }
+
+    return {
+      isValid: conflicts.length === 0,
+      conflicts,
+      warnings
+    };
+  }
+};
+
+==== store\timetableEngineSlice.ts ====
+import { createSlice, PayloadAction } from '@reduxjs/toolkit';
+import { ScheduleEntry, SelectedCellData } from '@/types/timetable';
+import { selectionEngine } from '@/lib/selectionEngine';
+import { parseTime, formatTime } from '@/lib/timeEngine';
+
+export interface TimetableEngineState {
+  allocations: Record<string, ScheduleEntry>;
+  selectedCells: SelectedCellData[];
+  selectionMode: boolean;
+}
+
+const initialState: TimetableEngineState = {
+  allocations: {},
+  selectedCells: [],
+  selectionMode: false,
+};
+
+export const timetableEngineSlice = createSlice({
+  name: 'timetableEngine',
+  initialState,
+  reducers: {
+    assign: (state, action: PayloadAction<ScheduleEntry>) => {
+      const entry = action.payload;
+      if (state.allocations[entry.id]?.isLocked) return;
+      state.allocations[entry.id] = entry;
+    },
+    remove: (state, action: PayloadAction<string>) => {
+      if (state.allocations[action.payload]?.isLocked) return;
+      delete state.allocations[action.payload];
+    },
+    move: (state, action: PayloadAction<{ id: string; targetId?: string; newDayId: string; newStartTime: string; newEndTime: string }>) => {
+      const { id, newDayId, newStartTime, newEndTime } = action.payload;
+      const entry = state.allocations[id];
+      if (!entry || entry.isLocked) return;
+
+      state.allocations[id] = {
+        ...entry,
+        dayId: newDayId,
+        startTime: newStartTime,
+        endTime: newEndTime,
+      };
+    },
+    swap: (state, action: PayloadAction<{ sourceId: string; targetId: string }>) => {
+      const { sourceId, targetId } = action.payload;
+      const source = state.allocations[sourceId];
+      const target = state.allocations[targetId];
+
+      if (!source || source.isLocked) return;
+      if (!target || target.isLocked) return;
+
+      // Swap day and time metadata but recalculate endTime to preserve original durations
+      const sourceDuration = parseTime(source.endTime) - parseTime(source.startTime);
+      const targetDuration = parseTime(target.endTime) - parseTime(target.startTime);
+      
+      const tempDay = source.dayId;
+      const tempStart = source.startTime;
+
+      state.allocations[sourceId] = {
+        ...source,
+        dayId: target.dayId,
+        startTime: target.startTime,
+        endTime: formatTime(parseTime(target.startTime) + sourceDuration),
+      };
+
+      state.allocations[targetId] = {
+        ...target,
+        dayId: tempDay,
+        startTime: tempStart,
+        endTime: formatTime(parseTime(tempStart) + targetDuration),
+      };
+    },
+    merge: (state, action: PayloadAction<ScheduleEntry>) => {
+      state.allocations[action.payload.id] = action.payload;
+    },
+    split: (state, action: PayloadAction<string>) => {
+      delete state.allocations[action.payload];
+    },
+    updateTime: (state, action: PayloadAction<{ id: string; newStartTime: string; newEndTime: string; newRowSpan: number }>) => {
+      const { id, newStartTime, newEndTime, newRowSpan } = action.payload;
+      const entry = state.allocations[id];
+      if (!entry || entry.isLocked) return;
+
+      state.allocations[id] = {
+        ...entry,
+        startTime: newStartTime,
+        endTime: newEndTime,
+        rowSpan: newRowSpan,
+      };
+    },
+    lock: (state, action: PayloadAction<string>) => {
+      if (state.allocations[action.payload]) {
+        state.allocations[action.payload].isLocked = true;
+      }
+    },
+    unlock: (state, action: PayloadAction<string>) => {
+      if (state.allocations[action.payload]) {
+        state.allocations[action.payload].isLocked = false;
+      }
+    },
+    // Selection mode
+    enableSelectionMode: (state) => {
+      state.selectionMode = true;
+      state.selectedCells = [];
+    },
+    disableSelectionMode: (state) => {
+      state.selectionMode = false;
+      state.selectedCells = [];
+    },
+    toggleCellSelection: (state, action: PayloadAction<SelectedCellData>) => {
+      const cell = action.payload;
+      const index = state.selectedCells.findIndex((c) => c.id === cell.id);
+      if (index !== -1) {
+        state.selectedCells.splice(index, 1);
+        // Re-validate remaining adjacency (basic check since selectionEngine is imported elsewhere or we can just clear if not adjacent)
+        // Since we can't easily import selectionEngine here due to circular deps maybe, wait, let's see if we can.
+        // Actually, let's just do a simple check. If they are not adjacent, clear.
+        if (state.selectedCells.length > 0) {
+          if (!selectionEngine.isAdjacent(state.selectedCells)) {
+            state.selectedCells = [];
+          }
+        }
+      } else {
+        // Validation: must be same day
+        if (state.selectedCells.length > 0 && state.selectedCells[0].day !== cell.day) {
+          state.selectedCells = [cell];
+        } else {
+          // Check adjacency
+          state.selectedCells.push(cell);
+          if (!selectionEngine.isAdjacent(state.selectedCells)) {
+            // Start new selection if not adjacent
+            state.selectedCells = [cell];
+          }
+        }
+      }
+    },
+    clearSelection: (state) => {
+      state.selectedCells = [];
+    },
+    clearAllocations: (state) => {
+      Object.keys(state.allocations).forEach(key => {
+        if (!state.allocations[key].isLocked) {
+          delete state.allocations[key];
+        }
+      });
+    },
+    setAllocations: (state, action: PayloadAction<Record<string, ScheduleEntry>>) => {
+      state.allocations = action.payload;
+    }
+  },
+});
+
+export const {
+  assign,
+  remove,
+  move,
+  swap,
+  merge,
+  split,
+  updateTime,
+  lock,
+  unlock,
+  enableSelectionMode,
+  disableSelectionMode,
+  toggleCellSelection,
+  clearSelection,
+  clearAllocations,
+  setAllocations,
+} = timetableEngineSlice.actions;
+
+export default timetableEngineSlice.reducer;
+
+==== store\gridConfigSlice.ts ====
+import { createSlice, PayloadAction } from '@reduxjs/toolkit';
+import { TIME_SLOTS, WEEK_DAYS } from '@/constants/timetable';
+import { recalculateSequentialTimes, parseTime, formatTime } from '@/lib/timeEngine';
+
+export interface GridTimeSlot {
+  id: string;
+  startTime: string;
+  endTime: string;
+  label: string;
+  durationMinutes?: number;
+}
+
+export interface GridDay {
+  id: string;
+  name: string;
+  shortName: string;
+  enabled: boolean;
+}
+
+export interface GridBreak {
+  id: string;
+  afterPeriodId: string; // The break comes after this period ID
+  durationMinutes: number;
+  label: string;
+  type: 'Lunch Break' | 'Tea Break' | 'Assembly Break' | 'Custom Break' | 'Short Break';
+}
+
+export interface GridConfigState {
+  isGridEditMode: boolean;
+  days: GridDay[];
+  timeSlots: GridTimeSlot[];
+  breaks: GridBreak[];
+  
+  // Period Structure settings
+  startTime: string; // e.g., '09:00 AM'
+  defaultPeriodDuration: number;
+  numberOfPeriods: number;
+}
+
+const initialDays = WEEK_DAYS.map((d, i) => ({
+  id: `day-${i}`,
+  name: d,
+  shortName: d.substring(0, 3),
+  enabled: d !== 'Saturday'
+}));
+
+const initialState: GridConfigState = {
+  isGridEditMode: false,
+  days: initialDays,
+  timeSlots: [...TIME_SLOTS].map(t => ({...t, durationMinutes: 60})),
+  breaks: [{
+    id: 'lunch-break',
+    afterPeriodId: TIME_SLOTS[3]?.id || '4',
+    durationMinutes: 60,
+    label: 'Lunch Break',
+    type: 'Lunch Break'
+  }],
+  startTime: '09:00 AM',
+  defaultPeriodDuration: 60,
+  numberOfPeriods: 8
+};
+
+export const gridConfigSlice = createSlice({
+  name: 'gridConfig',
+  initialState,
+  reducers: {
+    toggleGridEditMode: (state) => {
+      state.isGridEditMode = !state.isGridEditMode;
+    },
+    toggleDay: (state, action: PayloadAction<{ name: string; enabled: boolean }>) => {
+      const day = state.days.find(d => d.name === action.payload.name);
+      if (day) {
+        day.enabled = action.payload.enabled;
+      }
+    },
+    reorderDays: (state, action: PayloadAction<GridDay[]>) => {
+      state.days = action.payload;
+    },
+    updateTimeSlots: (state, action: PayloadAction<GridTimeSlot[]>) => {
+      state.timeSlots = action.payload;
+    },
+    addBreak: (state, action: PayloadAction<GridBreak>) => {
+      state.breaks.push(action.payload);
+    },
+    removeBreak: (state, action: PayloadAction<string>) => {
+      state.breaks = state.breaks.filter(b => b.id !== action.payload);
+    },
+    setBreaks: (state, action: PayloadAction<GridBreak[]>) => {
+      state.breaks = action.payload;
+    },
+    updateBreak: (state, action: PayloadAction<{id: string; updates: Partial<GridBreak>}>) => {
+      const idx = state.breaks.findIndex(b => b.id === action.payload.id);
+      if (idx !== -1) {
+        state.breaks[idx] = { ...state.breaks[idx], ...action.payload.updates };
+      }
+    },
+    updateBreakDurationAndRecalculate: (state, action: PayloadAction<{id: string; durationMinutes: number}>) => {
+      const idx = state.breaks.findIndex(b => b.id === action.payload.id);
+      if (idx !== -1) {
+        state.breaks[idx].durationMinutes = action.payload.durationMinutes;
+      }
+      
+      let currentMins = parseTime(state.startTime);
+      
+      const initialBreaks = state.breaks.filter(b => b.afterPeriodId === '0' || !b.afterPeriodId);
+      initialBreaks.forEach(b => {
+         currentMins += b.durationMinutes;
+      });
+
+      const newTimeSlots: GridTimeSlot[] = [];
+      state.timeSlots.forEach(ts => {
+         const itemStart = formatTime(currentMins);
+         currentMins += (ts.durationMinutes || state.defaultPeriodDuration);
+         const itemEnd = formatTime(currentMins);
+         
+         newTimeSlots.push({
+             ...ts,
+             startTime: itemStart,
+             endTime: itemEnd
+         });
+         
+         const breaksAfter = state.breaks.filter(b => b.afterPeriodId === ts.id);
+         breaksAfter.forEach(b => {
+            currentMins += b.durationMinutes;
+         });
+      });
+      
+      state.timeSlots = newTimeSlots;
+    },
+    removeBreakAndRecalculate: (state, action: PayloadAction<string>) => {
+      state.breaks = state.breaks.filter(b => b.id !== action.payload);
+      
+      let currentMins = parseTime(state.startTime);
+      
+      const initialBreaks = state.breaks.filter(b => b.afterPeriodId === '0' || !b.afterPeriodId);
+      initialBreaks.forEach(b => {
+         currentMins += b.durationMinutes;
+      });
+
+      const newTimeSlots: GridTimeSlot[] = [];
+      state.timeSlots.forEach(ts => {
+         const itemStart = formatTime(currentMins);
+         currentMins += (ts.durationMinutes || state.defaultPeriodDuration);
+         const itemEnd = formatTime(currentMins);
+         
+         newTimeSlots.push({
+             ...ts,
+             startTime: itemStart,
+             endTime: itemEnd
+         });
+         
+         const breaksAfter = state.breaks.filter(b => b.afterPeriodId === ts.id);
+         breaksAfter.forEach(b => {
+            currentMins += b.durationMinutes;
+         });
+      });
+      
+      state.timeSlots = newTimeSlots;
+    },
+    updateSinglePeriodDurationByStartTime: (state, action: PayloadAction<{ startTime: string; durationMinutes: number }>) => {
+      const idx = state.timeSlots.findIndex(ts => ts.startTime === action.payload.startTime);
+      if (idx !== -1) {
+        state.timeSlots[idx].durationMinutes = action.payload.durationMinutes;
+      }
+      
+      let currentMins = parseTime(state.startTime);
+      
+      const initialBreaks = state.breaks.filter(b => b.afterPeriodId === '0' || !b.afterPeriodId);
+      initialBreaks.forEach(b => {
+         currentMins += b.durationMinutes;
+      });
+
+      const newTimeSlots: GridTimeSlot[] = [];
+      state.timeSlots.forEach(ts => {
+         const itemStart = formatTime(currentMins);
+         const currentDuration = ts.durationMinutes || state.defaultPeriodDuration;
+         currentMins += currentDuration;
+         const itemEnd = formatTime(currentMins);
+         
+         newTimeSlots.push({
+             ...ts,
+             durationMinutes: currentDuration,
+             startTime: itemStart,
+             endTime: itemEnd
+         });
+         
+         const breaksAfter = state.breaks.filter(b => b.afterPeriodId === ts.id);
+         breaksAfter.forEach(b => {
+            currentMins += b.durationMinutes;
+         });
+      });
+      
+      state.timeSlots = newTimeSlots;
+    },
+    updatePeriodStructure: (state, action: PayloadAction<{ startTime: string; duration: number; count: number }>) => {
+      state.startTime = action.payload.startTime;
+      state.defaultPeriodDuration = action.payload.duration;
+      state.numberOfPeriods = action.payload.count;
+      
+      // Regenerate time slots
+      const items = [];
+      for (let i = 1; i <= state.numberOfPeriods; i++) {
+        items.push({ id: `${i}`, durationMinutes: state.defaultPeriodDuration });
+      }
+      
+      const newTimes = recalculateSequentialTimes(state.startTime, items);
+      state.timeSlots = newTimes.map((t, idx) => ({
+        id: t.id,
+        startTime: t.startTime,
+        endTime: t.endTime,
+        label: `Period ${idx + 1}`,
+        durationMinutes: t.durationMinutes
+      }));
+    }
+  }
+});
+
+export const {
+  toggleGridEditMode,
+  toggleDay,
+  reorderDays,
+  updateTimeSlots,
+  addBreak,
+  removeBreak,
+  removeBreakAndRecalculate,
+  updateBreak,
+  updateBreakDurationAndRecalculate,
+  updateSinglePeriodDurationByStartTime,
+  setBreaks,
+  updatePeriodStructure
+} = gridConfigSlice.actions;
+
+export default gridConfigSlice.reducer;
+
+==== store\validationSlice.ts ====
+import { createSlice, PayloadAction } from '@reduxjs/toolkit';
+import type { ValidationIssue } from '@/services/validationService';
+
+export interface ValidationState {
+  isValid: boolean;
+  warnings: ValidationIssue[];
+  conflicts: ValidationIssue[];
+  lastRunTime: number;
+}
+
+const initialState: ValidationState = {
+  isValid: true,
+  warnings: [],
+  conflicts: [],
+  lastRunTime: Date.now(),
+};
+
+export const validationSlice = createSlice({
+  name: 'validation',
+  initialState,
+  reducers: {
+    setValidationResults: (state, action: PayloadAction<Omit<ValidationState, 'lastRunTime'>>) => {
+      state.isValid = action.payload.isValid;
+      state.warnings = action.payload.warnings;
+      state.conflicts = action.payload.conflicts;
+      state.lastRunTime = Date.now();
+    },
+    clearValidation: (state) => {
+      state.isValid = true;
+      state.warnings = [];
+      state.conflicts = [];
+      state.lastRunTime = Date.now();
+    },
+  },
+});
+
+export const { setValidationResults, clearValidation } = validationSlice.actions;
+
+export default validationSlice.reducer;
+
+==== store\historySlice.ts ====
+import { createSlice, PayloadAction } from '@reduxjs/toolkit';
+import { ScheduleEntry } from '@/types/timetable';
+
+export interface HistoryState {
+  past: Record<string, ScheduleEntry>[];
+  future: Record<string, ScheduleEntry>[];
+}
+
+const initialState: HistoryState = {
+  past: [],
+  future: [],
+};
+
+export const historySlice = createSlice({
+  name: 'history',
+  initialState,
+  reducers: {
+    recordSnapshot: (state, action: PayloadAction<Record<string, ScheduleEntry>>) => {
+      // Don't record if it's identical to the last snapshot
+      const lastSnapshot = state.past[state.past.length - 1];
+      if (lastSnapshot && JSON.stringify(lastSnapshot) === JSON.stringify(action.payload)) {
+        return;
+      }
+      
+      state.past.push(action.payload);
+      state.future = []; // Clear future on new action
+      
+      // Limit history size to prevent memory bloat
+      if (state.past.length > 50) {
+        state.past.shift();
+      }
+    },
+    pushToFuture: (state, action: PayloadAction<Record<string, ScheduleEntry>>) => {
+      state.future.push(action.payload);
+    },
+    popPast: (state) => {
+      state.past.pop();
+    },
+    pushToPast: (state, action: PayloadAction<Record<string, ScheduleEntry>>) => {
+      state.past.push(action.payload);
+    },
+    popFuture: (state) => {
+      state.future.pop();
+    },
+    clearHistory: (state) => {
+      state.past = [];
+      state.future = [];
+    },
+  },
+});
+
+export const { recordSnapshot, pushToFuture, popPast, pushToPast, popFuture, clearHistory } = historySlice.actions;
+export default historySlice.reducer;
+
+==== store\store.ts ====
+import { configureStore } from '@reduxjs/toolkit';
+import timetableEngineReducer from './timetableEngineSlice';
+import validationReducer from './validationSlice';
+import subjectReducer from './subjectSlice';
+import facultyReducer from './facultySlice';
+import roomReducer from './roomSlice';
+import uiReducer from './uiSlice';
+import historyReducer from './historySlice';
+import gridConfigReducer from './gridConfigSlice';
+
+/**
+ * Global Redux Store Configuration.
+ * Combines all feature slices (timetable engine, validation, entities, UI state)
+ * into a single unified state tree for the application.
+ */
+export const store = configureStore({
+  reducer: {
+    timetableEngine: timetableEngineReducer,
+    validation: validationReducer,
+    subject: subjectReducer,
+    faculty: facultyReducer,
+    room: roomReducer,
+    ui: uiReducer,
+    history: historyReducer,
+    gridConfig: gridConfigReducer,
+  },
+});
+
+export type RootState = ReturnType<typeof store.getState>;
+export type AppDispatch = typeof store.dispatch;
+
+==== types\timetable.ts ====
+/* =========================================================
+   TIMETABLE TYPES
+   Used By:
+   - timetable-store
+   - FiltersBar
+   - TimetableGrid
+   - SubjectAllocationPanel
+   - Mobile Timetable
+   ========================================================= */
+
+export type SubjectType =
+  | "theory"
+  | "lab"
+  | "tutorial"
+  | "elective"
+  | "seminar"
+  | "workshop";
+
+export type WeekDay =
+  | "Monday"
+  | "Tuesday"
+  | "Wednesday"
+  | "Thursday"
+  | "Friday"
+  | "Saturday";
+
+export interface SelectedCellData {
+  id: string;
+  day: string;
+  dayId?: string;
+  rowIndex: number;
+  startTime: string;
+  endTime: string;
+  subjectId?: string;
+}
+
+export interface Semester {
+  id: string;
+  name: string;
+}
+
+export interface Department {
+  id: string;
+  name: string;
+  code: string;
+}
+
+export interface Section {
+  id: string;
+  name: string;
+}
+
+export interface TimetableFilters {
+  semester: string;
+  department: string;
+  section: string;
+}
+
+export interface TimeSlot {
+  id: string;
+  startTime: string;
+  endTime: string;
+  label: string;
+  durationMinutes?: number;
+}
+
+export interface SubjectAssignment {
+  subjectId: string;
+  subjectName: string;
+
+  facultyId: string;
+  facultyName: string;
+
+  roomId: string;
+  roomName: string;
+
+  type: SubjectType;
+}
+
+export interface TimetableCellAssignment {
+  subjectId: string;
+}
+
+export interface TimetableCell {
+  id: string;
+  day: string;
+  dayId?: string;
+  slotId?: string;
+  startTime: string;
+  endTime: string;
+  isAssigned: boolean;
+  assignment?: TimetableCellAssignment;
+  rowSpan?: number;
+  merged?: boolean;
+  occupied?: boolean;
+  locked?: boolean;
+  subjectId?: string;
+  mergedGroupId?: string;
+  isEditable?: boolean;
+}
+
+export interface ScheduleEntry {
+  id: string;
+  subjectId: string;
+  teacherId?: string;
+  roomId?: string;
+  dayId: string;
+  startTime: string;
+  endTime: string;
+  duration?: number;
+  rowSpan: number;
+  rowStart: number;
+  merged?: boolean;
+  isEditable: boolean;
+  isLocked: boolean;
+}
+
+export interface TimetableDay {
+  id: string;
+  name: string;
+  shortName: string;
+}
+
+export interface TimetableTimeSlot {
+  id: string;
+  startTime: string;
+  endTime: string;
+  durationMinutes?: number;
+}
+
+export interface TimetableData {
+  days: TimetableDay[];
+  timeSlots: TimetableTimeSlot[];
+  subjects: Record<string, SubjectCardData>;
+  cells: TimetableCell[];
+}
+
+export interface SubjectCardData {
+  id: string;
+  code?: string;
+  credits?: number;
+  subjectName: string;
+  facultyName: string;
+  roomName: string;
+  type: string;
+  section?: string;
+  color?: string;
+  notes?: string;
+  hasConflict?: boolean;
+  isEditable?: boolean;
+}
+
+export interface DaySelectorItem {
+  label: WeekDay;
+  value: WeekDay;
+}
+
+==== types\timetableSpan.ts ====
+export type CellId = string;
+
+export interface SelectedCell {
+  id: CellId;
+  day: string;
+  startTime: string;
+  endTime: string;
+  rowIndex: number;
+  subjectId?: string;
+}
+
+export interface MergedGroup {
+  id: string;
+  day: string;
+  startPeriodId: string; // matches timeSlot.id or startTime
+  endPeriodId: string; // matches timeSlot.id or endTime
+  rowStart: number;
+  rowEnd: number;
+  rowSpan: number;
+  subjectId?: string;
+  locked: boolean;
+}
+

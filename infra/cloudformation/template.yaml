@@ -21,7 +21,20 @@ Parameters:
     Description: >-
       ECR registry prefix, e.g. 123456789012.dkr.ecr.us-east-1.amazonaws.com
       Images are pulled as <registry>/iis-<service>:<tag>.
-  ImageTag:
+  # Per-service image tags. The CI job sets the tag of a service to the commit
+  # SHA only when that service's source changed; unchanged services keep their
+  # previously deployed tag, so CloudFormation's changeset leaves them untouched
+  # and they do not roll. Defaults to "latest" for first-time / manual deploys.
+  IamImageTag:
+    Type: String
+    Default: latest
+  CampusImageTag:
+    Type: String
+    Default: latest
+  CommerceImageTag:
+    Type: String
+    Default: latest
+  ObservabilityImageTag:
     Type: String
     Default: latest
   ContainerPort:
@@ -424,7 +437,7 @@ Resources:
       TaskRoleArn: !GetAtt TaskRole.Arn
       ContainerDefinitions:
         - Name: iam
-          Image: !Sub "${EcrRegistry}/iis-iam:${ImageTag}"
+          Image: !Sub "${EcrRegistry}/iis-iam:${IamImageTag}"
           Essential: true
           PortMappings:
             - { ContainerPort: !Ref ContainerPort, Protocol: tcp }
@@ -530,7 +543,7 @@ Resources:
       TaskRoleArn: !GetAtt TaskRole.Arn
       ContainerDefinitions:
         - Name: campus
-          Image: !Sub "${EcrRegistry}/iis-campus:${ImageTag}"
+          Image: !Sub "${EcrRegistry}/iis-campus:${CampusImageTag}"
           Essential: true
           PortMappings:
             - { ContainerPort: !Ref ContainerPort, Protocol: tcp }
@@ -636,7 +649,7 @@ Resources:
       TaskRoleArn: !GetAtt TaskRole.Arn
       ContainerDefinitions:
         - Name: commerce
-          Image: !Sub "${EcrRegistry}/iis-commerce:${ImageTag}"
+          Image: !Sub "${EcrRegistry}/iis-commerce:${CommerceImageTag}"
           Essential: true
           PortMappings:
             - { ContainerPort: !Ref ContainerPort, Protocol: tcp }
@@ -742,7 +755,7 @@ Resources:
       TaskRoleArn: !GetAtt TaskRole.Arn
       ContainerDefinitions:
         - Name: observability
-          Image: !Sub "${EcrRegistry}/iis-observability:${ImageTag}"
+          Image: !Sub "${EcrRegistry}/iis-observability:${ObservabilityImageTag}"
           Essential: true
           PortMappings:
             - { ContainerPort: !Ref ContainerPort, Protocol: tcp }
@@ -865,6 +878,117 @@ Resources:
       StageName: $default
       AutoDeploy: true
 
+  # ----------------------- UI (Next.js static export on S3 + CloudFront) -----------------------
+  # The Next.js app in ui/ is exported to static HTML/JS (output: "export") and
+  # published here. The bucket is private; only CloudFront can read it, via an
+  # Origin Access Control (OAC) signed request. The CI job syncs the build to
+  # the bucket and invalidates the distribution.
+  UiBucket:
+    Type: AWS::S3::Bucket
+    DeletionPolicy: Retain
+    UpdateReplacePolicy: Retain
+    Properties:
+      BucketName: !Sub "${EnvironmentName}-iis-ui-${AWS::AccountId}"
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        BlockPublicPolicy: true
+        IgnorePublicAcls: true
+        RestrictPublicBuckets: true
+      BucketEncryption:
+        ServerSideEncryptionConfiguration:
+          - ServerSideEncryptionByDefault: { SSEAlgorithm: AES256 }
+      Tags:
+        - { Key: Name, Value: !Sub "${EnvironmentName}-iis-ui" }
+
+  UiOriginAccessControl:
+    Type: AWS::CloudFront::OriginAccessControl
+    Properties:
+      OriginAccessControlConfig:
+        Name: !Sub "${EnvironmentName}-iis-ui-oac"
+        OriginAccessControlOriginType: s3
+        SigningBehavior: always
+        SigningProtocol: sigv4
+
+  # Maps clean URLs onto the static-export key layout (trailingSlash: true):
+  #   "/" -> "/index.html", "/dashboard/" -> "/dashboard/index.html",
+  #   "/dashboard" -> "/dashboard/index.html". Asset requests (with a ".") pass through.
+  UiRewriteFunction:
+    Type: AWS::CloudFront::Function
+    Properties:
+      Name: !Sub "${EnvironmentName}-iis-ui-rewrite"
+      AutoPublish: true
+      FunctionConfig:
+        Comment: Map clean URLs to Next.js static-export index.html files
+        Runtime: cloudfront-js-2.0
+      FunctionCode: |
+        function handler(event) {
+          var request = event.request;
+          var uri = request.uri;
+          if (uri.endsWith('/')) {
+            request.uri += 'index.html';
+          } else if (!uri.includes('.')) {
+            request.uri += '/index.html';
+          }
+          return request;
+        }
+
+  UiDistribution:
+    Type: AWS::CloudFront::Distribution
+    Properties:
+      DistributionConfig:
+        Enabled: true
+        Comment: !Sub "${EnvironmentName}-iis-ui"
+        DefaultRootObject: index.html
+        PriceClass: PriceClass_100
+        HttpVersion: http2and3
+        Origins:
+          - Id: ui-s3-origin
+            DomainName: !GetAtt UiBucket.RegionalDomainName
+            OriginAccessControlId: !GetAtt UiOriginAccessControl.Id
+            S3OriginConfig:
+              OriginAccessIdentity: ""
+        DefaultCacheBehavior:
+          TargetOriginId: ui-s3-origin
+          ViewerProtocolPolicy: redirect-to-https
+          AllowedMethods: [GET, HEAD]
+          CachedMethods: [GET, HEAD]
+          Compress: true
+          # Managed-CachingOptimized
+          CachePolicyId: 658327ea-f89d-4fab-a63d-7e88639e58f6
+          FunctionAssociations:
+            - EventType: viewer-request
+              FunctionARN: !GetAtt UiRewriteFunction.FunctionMetadata.FunctionARN
+        CustomErrorResponses:
+          # Missing keys come back from S3 as 403; serve the exported 404 page.
+          - ErrorCode: 403
+            ResponseCode: 404
+            ResponsePagePath: /404.html
+            ErrorCachingMinTTL: 10
+          - ErrorCode: 404
+            ResponseCode: 404
+            ResponsePagePath: /404.html
+            ErrorCachingMinTTL: 10
+        ViewerCertificate:
+          CloudFrontDefaultCertificate: true
+      Tags:
+        - { Key: Name, Value: !Sub "${EnvironmentName}-iis-ui" }
+
+  UiBucketPolicy:
+    Type: AWS::S3::BucketPolicy
+    Properties:
+      Bucket: !Ref UiBucket
+      PolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Sid: AllowCloudFrontOACRead
+            Effect: Allow
+            Principal: { Service: cloudfront.amazonaws.com }
+            Action: s3:GetObject
+            Resource: !Sub "${UiBucket.Arn}/*"
+            Condition:
+              StringEquals:
+                AWS:SourceArn: !Sub "arn:${AWS::Partition}:cloudfront::${AWS::AccountId}:distribution/${UiDistribution}"
+
 # ===========================================================================
 # Outputs
 # ===========================================================================
@@ -890,3 +1014,12 @@ Outputs:
       - IsProd
       - !GetAtt DBCluster.MasterUserSecret.SecretArn
       - !Sub "arn:${AWS::Partition}:ssm:${AWS::Region}:${AWS::AccountId}:parameter/iis/${EnvironmentName}/db-password"
+  UiBucketName:
+    Description: S3 bucket the Next.js static export is published to
+    Value: !Ref UiBucket
+  UiDistributionId:
+    Description: CloudFront distribution id (used for cache invalidation)
+    Value: !Ref UiDistribution
+  UiUrl:
+    Description: Public URL of the UI
+    Value: !Sub "https://${UiDistribution.DomainName}"

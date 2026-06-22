@@ -21,6 +21,24 @@
 /build
 /ui/build
 /ui/node_modules
+/ui/.env
+/ui/.env.local
+/ui/.env.development.local
+/ui/.env.test.local
+/ui/.env.production.local
+/ui/.env.development
+/ui/.env.test
+/ui/.env.production
+/ui/.env.local
+/ui/.next
+/ui/.next/
+/ui/.next/types
+/ui/.next/types/
+/ui/.next/types/app
+/ui/.next/types/app/
+/ui/.next/types/app/page
+/ui/.next/types/app/page/
+/ui/.next/types/app/page/
 
 
 # misc

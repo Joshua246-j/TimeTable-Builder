@@ -32,6 +32,8 @@
 /ui/.env.local
 /ui/.next
 /ui/.next/
+/ui/out
+/ui/out/
 /ui/.next/types
 /ui/.next/types/
 /ui/.next/types/app

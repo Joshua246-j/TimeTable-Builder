@@ -110,8 +110,12 @@ curl "$API/commerce/invoices"
 The pipeline provisions this stack automatically on pushes to the **`deployment`**
 branch: the `provision_infra` job runs `aws cloudformation deploy` against
 `iis-${ENVIRONMENT}`, **creating the stack if it does not exist** and otherwise
-applying changes. It passes `ImageTag=$GITHUB_SHA`, so CloudFormation updates the ECS
-task definitions and rolls out the new images — no manual `cloudformation deploy` is
+applying changes. The build is incremental — a `changes` job diffs the push and
+only the services whose source changed get a new `$GITHUB_SHA` image tag
+(`IamImageTag`, `CampusImageTag`, `CommerceImageTag`, `ObservabilityImageTag`);
+unchanged services keep their previously deployed tag, so CloudFormation rolls
+only the task definitions that actually changed. The UI is rebuilt and published
+to S3 + CloudFront only when `ui/` changed. No manual `cloudformation deploy` is
 required after the first setup.
 
 Configure these under **Settings → Secrets and variables → Actions**

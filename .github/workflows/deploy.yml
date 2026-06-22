@@ -1,12 +1,20 @@
 name: build-test-provision
 
 # Migrated from CircleCI. Runs on pushes to the deployment branch:
-#   test -> build & push images (ECR) -> provision infra (CloudFormation).
+#   detect changes -> test -> build & push images (ECR) -> provision infra
+#                  (CloudFormation) -> build & publish the UI (S3 + CloudFront).
 #
-# provision_infra is idempotent: it creates the stack "iis-${ENVIRONMENT}" if it
-# does not exist, otherwise applies changes. It passes ImageTag=$GITHUB_SHA, so
-# CloudFormation updates the ECS task definitions and performs the rolling
-# deployment itself.
+# Incremental: the `changes` job diffs the push and decides which services and
+# whether the UI changed. Only changed services are tested, rebuilt, and pushed;
+# only a changed UI is rebuilt and published. A manual run (workflow_dispatch)
+# or a first deploy (no prior commit) forces everything.
+#
+# provision_infra is idempotent and always runs: it creates the stack
+# "iis-${ENVIRONMENT}" if absent, otherwise applies the changeset. It sets each
+# service's image tag to $GITHUB_SHA only when that service changed, and reuses
+# the previously deployed tag otherwise — so CloudFormation rolls only the task
+# definitions that actually changed. Template-only changes still apply via the
+# changeset without rebuilding any images.
 #
 # Database: Aurora Serverless v2 (PostgreSQL). Password handling per environment:
 #   prod      -> Aurora-managed password in Secrets Manager (auto-rotation); no
@@ -36,12 +44,78 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
+  # Decide what changed. Outputs a JSON array of changed services (for the
+  # test/build matrices), per-service booleans (for provision's tag logic), and
+  # whether the UI changed. workflow_dispatch and first deploys force everything.
+  changes:
+    runs-on: ubuntu-latest
+    outputs:
+      services: ${{ steps.detect.outputs.services }}
+      iam: ${{ steps.detect.outputs.iam }}
+      campus: ${{ steps.detect.outputs.campus }}
+      commerce: ${{ steps.detect.outputs.commerce }}
+      observability: ${{ steps.detect.outputs.observability }}
+      ui: ${{ steps.detect.outputs.ui }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0   # need history to diff against the previous push
+      - name: Detect changed paths
+        id: detect
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          BEFORE: ${{ github.event.before }}
+          SHA: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+          SERVICES="iam campus commerce observability"
+
+          # Force-all when run manually, or on a first push where there is no
+          # usable "before" commit (all-zero SHA or missing parent).
+          force=false
+          if [ "$EVENT_NAME" = "workflow_dispatch" ]; then force=true; fi
+          if [ -z "${BEFORE:-}" ] || [ "$BEFORE" = "0000000000000000000000000000000000000000" ] \
+             || ! git cat-file -e "$BEFORE^{commit}" 2>/dev/null; then
+            force=true
+          fi
+
+          if [ "$force" = "true" ]; then
+            echo "Forcing a full build/deploy (manual run or first deploy)."
+            files=""
+          else
+            files=$(git diff --name-only "$BEFORE" "$SHA")
+            echo "Changed files:"; echo "$files"
+          fi
+
+          changed_services=()
+          for svc in $SERVICES; do
+            if [ "$force" = "true" ] || echo "$files" | grep -q "^services/${svc}/"; then
+              echo "${svc}=true" >> "$GITHUB_OUTPUT"
+              changed_services+=("\"${svc}\"")
+            else
+              echo "${svc}=false" >> "$GITHUB_OUTPUT"
+            fi
+          done
+
+          if [ "$force" = "true" ] || echo "$files" | grep -q "^ui/"; then
+            echo "ui=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "ui=false" >> "$GITHUB_OUTPUT"
+          fi
+
+          # JSON array consumed by the test/build matrices (empty -> jobs skip).
+          json="[$(IFS=,; echo "${changed_services[*]:-}")]"
+          echo "services=$json" >> "$GITHUB_OUTPUT"
+          echo "Changed services: $json"
+
   test:
+    needs: changes
+    if: ${{ needs.changes.outputs.services != '[]' }}
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
       matrix:
-        service: [iam, campus, commerce, observability]
+        service: ${{ fromJSON(needs.changes.outputs.services) }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -55,12 +129,13 @@ jobs:
         run: python -m pytest -q
 
   build_and_push:
-    needs: test
+    needs: [changes, test]
+    if: ${{ needs.changes.outputs.services != '[]' }}
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
       matrix:
-        service: [iam, campus, commerce, observability]
+        service: ${{ fromJSON(needs.changes.outputs.services) }}
     steps:
       - uses: actions/checkout@v4
       - name: Configure AWS credentials (OIDC)
@@ -91,7 +166,10 @@ jobs:
           docker push "$REGISTRY/$REPO:latest"
 
   provision_infra:
-    needs: build_and_push   # waits for all four images to be pushed
+    # Always runs (even for UI-only or template-only changes), as long as nothing
+    # upstream failed. A skipped build_and_push (no services changed) is fine.
+    needs: [changes, test, build_and_push]
+    if: ${{ always() && !failure() && !cancelled() }}
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -104,6 +182,10 @@ jobs:
         env:
           DB_PASSWORD: ${{ secrets.DB_PASSWORD }}
           DB_USERNAME: ${{ vars.DB_USERNAME }}
+          IAM_CHANGED: ${{ needs.changes.outputs.iam }}
+          CAMPUS_CHANGED: ${{ needs.changes.outputs.campus }}
+          COMMERCE_CHANGED: ${{ needs.changes.outputs.commerce }}
+          OBSERVABILITY_CHANGED: ${{ needs.changes.outputs.observability }}
         run: |
           set -euo pipefail
           STACK_NAME="iis-${ENVIRONMENT}"
@@ -112,19 +194,40 @@ jobs:
 
           # Check whether the stack is already in position.
           if aws cloudformation describe-stacks --stack-name "$STACK_NAME" >/dev/null 2>&1; then
+            STACK_EXISTS=true
             echo "Stack '$STACK_NAME' exists — applying any changes."
           else
+            STACK_EXISTS=false
             echo "Stack '$STACK_NAME' not found — creating it."
           fi
 
-          # Common parameters. ImageTag=$GITHUB_SHA changes the task definitions,
-          # so CloudFormation performs the rolling deployment of the new images.
+          # Resolve a service's image tag: use the new commit SHA when the service
+          # changed; otherwise keep the tag currently deployed in the stack (so its
+          # task definition is unchanged and CloudFormation does not roll it). On a
+          # brand-new stack there is no previous value, so fall back to the SHA
+          # (the `changes` job forces a full build in that case).
+          tag_for() {
+            # $1 = changed flag (true/false), $2 = stack parameter key
+            if [ "$1" = "true" ] || [ "$STACK_EXISTS" != "true" ]; then
+              echo "$GITHUB_SHA"
+              return
+            fi
+            prev=$(aws cloudformation describe-stacks --stack-name "$STACK_NAME" \
+              --query "Stacks[0].Parameters[?ParameterKey=='$2'].ParameterValue" \
+              --output text 2>/dev/null || true)
+            if [ -z "$prev" ] || [ "$prev" = "None" ]; then echo "$GITHUB_SHA"; else echo "$prev"; fi
+          }
+
           PARAMS=(
             "EnvironmentName=$ENVIRONMENT"
             "EcrRegistry=$REGISTRY"
-            "ImageTag=$GITHUB_SHA"
+            "IamImageTag=$(tag_for "$IAM_CHANGED" IamImageTag)"
+            "CampusImageTag=$(tag_for "$CAMPUS_CHANGED" CampusImageTag)"
+            "CommerceImageTag=$(tag_for "$COMMERCE_CHANGED" CommerceImageTag)"
+            "ObservabilityImageTag=$(tag_for "$OBSERVABILITY_CHANGED" ObservabilityImageTag)"
             "DBUsername=${DB_USERNAME:-iis_admin}"
           )
+          echo "Image tags: ${PARAMS[*]}"
 
           if [ "$ENVIRONMENT" = "prod" ]; then
             # prod: Aurora manages the master password in Secrets Manager.
@@ -154,3 +257,61 @@ jobs:
           echo "Infrastructure is in position. Stack outputs:"
           aws cloudformation describe-stacks --stack-name "$STACK_NAME" \
             --query 'Stacks[0].Outputs' --output table
+
+  deploy_ui:
+    # Only when the UI changed, and after infra (bucket + distribution) exists.
+    needs: [changes, provision_infra]
+    if: ${{ always() && !failure() && !cancelled() && needs.changes.outputs.ui == 'true' }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Configure AWS credentials (OIDC)
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_OIDC_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+      - name: Read UI targets from CloudFormation outputs
+        id: cfn
+        run: |
+          set -euo pipefail
+          STACK_NAME="iis-${ENVIRONMENT}"
+          get() {
+            aws cloudformation describe-stacks --stack-name "$STACK_NAME" \
+              --query "Stacks[0].Outputs[?OutputKey=='$1'].OutputValue" --output text
+          }
+          {
+            echo "bucket=$(get UiBucketName)"
+            echo "distribution_id=$(get UiDistributionId)"
+            echo "api_endpoint=$(get ApiEndpoint)"
+          } >> "$GITHUB_OUTPUT"
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: ui/package-lock.json
+      - name: Install dependencies
+        working-directory: ui
+        run: npm ci
+      - name: Build static export
+        working-directory: ui
+        # The API base URL is baked in at build time (client-side, so it must be
+        # a NEXT_PUBLIC_* var). It points at the platform's API Gateway endpoint.
+        env:
+          NEXT_PUBLIC_API_BASE_URL: ${{ steps.cfn.outputs.api_endpoint }}
+        run: npm run build
+      - name: Publish to S3 and invalidate CloudFront
+        env:
+          BUCKET: ${{ steps.cfn.outputs.bucket }}
+          DISTRIBUTION_ID: ${{ steps.cfn.outputs.distribution_id }}
+        run: |
+          set -euo pipefail
+          # Long-cache the immutable, fingerprinted assets; never cache the HTML
+          # so route/document changes go live on the next invalidation.
+          aws s3 sync ui/out "s3://$BUCKET" --delete \
+            --cache-control "public,max-age=31536000,immutable" \
+            --exclude "*.html"
+          aws s3 sync ui/out "s3://$BUCKET" --delete \
+            --cache-control "public,max-age=0,must-revalidate" \
+            --exclude "*" --include "*.html"
+          aws cloudfront create-invalidation \
+            --distribution-id "$DISTRIBUTION_ID" --paths "/*"

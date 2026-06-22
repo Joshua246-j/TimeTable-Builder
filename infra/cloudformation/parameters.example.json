@@ -1,7 +1,10 @@
 [
   { "ParameterKey": "EnvironmentName", "ParameterValue": "dev" },
   { "ParameterKey": "EcrRegistry", "ParameterValue": "123456789012.dkr.ecr.us-east-1.amazonaws.com" },
-  { "ParameterKey": "ImageTag", "ParameterValue": "latest" },
+  { "ParameterKey": "IamImageTag", "ParameterValue": "latest" },
+  { "ParameterKey": "CampusImageTag", "ParameterValue": "latest" },
+  { "ParameterKey": "CommerceImageTag", "ParameterValue": "latest" },
+  { "ParameterKey": "ObservabilityImageTag", "ParameterValue": "latest" },
   { "ParameterKey": "DBUsername", "ParameterValue": "iis_admin" },
   { "ParameterKey": "DBPassword", "ParameterValue": "CHANGE_ME_strong_password" },
   { "ParameterKey": "AuroraMinCapacity", "ParameterValue": "0.5" },

@@ -1,5 +1,5 @@
 import { Metadata } from 'next';
-import { OnboardingFlow } from '@/features/onboarding/components/OnboardingFlow';
+import OnboardingWizard from '@/features/onboarding-wizard/OnboardingWizard';
 
 export const metadata: Metadata = {
   title: 'Person Onboarding | Timetable Builder',
@@ -7,5 +7,5 @@ export const metadata: Metadata = {
 };
 
 export default function PersonOnboardingPage() {
-  return <OnboardingFlow />;
+  return <OnboardingWizard />;
 }

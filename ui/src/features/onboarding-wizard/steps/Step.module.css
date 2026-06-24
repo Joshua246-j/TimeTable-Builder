@@ -1,0 +1,123 @@
+/* Step 1 Content */
+.stepOneContent {
+  max-width: 960px;
+  margin: 0 auto;
+}
+
+/* Step header */
+.stepHeader { margin-bottom: 32px; }
+.stepTitle { font-size: 22px; font-weight: 700; color: var(--text-primary); margin-bottom: 6px; }
+.stepDesc  { color: var(--text-secondary); font-size: 14.5px; }
+
+/* Person type grid */
+.typeGrid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 24px;
+}
+.typeCard {
+  border: 2px solid var(--border);
+  border-radius: var(--radius-md);
+  padding: 40px 30px 30px;
+  display: flex; flex-direction: column; align-items: center;
+  gap: 12px; text-align: center;
+  cursor: pointer;
+  position: relative;
+  transition: all .22s ease;
+  outline: none;
+  background: var(--surface);
+  min-height: 310px;
+}
+.typeCard:hover {
+  border-color: var(--brand-light);
+  box-shadow: 0 4px 20px rgba(99,102,241,.12);
+  transform: translateY(-2px);
+}
+.typeCard:focus-visible { box-shadow: 0 0 0 3px rgba(67,56,202,.35); }
+.typeCard.selected {
+  border-color: var(--brand);
+  background: #fafafe;
+  box-shadow: 0 4px 20px rgba(67,56,202,.14);
+}
+.checkBadge {
+  position: absolute;
+  top: 12px; right: 12px;
+  width: 24px; height: 24px;
+  border-radius: 50%;
+  background: var(--brand);
+  display: flex; align-items: center; justify-content: center;
+  opacity: 0;
+  transform: scale(.5);
+  transition: all .22s cubic-bezier(.34,1.56,.64,1);
+}
+.checkVisible { opacity: 1; transform: scale(1); }
+.iconBox {
+  width: 64px; height: 64px;
+  border-radius: var(--radius-sm);
+  background: var(--bg);
+  display: flex; align-items: center; justify-content: center;
+  transition: background .2s;
+  margin-bottom: 4px;
+}
+.iconActive { background: var(--brand-bg); }
+.typeName { font-size: 15px; font-weight: 700; color: var(--text-primary); }
+.typeDesc { font-size: 12.5px; color: var(--text-secondary); line-height: 1.5; }
+.radio {
+  width: 20px; height: 20px;
+  border-radius: 50%;
+  border: 2px solid var(--border);
+  margin-top: auto;
+  position: relative;
+  transition: border-color .2s;
+}
+.radioSelected { border-color: var(--brand); }
+.radioSelected::after {
+  content: '';
+  position: absolute;
+  top: 50%; left: 50%;
+  width: 9px; height: 9px;
+  border-radius: 50%;
+  background: var(--brand);
+  transform: translate(-50%,-50%);
+}
+
+/* Review */
+.reviewContainer { display: flex; flex-direction: column; gap: 18px; }
+.reviewSection { border: 1.5px solid var(--border); border-radius: var(--radius-md); overflow: hidden; }
+.reviewSectionHead {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 12px 18px;
+  background: var(--bg);
+  border-bottom: 1.5px solid var(--border);
+}
+.reviewSectionTitle { font-size: 13px; font-weight: 700; color: var(--text-primary); display: flex; align-items: center; gap: 8px; }
+.reviewEditBtn {
+  font-size: 12px; font-weight: 600; color: var(--brand);
+  background: none; border: none; cursor: pointer;
+  padding: 4px 10px; border-radius: 6px;
+  transition: background .18s;
+}
+.reviewEditBtn:hover { background: var(--brand-bg); }
+.reviewGrid { display: grid; grid-template-columns: 1fr 1fr; gap: 0; }
+.reviewField { padding: 12px 18px; border-bottom: 1px solid var(--border); }
+.reviewField:nth-last-child(-n+2) { border-bottom: none; }
+.reviewFieldLabel { font-size: 11px; font-weight: 600; color: var(--text-muted); text-transform: uppercase; letter-spacing: .04em; margin-bottom: 3px; }
+.reviewFieldValue { font-size: 13.5px; font-weight: 500; color: var(--text-primary); }
+.empty { color: var(--text-muted); font-style: italic; }
+.reviewAgree {
+  margin-top: 20px;
+  padding: 16px 20px;
+  background: var(--brand-bg);
+  border: 1.5px solid var(--brand-border);
+  border-radius: var(--radius-sm);
+  transition: border-color .2s;
+}
+.agreeError { border-color: var(--danger) !important; }
+.checkboxLabel { display: flex; align-items: flex-start; gap: 12px; cursor: pointer; }
+
+@media (max-width: 680px) {
+  .typeGrid { grid-template-columns: 1fr; }
+  .reviewGrid { grid-template-columns: 1fr; }
+  .reviewField:nth-last-child(-n+2) { border-bottom: 1px solid var(--border); }
+  .reviewField:last-child { border-bottom: none; }
+}

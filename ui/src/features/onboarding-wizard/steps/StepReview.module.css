@@ -1,0 +1,308 @@
+/* ── Layout ─────────────────────────────────────────── */
+.layout {
+  display: flex;
+  gap: 20px;
+  align-items: flex-start;
+}
+.formCol { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 0; }
+.sidebar  { width: 280px; flex-shrink: 0; display: flex; flex-direction: column; gap: 12px; position: sticky; top: 80px; }
+
+/* ── Header ────────────────────────────────────────── */
+.header { margin-bottom: 20px; }
+.title  { font-size: 20px; font-weight: 700; color: var(--text-primary); margin-bottom: 4px; }
+.subtitle { color: var(--text-secondary); font-size: 13.5px; line-height: 1.5; }
+
+/* ── Card Grid ─────────────────────────────────────── */
+.cardGrid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 14px;
+}
+.cardFull { grid-column: 1 / -1; }
+
+/* ── Review Card ───────────────────────────────────── */
+.card {
+  background: var(--surface);
+  border: 1.5px solid var(--border);
+  border-radius: var(--radius-md);
+  overflow: hidden;
+}
+.cardHead {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 16px;
+  border-bottom: 1.5px solid var(--border);
+  background: var(--bg);
+}
+.cardTitleWrap {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.cardIcon {
+  width: 28px; height: 28px;
+  border-radius: 6px;
+  display: flex; align-items: center; justify-content: center;
+  flex-shrink: 0;
+}
+.cardIconBlue   { background: #eef2ff; color: #4338ca; }
+.cardIconGreen  { background: #f0fdf4; color: #059669; }
+.cardIconAmber  { background: #fef3c7; color: #d97706; }
+.cardIconPurple { background: #f5f3ff; color: #7c3aed; }
+.cardIconRed    { background: #fef2f2; color: #dc2626; }
+.cardIconTeal   { background: #f0fdfa; color: #0d9488; }
+
+.cardTitleText { font-size: 13px; font-weight: 700; color: var(--text-primary); }
+
+.editBtn {
+  font-size: 12px; font-weight: 600; color: var(--brand);
+  background: none; border: 1.5px solid var(--brand-border);
+  cursor: pointer;
+  padding: 4px 12px; border-radius: 6px;
+  transition: background .18s, border-color .18s;
+  display: flex; align-items: center; gap: 4px;
+  white-space: nowrap;
+}
+.editBtn:hover { background: var(--brand-bg); border-color: var(--brand-light); }
+
+.cardBody { padding: 0; }
+
+/* ── Review Row ────────────────────────────────────── */
+.row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 16px;
+  border-bottom: 1px solid #f3f4f6;
+  gap: 12px;
+}
+.row:last-child { border-bottom: none; }
+
+.rowLabel {
+  font-size: 12px;
+  color: var(--text-muted);
+  flex-shrink: 0;
+  min-width: 110px;
+}
+.rowValue {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text-primary);
+  text-align: right;
+  word-break: break-word;
+}
+.rowEmpty {
+  color: var(--text-muted);
+  font-style: italic;
+  font-weight: 400;
+}
+
+/* ── Badges ────────────────────────────────────────── */
+.badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 10px;
+  border-radius: 99px;
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 1.6;
+}
+.badgeGreen { background: #dcfce7; color: #15803d; }
+.badgeGray  { background: #f3f4f6; color: #6b7280; }
+.badgeBlue  { background: var(--brand-bg); color: var(--brand); }
+.badgeTeal  { background: #ccfbf1; color: #0d9488; }
+
+/* ── Sidebar Cards ─────────────────────────────────── */
+.sideCard {
+  background: var(--surface);
+  border: 1.5px solid var(--border);
+  border-radius: var(--radius-md);
+  padding: 14px 16px;
+}
+.sideTitle {
+  font-size: 12.5px; font-weight: 700; color: var(--text-primary);
+  margin-bottom: 12px;
+  display: flex; align-items: center; gap: 6px;
+}
+.sideTitleIcon {
+  font-size: 14px;
+}
+
+/* Summary Rows */
+.summaryRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 7px 0;
+  border-bottom: 1px solid #f3f4f6;
+  gap: 8px;
+}
+.summaryRow:last-child { border-bottom: none; }
+.summaryLabel { font-size: 12px; color: var(--text-muted); }
+.summaryValue { font-size: 12.5px; font-weight: 500; color: var(--text-primary); text-align: right; }
+
+/* Accounts Card */
+.accountRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 0;
+  border-bottom: 1px solid #f3f4f6;
+}
+.accountRow:last-child { border-bottom: none; }
+.accountLabel { font-size: 12px; color: var(--text-secondary); display: flex; align-items: center; gap: 6px; }
+.accountIcon { font-size: 13px; }
+.accountValue { font-size: 12.5px; font-weight: 600; color: var(--text-primary); }
+.totalRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 0;
+  margin-top: 4px;
+  border-top: 1.5px solid var(--border);
+}
+.totalLabel { font-size: 12px; font-weight: 700; color: var(--text-primary); }
+
+/* ── Validation Checklist ──────────────────────────── */
+.validTitle {
+  font-size: 12.5px; font-weight: 700; color: var(--text-primary);
+  margin-bottom: 2px;
+}
+.validSubtitle {
+  font-size: 11px; color: var(--text-muted); margin-bottom: 12px; line-height: 1.45;
+}
+.checkRow {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 0;
+  border-bottom: 1px solid #f9fafb;
+}
+.checkRow:last-child { border-bottom: none; }
+.checkCircle {
+  width: 20px; height: 20px;
+  border-radius: 50%;
+  background: #dcfce7;
+  display: flex; align-items: center; justify-content: center;
+  flex-shrink: 0;
+}
+.checkCircleSvg { width: 12px; height: 12px; color: #15803d; }
+.checkLabel { flex: 1; font-size: 12px; color: var(--text-primary); font-weight: 500; }
+.checkStatus { font-size: 11px; font-weight: 600; color: #15803d; }
+
+/* ── Ready Box ─────────────────────────────────────── */
+.readyBox {
+  background: #f0fdf4;
+  border: 1.5px solid #bbf7d0;
+  border-radius: var(--radius-md);
+  padding: 16px;
+  text-align: center;
+}
+.readyIcon {
+  width: 40px; height: 40px;
+  border-radius: 50%;
+  background: #dcfce7;
+  display: flex; align-items: center; justify-content: center;
+  margin: 0 auto 8px;
+}
+.readyIconSvg { width: 22px; height: 22px; color: #15803d; }
+.readyTitle {
+  font-size: 14px; font-weight: 700; color: #15803d;
+  margin-bottom: 4px;
+}
+.readySubtitle {
+  font-size: 11.5px; color: #166534; line-height: 1.5;
+  margin-bottom: 6px;
+}
+.readyHint {
+  font-size: 10.5px; color: #4ade80; line-height: 1.45;
+}
+
+/* ── Success Preview Pipeline ──────────────────────── */
+.pipeline {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 0;
+  padding: 4px 0 0;
+}
+.pipeStep {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  flex: 1;
+  text-align: center;
+  position: relative;
+}
+.pipeIcon {
+  width: 36px; height: 36px;
+  border-radius: 50%;
+  background: var(--brand-bg);
+  display: flex; align-items: center; justify-content: center;
+  flex-shrink: 0;
+  position: relative;
+  z-index: 1;
+}
+.pipeIconSvg { width: 18px; height: 18px; color: var(--brand); }
+.pipeLabel {
+  font-size: 10px; color: var(--text-secondary);
+  line-height: 1.35;
+  max-width: 80px;
+  font-weight: 500;
+}
+.pipeArrow {
+  position: absolute;
+  top: 18px;
+  left: calc(50% + 18px);
+  width: calc(100% - 36px);
+  display: flex;
+  align-items: center;
+  z-index: 0;
+}
+.pipeArrowLine {
+  flex: 1;
+  height: 2px;
+  background: var(--brand-border);
+}
+.pipeArrowHead {
+  width: 0; height: 0;
+  border-top: 4px solid transparent;
+  border-bottom: 4px solid transparent;
+  border-left: 6px solid var(--brand-border);
+  flex-shrink: 0;
+}
+
+/* ── Delivery Method Icons ─────────────────────────── */
+.deliveryRow {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+.deliveryTag {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 10px;
+  border-radius: 99px;
+  font-size: 10.5px;
+  font-weight: 600;
+  background: #eef2ff;
+  color: #4338ca;
+}
+
+/* ── Responsive ────────────────────────────────────── */
+@media (max-width: 1100px) {
+  .cardGrid { grid-template-columns: 1fr; }
+}
+@media (max-width: 900px) {
+  .layout { flex-direction: column; }
+  .sidebar { width: 100%; position: static; }
+}
+@media (max-width: 600px) {
+  .pipeline { flex-wrap: wrap; gap: 12px; }
+  .pipeArrow { display: none; }
+}

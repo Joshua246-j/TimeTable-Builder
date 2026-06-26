@@ -1,0 +1,75 @@
+.wrapper {
+  padding: 32px 32px 12px;
+}
+.track {
+  display: flex;
+  align-items: flex-start;
+}
+.stepGroup {
+  display: flex;
+  align-items: flex-start;
+  flex: 1;
+}
+.stepGroup:last-child { flex: 0 0 auto; }
+
+.stepItem {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  cursor: default;
+  min-width: 60px;
+}
+.stepItem.completed { cursor: pointer; }
+
+.circle {
+  width: 36px; height: 36px;
+  border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 13px; font-weight: 700;
+  background: var(--surface);
+  border: 2px solid var(--border);
+  color: var(--text-muted);
+  transition: all .3s ease;
+  flex-shrink: 0;
+}
+.active .circle {
+  background: var(--brand);
+  border-color: var(--brand);
+  color: white;
+  box-shadow: 0 0 0 4px rgba(67,56,202,.18);
+}
+.completed .circle {
+  background: var(--brand);
+  border-color: var(--brand);
+  color: white;
+}
+
+.label {
+  font-size: 10.5px;
+  font-weight: 500;
+  color: var(--text-muted);
+  text-align: center;
+  line-height: 1.3;
+  transition: color .3s;
+}
+.active .label  { color: var(--brand); font-weight: 600; }
+.completed .label { color: var(--brand); }
+
+.connector {
+  flex: 1;
+  height: 2px;
+  background: var(--border);
+  margin-top: 17px;
+  transition: background .4s ease;
+  align-self: flex-start;
+}
+.connector.filled { background: var(--brand); }
+
+@media (max-width: 680px) {
+  .wrapper { padding: 18px 16px 14px; }
+  .circle { width: 28px; height: 28px; font-size: 11px; }
+  .label { font-size: 9px; min-width: 40px; }
+  .connector { margin-top: 13px; }
+  .stepItem { min-width: 36px; }
+}

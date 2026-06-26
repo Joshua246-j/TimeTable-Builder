@@ -1,0 +1,82 @@
+.breadcrumb {
+  padding: 10px 28px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12.5px;
+  color: var(--text-secondary);
+}
+.breadcrumbLink { color: var(--text-secondary); text-decoration: none; transition: var(--transition); }
+.breadcrumbLink:hover { color: var(--brand); }
+.breadcrumbSep { color: var(--text-muted); }
+.breadcrumbCurrent { color: var(--text-primary); font-weight: 500; }
+
+.mainContainer {
+  max-width: 1340px;
+  margin: 0 auto;
+  padding: 12px 20px 40px;
+}
+
+.onboardingCard {
+  display: flex;
+  flex-direction: column;
+}
+
+.stepContentArea {
+  min-height: 380px;
+}
+
+.bgWhite {
+  padding: 20px 0;
+}
+
+.bgGray {
+  padding: 20px 0;
+}
+
+.stepPanel {
+  animation-duration: .28s;
+  animation-fill-mode: both;
+  animation-timing-function: ease;
+}
+.slideForward { animation-name: fadeSlideIn; }
+.slideBack    { animation-name: fadeSlideBack; }
+
+.cardFooter {
+  padding: 20px 32px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  margin-top: 16px;
+}
+.footerLeftBtns { display: flex; gap: 10px; }
+.footerRightBtns { display: flex; gap: 10px; }
+.btnDraft {
+  background: var(--surface);
+  border: 1.5px solid var(--brand-border);
+  color: var(--brand);
+}
+.btnDraft:hover { background: var(--brand-bg); }
+.btnComplete {
+  background: linear-gradient(135deg, #059669, #34d399);
+  color: white;
+  box-shadow: 0 3px 12px rgba(5,150,105,.35);
+  border: none;
+  display: inline-flex; align-items: center; gap: 7px;
+  padding: 10px 22px;
+  border-radius: var(--radius-sm);
+  font-family: inherit; font-size: 13.5px; font-weight: 600;
+  cursor: pointer;
+  transition: all .18s ease;
+  white-space: nowrap;
+}
+.btnComplete:hover { box-shadow: 0 5px 20px rgba(5,150,105,.5); transform: translateY(-1px); }
+.btnComplete:disabled { opacity: .55; cursor: not-allowed; transform: none; box-shadow: none; }
+
+@media (max-width: 680px) {
+  .stepContentArea { padding: 24px 20px 20px; }
+  .cardFooter { padding: 14px 20px; }
+}

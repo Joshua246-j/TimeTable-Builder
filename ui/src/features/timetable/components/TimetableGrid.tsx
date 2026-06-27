@@ -1,6 +1,5 @@
 "use client";
 
-import DayHeader from "./DayHeader";
 import TimetableCell from "./TimetableCell";
 import BreakRow from "./BreakRow";
 import { memo, useCallback } from "react";
@@ -40,6 +39,7 @@ interface TimetableGridProps {
   subjects?: Record<string, SubjectCardData>;
   selectedCellId?: string;
   isGridEditMode?: boolean;
+  isReadOnly?: boolean;
   breaks?: GridBreak[];
   onDaySelect?: (day: string) => void;
   onCellClick?: (cell: TimetableCellType) => void;
@@ -66,6 +66,7 @@ export default memo(function TimetableGrid({
   subjects = {},
   selectedCellId,
   isGridEditMode = false,
+  isReadOnly = false,
   breaks = [],
   onDaySelect,
   onCellClick,
@@ -174,8 +175,9 @@ export default memo(function TimetableGrid({
                     endTime={formatTime(parseTime(timeSlot.endTime) + breakAfterThis.durationMinutes)}
                     durationMinutes={breakAfterThis.durationMinutes}
                     isGridEditMode={isGridEditMode}
-                    onRemove={() => dispatch(removeBreakAndSync({ id: breakAfterThis.id }))}
-                    onEditDuration={(mins) => dispatch(updateBreakDurationAndSync({ id: breakAfterThis.id, durationMinutes: mins }))}
+                    isReadOnly={isReadOnly}
+                    onRemove={isReadOnly ? undefined : () => dispatch(removeBreakAndSync({ id: breakAfterThis.id }))}
+                    onEditDuration={isReadOnly ? undefined : (mins) => dispatch(updateBreakDurationAndSync({ id: breakAfterThis.id, durationMinutes: mins }))}
                   />
                 </div>
               )}
@@ -187,51 +189,58 @@ export default memo(function TimetableGrid({
 
       {/* DESKTOP GRID VIEW */}
       <div
-        className="
+        className={`
           hidden
           flex-col
           h-full
           min-h-0
           overflow-hidden
-          rounded-[24px]
-          bg-[#F8FAFC]
-          shadow-sm
+          ${isReadOnly ? 'bg-transparent' : 'rounded-[24px] bg-[#F8FAFC] shadow-sm border border-slate-200/60'}
           lg:flex
-          border border-slate-200/60
           relative
-        "
+        `}
       >
         {/* Configure Grid Floating Button */}
-        <div className="absolute top-3 right-4 z-20">
-          <button
-            onClick={() => dispatch(toggleGridEditMode())}
-            className={`flex items-center gap-2 rounded-full px-4 py-2 text-[13px] font-bold shadow-md transition-all duration-300 hover:scale-105 active:scale-95 ${
-              isGridEditMode
-                ? "bg-slate-800 text-white shadow-slate-300/50"
-                : "bg-white/90 backdrop-blur-md border border-slate-200 text-slate-700 hover:bg-white hover:text-blue-600 hover:shadow-lg hover:border-blue-200"
-            }`}
-          >
-            <Settings2 className={`h-4 w-4 ${isGridEditMode ? "animate-spin-slow text-white" : ""}`} />
-            {isGridEditMode ? "Finish Editing" : "Configure Grid"}
-          </button>
-        </div>
+        {!isReadOnly && (
+          <div className="absolute top-3 right-4 z-20">
+            <button
+              onClick={() => dispatch(toggleGridEditMode())}
+              className={`flex items-center gap-2 rounded-full px-4 py-2 text-[13px] font-bold shadow-md transition-all duration-300 hover:scale-105 active:scale-95 ${
+                isGridEditMode
+                  ? "bg-slate-800 text-white shadow-slate-300/50"
+                  : "bg-white/90 backdrop-blur-md border border-slate-200 text-slate-700 hover:bg-white hover:text-blue-600 hover:shadow-lg hover:border-blue-200"
+              }`}
+            >
+              <Settings2 className={`h-4 w-4 ${isGridEditMode ? "animate-spin-slow text-white" : ""}`} />
+              {isGridEditMode ? "Finish Editing" : "Configure Grid"}
+            </button>
+          </div>
+        )}
 
         {/* Grid Content */}
-        <div className={`overflow-auto flex-1 ${days.length > 5 ? 'p-2 pt-16' : 'p-4 pt-16'}`}>
+        <div className={`overflow-auto flex-1 ${isReadOnly ? 'p-0 pt-10' : (days.length > 5 ? 'p-2 pt-16' : 'p-4 pt-16')}`}>
           <div
-            className={`grid ${days.length > 5 ? 'gap-x-[4px] gap-y-[4px]' : 'gap-x-[8px] gap-y-[8px]'}`}
+            className={`grid gap-x-[12px] gap-y-[12px]`}
             style={{
-              gridTemplateColumns: `repeat(${days.length}, minmax(${days.length > 5 ? '250px' : '280px'}, 1fr))`,
+              gridTemplateColumns: isReadOnly 
+                ? `140px repeat(${days.length}, minmax(${days.length > 5 ? '180px' : '220px'}, 1fr))`
+                : `repeat(${days.length}, minmax(${days.length > 5 ? '180px' : '220px'}, 1fr))`
             }}
           >
+            {/* Top Left Time/Day Header */}
+            {isReadOnly && (
+              <div className="flex flex-col justify-end pb-4 font-[800] text-[11px] text-[#94A3B8] tracking-widest pl-2 uppercase">
+                TIME / DAY
+              </div>
+            )}
+            
             {/* Day Headers */}
             {days.map((day) => (
-              <DayHeader
-                key={day.id}
-                day={day.name}
-                shortLabel={day.shortName}
-                onClick={() => onDaySelect?.(day.name)}
-              />
+               <div key={day.id} className="flex flex-col justify-end pb-4 items-center">
+                 <span className="font-[800] text-[11px] text-[#94A3B8] uppercase tracking-widest cursor-pointer hover:text-blue-500 transition-colors" onClick={() => onDaySelect?.(day.name)}>
+                   {day.name}
+                 </span>
+               </div>
             ))}
 
             {/* Rows */}
@@ -239,13 +248,15 @@ export default memo(function TimetableGrid({
               const breakAfterThis = breaks.find(b => b.afterPeriodId === timeSlot.id);
               return (
               <div key={timeSlot.id} className="contents">
+                {/* Time Label Column */}
+                {isReadOnly && (
+                  <div className="flex items-center pt-8 justify-start text-[11px] font-[700] text-[#64748B] whitespace-nowrap pl-2">
+                    {timeSlot.startTime} - {timeSlot.endTime}
+                  </div>
+                )}
+
                 {/* Cells */}
                 {days.map((day) => {
-
-
-
-
-
 
                   const allocationsInCell = Object.values(allocations).filter((a) => {
                     const isSameDay = a.dayId === day.name || a.dayId === day.id;
@@ -257,16 +268,13 @@ export default memo(function TimetableGrid({
                   });
 
                   if (allocationsInCell.length > 0) {
-                    // Just take the first one to render, but mark conflict if multiple
                     const allocation = allocationsInCell[0];
                     const allocSubject = allocation.subjectId ? subjects[allocation.subjectId] : undefined;
                     const isLocked = allocation.isLocked;
                     
-                    // Check for conflicts
                     const allocConflicts = conflicts.filter(c => c.cellIds?.includes(allocation.id));
                     const isConflict = allocConflicts.length > 0 || allocationsInCell.length > 1;
                     
-                    // Calculate how many slots this allocation spans across the whole day
                     const overlappingSlots = timeSlots.filter(t => 
                       isOverlap(
                         { startTime: allocation.startTime, endTime: allocation.endTime }, 
@@ -274,45 +282,44 @@ export default memo(function TimetableGrid({
                       )
                     );
 
-                    // Render only in the FIRST slot it overlaps with
                     if (overlappingSlots.length > 0 && timeSlot.startTime === overlappingSlots[0].startTime) {
                       return (
-                        <TimetableCell
-                          key={allocation.id}
-                          cell={{
-                            id: allocation.id,
-                            day: day.name,
-                            startTime: allocation.startTime,
-                            endTime: allocation.endTime,
-                            isAssigned: true,
-                            assignment: { subjectId: allocation.subjectId }
-                          }}
-                          subject={allocSubject}
-                          selected={selectedCellId === allocation.id || selectedCells.some(c => c.id === allocation.id)}
-                          onCellClick={onCellClick}
-                          onSubjectClick={onSubjectClick}
-                          onEditTime={onEditTime}
-                          onTimeChange={onTimeChange}
-                          onAssignSlot={onAssignSlot}
-                          availableSubjects={Object.values(subjects)}
-                          rowIndex={rowIndex}
-                          selectionMode={selectionMode}
-                          onSelectionToggle={handleToggleCellSelection}
-                          rowSpan={overlappingSlots.length}
-                          mergedGroup={overlappingSlots.length > 1 ? allocation : undefined}
-                          isLocked={isLocked}
-                          isEditing={editingGroupId === allocation.id}
-                          onCancelEdit={onCancelEdit}
-                          onSaveEdit={onSaveEdit}
-                          isConflict={isConflict}
-                          conflictData={allocConflicts[0]}
-                        />
+                        <div key={allocation.id} className="border-t border-slate-100/50 pt-[12px] h-full flex flex-col" style={{ gridRow: `span ${overlappingSlots.length}` }}>
+                          <TimetableCell
+                            cell={{
+                              id: allocation.id,
+                              day: day.name,
+                              startTime: allocation.startTime,
+                              endTime: allocation.endTime,
+                              isAssigned: true,
+                              assignment: { subjectId: allocation.subjectId }
+                            }}
+                            subject={allocSubject}
+                            selected={selectedCellId === allocation.id || selectedCells.some(c => c.id === allocation.id)}
+                            onCellClick={onCellClick}
+                            onSubjectClick={onSubjectClick}
+                            onEditTime={onEditTime}
+                            onTimeChange={onTimeChange}
+                            onAssignSlot={onAssignSlot}
+                            availableSubjects={Object.values(subjects)}
+                            rowIndex={rowIndex}
+                            selectionMode={selectionMode}
+                            onSelectionToggle={handleToggleCellSelection}
+                            rowSpan={1}
+                            mergedGroup={overlappingSlots.length > 1 ? allocation : undefined}
+                            isLocked={isLocked}
+                            isEditing={editingGroupId === allocation.id}
+                            onCancelEdit={onCancelEdit}
+                            onSaveEdit={onSaveEdit}
+                            isConflict={isConflict}
+                            conflictData={allocConflicts[0]}
+                            isReadOnly={isReadOnly}
+                          />
+                        </div>
                       );
                     } else if (overlappingSlots.length > 0 && timeSlot.startTime !== overlappingSlots[0].startTime) {
-                      // Skip rendering this cell because it's covered by the rowSpan of the first cell
                       return null; 
                     } else {
-                       // Fallback (shouldn't happen if overlappingSlots > 0)
                        return null;
                     }
                   }
@@ -322,30 +329,32 @@ export default memo(function TimetableGrid({
                   const isSpanSelected = selectedCells.some((c) => c.id === emptyCellId);
 
                   return (
-                    <TimetableCell
-                      key={emptyCellId}
-                      cell={{
-                        id: emptyCellId,
-                        day: day.name,
-                        startTime: timeSlot.startTime,
-                        endTime: timeSlot.endTime,
-                        isAssigned: false,
-                      }}
-                      selected={selectedCellId === emptyCellId}
-                      onCellClick={onCellClick}
-                      onAssignSlot={onAssignSlot}
-                      availableSubjects={Object.values(subjects)}
-                      rowIndex={rowIndex}
-                      isSpanSelected={isSpanSelected}
-                      selectionMode={selectionMode}
-                      onSelectionToggle={handleToggleCellSelection}
-                    />
+                    <div key={emptyCellId} className="border-t border-slate-100/50 pt-[12px] h-full flex flex-col">
+                      <TimetableCell
+                        cell={{
+                          id: emptyCellId,
+                          day: day.name,
+                          startTime: timeSlot.startTime,
+                          endTime: timeSlot.endTime,
+                          isAssigned: false,
+                        }}
+                        selected={selectedCellId === emptyCellId}
+                        onCellClick={onCellClick}
+                        onAssignSlot={onAssignSlot}
+                        availableSubjects={Object.values(subjects)}
+                        rowIndex={rowIndex}
+                        isSpanSelected={isSpanSelected}
+                        selectionMode={selectionMode}
+                        onSelectionToggle={handleToggleCellSelection}
+                        isReadOnly={isReadOnly}
+                      />
+                    </div>
                   );
                 })}
 
                 {/* Optional Break Row */}
                 {breakAfterThis && (
-                  <div style={{ gridColumn: `span ${days.length}` }} className="my-1">
+                  <div style={{ gridColumn: `span ${isReadOnly ? days.length + 1 : days.length}` }} className="my-2">
                     <BreakRow
                       id={breakAfterThis.id}
                       label={breakAfterThis.label}

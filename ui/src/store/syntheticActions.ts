@@ -1,4 +1,5 @@
 import { createAsyncThunk } from '@reduxjs/toolkit';
+import { toast } from 'sonner';
 import { RootState, AppDispatch } from './store';
 import { assign, remove, move, swap, merge, split, updateTime, lock, unlock, clearSelection, clearAllocations, setAllocations } from './timetableEngineSlice';
 import { updateSinglePeriodDurationByStartTime, updateTimeSlots, setBreaks, updatePeriodStructure, GridTimeSlot, GridBreak, updateBreakDurationAndRecalculate, removeBreakAndRecalculate } from './gridConfigSlice';
@@ -21,11 +22,18 @@ export const runValidation = createAsyncThunk<
   async (_, { dispatch, getState }) => {
     const state = getState();
     
+    if (state.timetableEngine.status === 'PUBLISHED') {
+      dispatch(setValidationResults([]));
+      return;
+    }
+    
     const context: ValidationContext = {
       allocations: state.timetableEngine.allocations,
       subjects: state.subject.subjects,
       faculty: state.faculty.faculty,
       rooms: state.room.rooms,
+      timeSlots: state.gridConfig.timeSlots,
+      breaks: state.gridConfig.breaks,
     };
     
     const results = validationEngine.validateAll(context);
@@ -198,12 +206,13 @@ export const mergeSelectedPeriods = createAsyncThunk<
   async (payload, { dispatch, getState }) => {
     const state = getState();
     const { selectedCells } = state.timetableEngine;
+    const { breaks, timeSlots } = state.gridConfig;
 
     if (selectedCells.length < 2) return; 
 
-    const mergedEntry = mergeEngine.createMergeEntry(selectedCells, payload.subjectId);
+    const { entry: mergedEntry, error } = mergeEngine.createMergeEntry(selectedCells, payload.subjectId, breaks, timeSlots);
     if (!mergedEntry) {
-      alert("Invalid merge selection based on strict validation rules.");
+      toast.error(error || "Invalid merge selection based on strict validation rules.");
       return;
     }
 

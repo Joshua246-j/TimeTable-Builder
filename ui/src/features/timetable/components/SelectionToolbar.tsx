@@ -12,10 +12,13 @@ import { cn } from "@/lib/utils";
 export default memo(function SelectionToolbar() {
   const dispatch = useDispatch<AppDispatch>();
   const { selectedCells, selectionMode } = useSelector((state: RootState) => state.timetableEngine);
+  const { breaks, timeSlots } = useSelector((state: RootState) => state.gridConfig);
 
   if (!selectionMode && selectedCells.length === 0) return null;
 
-  const canMerge = mergeEngine.canMerge(selectedCells);
+  const validation = mergeEngine.canMerge(selectedCells, breaks, timeSlots);
+  const canMerge = validation.success;
+  const mergeError = validation.reason || "Only adjacent periods of the same subject can be merged.";
 
   const handleMerge = () => {
     if (selectedCells.length < 2) return;
@@ -56,8 +59,8 @@ export default memo(function SelectionToolbar() {
           
           {!canMerge && selectedCells.length > 1 && (
             <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 hidden group-hover:block w-max">
-              <div className="bg-slate-800 text-white text-xs py-1 px-2 rounded shadow-lg">
-                Only adjacent periods of the same subject can be merged.
+              <div className="bg-slate-800 text-white text-xs py-1 px-2 rounded shadow-lg max-w-[250px] text-center">
+                {mergeError}
               </div>
             </div>
           )}

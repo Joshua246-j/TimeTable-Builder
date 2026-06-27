@@ -7,12 +7,23 @@ export interface TimetableEngineState {
   allocations: Record<string, ScheduleEntry>;
   selectedCells: SelectedCellData[];
   selectionMode: boolean;
+  status: 'DRAFT' | 'PUBLISHED';
+  isDirty: boolean;
+  publishedAt: string | null;
+  publishedSnapshot: {
+    allocations: Record<string, ScheduleEntry>;
+    gridConfig: any; // We'll store the entire grid config state here on publish
+  } | null;
 }
 
 const initialState: TimetableEngineState = {
   allocations: {},
   selectedCells: [],
   selectionMode: false,
+  status: 'DRAFT',
+  isDirty: false,
+  publishedAt: null,
+  publishedSnapshot: null,
 };
 
 export const timetableEngineSlice = createSlice({
@@ -23,10 +34,14 @@ export const timetableEngineSlice = createSlice({
       const entry = action.payload;
       if (state.allocations[entry.id]?.isLocked) return;
       state.allocations[entry.id] = entry;
+      state.status = 'DRAFT';
+      state.isDirty = true;
     },
     remove: (state, action: PayloadAction<string>) => {
       if (state.allocations[action.payload]?.isLocked) return;
       delete state.allocations[action.payload];
+      state.status = 'DRAFT';
+      state.isDirty = true;
     },
     move: (state, action: PayloadAction<{ id: string; targetId?: string; newDayId: string; newStartTime: string; newEndTime: string }>) => {
       const { id, newDayId, newStartTime, newEndTime } = action.payload;
@@ -39,6 +54,8 @@ export const timetableEngineSlice = createSlice({
         startTime: newStartTime,
         endTime: newEndTime,
       };
+      state.status = 'DRAFT';
+      state.isDirty = true;
     },
     swap: (state, action: PayloadAction<{ sourceId: string; targetId: string }>) => {
       const { sourceId, targetId } = action.payload;
@@ -68,12 +85,18 @@ export const timetableEngineSlice = createSlice({
         startTime: tempStart,
         endTime: formatTime(parseTime(tempStart) + targetDuration),
       };
+      state.status = 'DRAFT';
+      state.isDirty = true;
     },
     merge: (state, action: PayloadAction<ScheduleEntry>) => {
       state.allocations[action.payload.id] = action.payload;
+      state.status = 'DRAFT';
+      state.isDirty = true;
     },
     split: (state, action: PayloadAction<string>) => {
       delete state.allocations[action.payload];
+      state.status = 'DRAFT';
+      state.isDirty = true;
     },
     updateTime: (state, action: PayloadAction<{ id: string; newStartTime: string; newEndTime: string; newRowSpan: number }>) => {
       const { id, newStartTime, newEndTime, newRowSpan } = action.payload;
@@ -86,6 +109,8 @@ export const timetableEngineSlice = createSlice({
         endTime: newEndTime,
         rowSpan: newRowSpan,
       };
+      state.status = 'DRAFT';
+      state.isDirty = true;
     },
     lock: (state, action: PayloadAction<string>) => {
       if (state.allocations[action.payload]) {
@@ -137,14 +162,45 @@ export const timetableEngineSlice = createSlice({
       state.selectedCells = [];
     },
     clearAllocations: (state) => {
+      let changed = false;
       Object.keys(state.allocations).forEach(key => {
         if (!state.allocations[key].isLocked) {
           delete state.allocations[key];
+          changed = true;
         }
       });
+      if (changed) {
+        state.status = 'DRAFT';
+        state.isDirty = true;
+      }
     },
     setAllocations: (state, action: PayloadAction<Record<string, ScheduleEntry>>) => {
       state.allocations = action.payload;
+      state.status = 'DRAFT';
+      state.isDirty = true;
+    },
+    publishTimetable: (state, action: PayloadAction<{ gridConfig: any }>) => {
+      // Must have at least one allocation to publish
+      if (Object.keys(state.allocations).length === 0) return;
+
+      state.status = 'PUBLISHED';
+      state.isDirty = false;
+      state.publishedAt = new Date().toISOString();
+      state.publishedSnapshot = {
+        allocations: { ...state.allocations },
+        gridConfig: action.payload.gridConfig,
+      };
+    },
+    markAsDraft: (state) => {
+      state.status = 'DRAFT';
+      state.isDirty = true;
+    },
+    restoreFromPublished: (state) => {
+      if (state.publishedSnapshot) {
+        state.allocations = { ...state.publishedSnapshot.allocations };
+        state.status = 'PUBLISHED';
+        state.isDirty = false;
+      }
     }
   },
 });
@@ -165,6 +221,9 @@ export const {
   clearSelection,
   clearAllocations,
   setAllocations,
+  publishTimetable,
+  markAsDraft,
+  restoreFromPublished,
 } = timetableEngineSlice.actions;
 
 export default timetableEngineSlice.reducer;

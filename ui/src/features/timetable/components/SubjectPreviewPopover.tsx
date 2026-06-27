@@ -23,8 +23,8 @@ export default memo(function SubjectPreviewPopover({
   return (
     <Popover>
       <PopoverTrigger asChild>
-        <button className="text-slate-400 cursor-pointer hover:text-[#4F6BFF] transition-all duration-200 ml-2 p-1.5 rounded-full hover:bg-blue-50 hover:scale-110 hover:shadow-sm outline-none">
-          <Eye className="w-[18px] h-[18px]" />
+        <button className="text-blue-400 shrink-0 outline-none flex items-center justify-center p-0.5 rounded hover:bg-blue-50 transition-colors" onClick={(e) => e.stopPropagation()}>
+          <Eye className="w-[14px] h-[14px] cursor-pointer hover:text-blue-600 transition-colors" />
         </button>
       </PopoverTrigger>
       <PopoverContent 

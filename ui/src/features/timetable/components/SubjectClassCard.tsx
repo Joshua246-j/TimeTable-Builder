@@ -2,19 +2,14 @@
 
 import {
   BookOpen,
-  FlaskConical,
-  PenTool,
-  LayoutDashboard,
-  Briefcase,
   AlertTriangle,
   MoreVertical,
-  Lock,
-  Unlock,
   Users,
   Pencil,
   Trash2,
   GitMerge,
   SplitSquareHorizontal,
+  Lock,
 } from "lucide-react";
 
 import SubjectPreviewPopover from "./SubjectPreviewPopover";
@@ -23,7 +18,6 @@ import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
-  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 
@@ -34,7 +28,6 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 
-import type { LucideIcon } from "lucide-react";
 import { memo } from "react";
 import type { SubjectCardData, ScheduleEntry } from "@/types/timetable";
 import { ValidationIssue } from "@/services/validationService";
@@ -46,7 +39,7 @@ interface SubjectClassCardProps {
   hasConflict?: boolean;
   conflictData?: ValidationIssue;
   isLocked?: boolean;
-  onToggleLock?: () => void;
+  isReadOnly?: boolean;
   onEdit?: () => void;
   onDelete?: () => void;
   onMerge?: () => void;
@@ -55,59 +48,13 @@ interface SubjectClassCardProps {
   assignedDay?: string;
 }
 
-type BadgeStyle = {
-  bg: string;
-  text: string;
-  iconBg: string;
-  icon: LucideIcon;
-};
-
-const BADGE_STYLES: Record<string, BadgeStyle> = {
-  THEORY: {
-    bg: "bg-blue-50 border-blue-200",
-    text: "text-blue-700",
-    iconBg: "bg-indigo-50 text-indigo-600",
-    icon: BookOpen,
-  },
-  LAB: {
-    bg: "bg-indigo-50 border-indigo-200",
-    text: "text-indigo-700",
-    iconBg: "bg-indigo-50 text-indigo-600",
-    icon: FlaskConical,
-  },
-  TUTORIAL: {
-    bg: "bg-slate-50 border-slate-200",
-    text: "text-slate-700",
-    iconBg: "bg-slate-100 text-slate-600",
-    icon: PenTool,
-  },
-  ELECTIVE: {
-    bg: "bg-emerald-50 border-emerald-200",
-    text: "text-emerald-700",
-    iconBg: "bg-emerald-50 text-emerald-600",
-    icon: LayoutDashboard,
-  },
-  SEMINAR: {
-    bg: "bg-cyan-50 border-cyan-200",
-    text: "text-cyan-700",
-    iconBg: "bg-cyan-50 text-cyan-600",
-    icon: Briefcase,
-  },
-  WORKSHOP: {
-    bg: "bg-purple-50 border-purple-200",
-    text: "text-purple-700",
-    iconBg: "bg-purple-50 text-purple-600",
-    icon: Briefcase,
-  },
-};
-
 export default memo(function SubjectClassCard({
   data,
   scheduleEntry,
   hasConflict = false,
   conflictData,
   isLocked = false,
-  onToggleLock,
+  isReadOnly = false,
   onEdit,
   onDelete,
   onMerge,
@@ -116,20 +63,56 @@ export default memo(function SubjectClassCard({
   assignedDay,
 }: SubjectClassCardProps) {
   const typeKey = data?.type?.toUpperCase() || "THEORY";
-  const styles = BADGE_STYLES[typeKey] || BADGE_STYLES.THEORY;
-  const Icon = styles.icon;
   const rowSpan = scheduleEntry?.rowSpan || 1;
 
+  // Determine the color dot based on the type
+  const getDotColor = () => {
+    switch (typeKey) {
+      case "THEORY": return "bg-green-500";
+      case "LAB": return "bg-yellow-400";
+      case "TUTORIAL": return "bg-purple-500";
+      case "ELECTIVE": return "bg-orange-500";
+      case "SEMINAR": return "bg-blue-500";
+      default: return "bg-slate-400";
+    }
+  };
+
+  if (isReadOnly) {
+    return (
+      <div className={`flex-1 p-[16px] flex flex-col relative min-w-0 h-full font-inter bg-white rounded-[16px] overflow-hidden ${rowSpan > 1 ? 'justify-center' : ''}`}>
+        {/* Thick Left Border Indicator */}
+        <div className="absolute left-0 top-0 bottom-0 w-[4px] bg-[#4F6BFF] rounded-l-[16px]"></div>
+
+        {/* Main Content Area */}
+        <div className={`flex-1 flex flex-col min-h-0 pl-1 ${rowSpan > 1 ? 'justify-center' : ''}`}>
+          <h3 className="font-[800] text-[#1E293B] leading-tight text-[13px] line-clamp-2 mb-1">
+            {data?.subjectName || "Subject"}
+          </h3>
+          
+          <div className="flex flex-col gap-0.5 text-[11px] font-[500] text-[#64748B]">
+            <span className="truncate">{data?.facultyName || "Faculty"}</span>
+            <span className="truncate">{data?.roomName || "Room"}</span>
+          </div>
+        </div>
+
+        {/* Type Indicator Dot */}
+        <div className="absolute bottom-3 right-3">
+          <div className={`w-[6px] h-[6px] rounded-full ${getDotColor()}`}></div>
+        </div>
+      </div>
+    );
+  }
+
   return (
-    <div className={`flex-1 p-[14px] flex flex-col relative min-w-0 h-full font-inter bg-white rounded-r-[10px] ${rowSpan > 1 ? 'justify-center' : ''}`}>
+    <div className="flex-1 p-2.5 flex flex-col relative min-w-0 h-full font-inter bg-white rounded-r-[16px]">
       
-        {/* Actions / Conflict indicator */}
+      {/* Actions / Conflict indicator */}
       {hasConflict && (
         <TooltipProvider>
           <Tooltip delayDuration={200}>
             <TooltipTrigger asChild>
-              <div className="absolute top-2 right-8 h-4 w-4 rounded bg-orange-100 text-orange-500 flex items-center justify-center z-20 cursor-help">
-                <AlertTriangle className="h-2.5 w-2.5" />
+              <div className="absolute top-1.5 right-1.5 h-3.5 w-3.5 rounded bg-orange-100 text-orange-500 flex items-center justify-center z-20 cursor-help">
+                <AlertTriangle className="h-2 w-2" />
               </div>
             </TooltipTrigger>
             {conflictData && (
@@ -138,161 +121,124 @@ export default memo(function SubjectClassCard({
                   <AlertTriangle className="h-4 w-4" />
                   {conflictData.conflictType || 'Scheduling Conflict'}
                 </div>
-                <div className="space-y-1 text-[11px]">
-                  {conflictData.affectedSubject && <div className="font-semibold text-slate-900 truncate">{conflictData.affectedSubject}</div>}
-                  {conflictData.affectedTeacher && <div className="text-slate-600">👤 {conflictData.affectedTeacher}</div>}
-                  {conflictData.affectedRoom && <div className="text-slate-600">🚪 {conflictData.affectedRoom}</div>}
-                  {conflictData.affectedTime && <div className="text-slate-600 mt-1 pt-1 border-t border-slate-100">🕒 {conflictData.affectedTime}</div>}
-                </div>
               </TooltipContent>
             )}
           </Tooltip>
         </TooltipProvider>
       )}
 
-      {/* 3 dots Dropdown menu */}
-      <div className="absolute top-3 right-3 flex items-center z-30">
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <button 
-              className="text-slate-300 hover:text-slate-500 transition-colors p-1 rounded-md hover:bg-slate-50 outline-none"
-              title="Options"
-              onClick={(e) => e.stopPropagation()}
-            >
-              <MoreVertical className="w-4 h-4" />
-            </button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="end" className="w-48 z-50 font-inter text-sm">
-            {!isLocked && (
-              <>
-                {onEdit && (
-                  <DropdownMenuItem onClick={(e) => { e.stopPropagation(); onEdit(); }} className="cursor-pointer">
-                    <Pencil className="w-4 h-4 mr-2 text-slate-500" /> Edit Subject
-                  </DropdownMenuItem>
-                )}
-                {onMerge && (
-                  <DropdownMenuItem onClick={(e) => { e.stopPropagation(); onMerge(); }} className="cursor-pointer text-blue-600 focus:text-blue-700 focus:bg-blue-50 font-medium">
-                    <GitMerge className="w-4 h-4 mr-2" /> Merge Periods
-                  </DropdownMenuItem>
-                )}
-                {onSplit && scheduleEntry && scheduleEntry.rowSpan > 1 && (
-                  <DropdownMenuItem onClick={(e) => { e.stopPropagation(); onSplit(); }} className="cursor-pointer text-orange-600 focus:text-orange-700 focus:bg-orange-50 font-medium">
-                    <SplitSquareHorizontal className="w-4 h-4 mr-2" /> Split Periods
-                  </DropdownMenuItem>
-                )}
-              </>
-            )}
+      {/* Main Content Area */}
+      <div 
+        className="flex-1 flex flex-col min-h-0 cursor-pointer w-full"
+        onDoubleClick={(e) => { e.stopPropagation(); if (onEdit) onEdit(); }}
+      >
+        <div className={`flex flex-col flex-1 min-h-0 transition-all duration-300 ${scheduleEntry && scheduleEntry.rowSpan > 1 ? 'justify-center' : 'justify-start'}`}>
+          {/* Top Header: Icon + Title + Subtitle */}
+          <div className="flex items-start gap-1.5 mb-3 relative">
+            <div className="w-[24px] h-[24px] rounded-lg bg-indigo-100 text-indigo-600 flex items-center justify-center shrink-0 mt-0.5">
+              <BookOpen className="w-[12px] h-[12px]" />
+            </div>
+            <div className="flex flex-col flex-1 min-w-0 pr-4">
+              <h3 className="font-[800] text-[#1E293B] leading-snug text-[12px] pr-1">
+                {data?.subjectName || "Subject"}
+              </h3>
+              <span className="text-[9px] font-[600] text-[#94A3B8] truncate mt-0.5">
+                {data?.code || "CS301"} • {data?.type ? data.type.charAt(0).toUpperCase() + data.type.slice(1).toLowerCase() : "Lecture"}
+              </span>
+            </div>
             
-            <DropdownMenuItem 
-              onClick={(e) => {
-                e.stopPropagation();
-                if (onToggleLock) onToggleLock();
-              }}
-              className="cursor-pointer"
-            >
-              {isLocked ? (
-                <><Unlock className="w-4 h-4 mr-2 text-blue-600" /> Unlock</>
-              ) : (
-                <><Lock className="w-4 h-4 mr-2" /> Lock</>
-              )}
-            </DropdownMenuItem>
+            <div className="absolute right-0 top-0 flex items-center text-slate-300">
+               {!isReadOnly && (
+                 <DropdownMenu>
+                 <DropdownMenuTrigger asChild>
+                   <button onClick={(e) => e.stopPropagation()} className="p-0.5 hover:bg-slate-100 rounded-md transition-colors">
+                     <MoreVertical className="w-[14px] h-[14px] hover:text-slate-500" />
+                   </button>
+                 </DropdownMenuTrigger>
+                 <DropdownMenuContent align="end" className="w-40 font-inter p-1 border border-slate-100 shadow-lg rounded-xl">
+                   {onEdit && (
+                     <DropdownMenuItem onClick={(e) => { e.stopPropagation(); onEdit(); }} className="text-xs font-semibold text-slate-600 cursor-pointer rounded-lg hover:bg-slate-50 hover:text-slate-900 focus:bg-slate-50 focus:text-slate-900 px-3 py-2">
+                       <Pencil className="w-3.5 h-3.5 mr-2" />
+                       Edit
+                     </DropdownMenuItem>
+                   )}
+                   {onMerge && (
+                     <DropdownMenuItem onClick={(e) => { e.stopPropagation(); onMerge(); }} className="text-xs font-semibold text-slate-600 cursor-pointer rounded-lg hover:bg-slate-50 hover:text-slate-900 focus:bg-slate-50 focus:text-slate-900 px-3 py-2">
+                       <GitMerge className="w-3.5 h-3.5 mr-2" />
+                       Merge Cells
+                     </DropdownMenuItem>
+                   )}
+                   {onSplit && scheduleEntry?.rowSpan && scheduleEntry.rowSpan > 1 && (
+                     <DropdownMenuItem onClick={(e) => { e.stopPropagation(); onSplit(); }} className="text-xs font-semibold text-slate-600 cursor-pointer rounded-lg hover:bg-slate-50 hover:text-slate-900 focus:bg-slate-50 focus:text-slate-900 px-3 py-2">
+                       <SplitSquareHorizontal className="w-3.5 h-3.5 mr-2" />
+                       Split Cells
+                     </DropdownMenuItem>
+                   )}
+                 </DropdownMenuContent>
+               </DropdownMenu>
+               )}
+            </div>
+          </div>
 
-            {!isLocked && onDelete && (
-              <>
-                <DropdownMenuSeparator />
-                <DropdownMenuItem 
-                  onClick={(e) => { e.stopPropagation(); if (onDelete) onDelete(); }}
-                  className="cursor-pointer text-red-600 focus:text-red-600 focus:bg-red-50"
-                >
-                  <Trash2 className="w-4 h-4 mr-2" /> Remove Assignment
-                </DropdownMenuItem>
-              </>
+          {/* Middle: Faculty & Room Pills & Period Chip */}
+          <div className="flex flex-col gap-2 mb-2 pl-[30px]">
+            <div className="flex items-center gap-1.5">
+              {data?.facultyName && (
+                <div className="px-1.5 py-0.5 rounded border border-slate-200 bg-white text-[9px] font-[700] text-[#475569] shrink-0 truncate max-w-[50px]">
+                  {data.facultyName.charAt(0).toUpperCase()}.
+                </div>
+              )}
+              {data?.roomName && (
+                <div className="px-1.5 py-0.5 rounded bg-indigo-50 text-[9px] font-[800] text-[#4F46E5] shrink-0 truncate max-w-[60px]">
+                  {data.roomName}
+                </div>
+              )}
+            </div>
+            
+            {scheduleEntry && scheduleEntry.rowSpan > 1 && (
+              <div className="self-start px-2 py-0.5 rounded bg-purple-50 text-[9px] font-[800] text-purple-600 shrink-0">
+                {scheduleEntry.rowSpan} Periods
+              </div>
             )}
-          </DropdownMenuContent>
-        </DropdownMenu>
+          </div>
+        </div>
+
+        {/* Bottom: Section, Delete & Eye Button */}
+        <div className="flex items-center justify-between mt-auto pt-1 w-full relative">
+          <div className="flex items-center gap-1 text-slate-400 min-w-0 pr-12">
+            <Users className="w-3 h-3 shrink-0" />
+            <span className="text-[9px] font-[600] truncate">
+              {data?.section || "Section CSE V A"}
+            </span>
+          </div>
+          
+          <div className="absolute right-0 flex items-center gap-1 bg-white pl-1 shrink-0">
+             {onDelete && (
+                <button 
+                  onClick={(e) => { e.stopPropagation(); onDelete(); }}
+                  className="p-0.5 text-slate-300 hover:text-red-500 hover:bg-red-50 rounded transition-colors outline-none"
+                  title="Remove subject"
+                >
+                  <Trash2 className="w-[14px] h-[14px]" />
+                </button>
+             )}
+             {data && (
+               <SubjectPreviewPopover 
+                 subject={data} 
+                 assignedTime={assignedTime} 
+                 assignedDay={assignedDay} 
+               />
+             )}
+          </div>
+        </div>
+
       </div>
 
       {isLocked && (
-        <div className="absolute bottom-3 right-8 flex items-center z-20 text-slate-400">
+        <div className="absolute top-2 right-6 flex items-center z-20 text-slate-300">
           <Lock className="w-3 h-3" />
         </div>
       )}
-
-      {/* Main Content Area */}
-      <div 
-        className={`flex-1 flex flex-col min-h-0 pt-0.5 cursor-pointer ${rowSpan > 1 ? 'justify-center' : ''}`}
-        onDoubleClick={(e) => { e.stopPropagation(); if (onEdit) onEdit(); }}
-      >
-        
-        {/* Title Area */}
-        <div className="flex items-start gap-[12px]">
-          <div className={`w-[38px] h-[38px] shrink-0 rounded-[8px] flex items-center justify-center ${styles.iconBg}`}>
-            <Icon className="w-5 h-5" />
-          </div>
-
-          <div className="flex-1 min-w-0 pr-12">
-            <h3 className="font-[700] text-[#0F172A] leading-tight text-[15px] line-clamp-2 mb-0.5" style={{ wordBreak: 'normal', overflowWrap: 'break-word' }}>
-              {data?.subjectName || "Subject"}
-            </h3>
-            <div className="flex flex-wrap items-center font-medium text-[#94A3B8] text-[12px] gap-1.5 mt-1">
-              <span className="truncate">
-                {data?.code || "CODE"} <span className="mx-0.5">•</span> <span className="capitalize">{data?.type === "THEORY" ? "Lecture" : data?.type?.toLowerCase() || "Lecture"}</span>
-              </span>
-            </div>
-          </div>
-        </div>
-
-        {/* Faculty + Room Chips */}
-        <div className="mt-[14px] flex flex-nowrap items-center gap-[6px] min-w-0 w-full overflow-hidden">
-          <div className="flex items-center rounded-md border border-[#E2E8F0] bg-white px-[8px] h-[28px] min-w-0 flex-1">
-            <span className="truncate text-[12px] font-[600] text-[#475569] w-full">
-              {data?.facultyName || "Faculty"}
-            </span>
-          </div>
-
-          <div className="flex items-center shrink-0 rounded-md bg-[#EEF2FF] px-[8px] h-[28px] max-w-[90px]">
-            <span className="truncate text-[12px] font-[700] text-[#4F46E5] w-full">
-              {data?.roomName || "Room"}
-            </span>
-          </div>
-
-          {rowSpan > 1 && (
-            <div className="flex items-center shrink-0 rounded-md bg-purple-50 px-[8px] h-[28px] border border-purple-100">
-              <span className="text-[12px] font-[700] text-purple-600 whitespace-nowrap">
-                {rowSpan} Periods
-              </span>
-            </div>
-          )}
-        </div>
-      </div>
-
-      {/* Footer Area - Always bottom aligned unless merged */}
-      <div className={`${rowSpan > 1 ? 'mt-4' : 'mt-auto'} pt-3 flex items-center justify-between bg-transparent shrink-0`}>
-        <div className="flex items-center gap-1.5 text-[#94A3B8] min-w-0">
-          <Users className="w-4 h-4 shrink-0" />
-          <span className="text-[12px] font-medium truncate">{data?.section || "Section CSE V A"}</span>
-        </div>
-        
-        <div className="flex items-center gap-1">
-          {onDelete && !isLocked && (
-            <button
-               onClick={(e) => { e.stopPropagation(); onDelete(); }}
-               className="p-1.5 text-slate-300 hover:text-red-500 hover:bg-red-50 rounded-md transition-colors outline-none"
-               title="Unassign Subject"
-            >
-               <Trash2 className="w-[15px] h-[15px]" />
-            </button>
-          )}
-          {data && (
-            <SubjectPreviewPopover 
-              subject={data} 
-              assignedTime={assignedTime} 
-              assignedDay={assignedDay} 
-            />
-          )}
-        </div>
-      </div>
-
     </div>
   );
 });

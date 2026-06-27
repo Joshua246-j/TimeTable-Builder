@@ -2,7 +2,7 @@ import { SubjectCardData, ScheduleEntry } from '@/types/timetable';
 import { FacultyData } from '@/services/facultyService';
 import { RoomData } from '@/services/roomService';
 import { ValidationIssue } from '@/services/validationService';
-import { isOverlap, parseTime, formatTime } from '@/lib/timeEngine';
+import { isOverlap, parseTime, formatTime, hasIntersectingBreak } from '@/lib/timeEngine';
 
 
 export interface ValidationContext {
@@ -10,6 +10,8 @@ export interface ValidationContext {
   subjects: Record<string, SubjectCardData>;
   faculty: Record<string, FacultyData>;
   rooms: Record<string, RoomData>;
+  timeSlots: { id?: string; startTime: string; endTime: string }[];
+  breaks: { afterPeriodId: string; durationMinutes: number; startTime?: string; endTime?: string }[];
 }
 
 // Set to true to inject artificial conflicts for UI demonstration
@@ -135,6 +137,52 @@ export const validationEngine = {
           message: `Subject ${subjectA.subjectName} has no assigned room.`,
           cellIds: [blockA.id]
         });
+      }
+    }
+
+    // BREAK VALIDATION & BOUNDS VALIDATION
+    if (context.timeSlots.length > 0) {
+      const gridStartTime = parseTime(context.timeSlots[0].startTime);
+      const gridEndTime = parseTime(context.timeSlots[context.timeSlots.length - 1].endTime);
+      
+      // Calculate break absolute times
+      const absoluteBreaks = context.breaks.map(b => {
+         const slot = context.timeSlots.find(s => s.id === b.afterPeriodId) || context.timeSlots[context.timeSlots.length - 1];
+         if (!slot) return { startTime: "", endTime: "" };
+         const start = parseTime(slot.endTime);
+         const end = start + b.durationMinutes;
+         return { startTime: slot.endTime, endTime: formatTime(end) };
+      }).filter(b => b.startTime !== "");
+
+      for (const block of allBlocks) {
+        const startMins = parseTime(block.startTime);
+        const endMins = parseTime(block.endTime);
+        const subject = context.subjects[block.subjectId];
+        if (!subject) continue;
+
+        // BOUNDS CHECK
+        if (startMins < gridStartTime || endMins > gridEndTime) {
+          conflicts.push({
+            id: `err-bounds-${block.id}`,
+            type: 'conflict',
+            code: 'ERR_OUT_OF_BOUNDS',
+            message: `${subject.subjectName} is scheduled outside the valid timetable hours.`,
+            cellIds: [block.id],
+            conflictType: 'Manual Edit Conflict',
+          });
+        }
+
+        // BREAK CHECK
+        if (hasIntersectingBreak(block.startTime, block.endTime, absoluteBreaks)) {
+          conflicts.push({
+            id: `err-break-${block.id}`,
+            type: 'conflict',
+            code: 'ERR_BREAK_OVERLAP',
+            message: `${subject.subjectName} overlaps with a scheduled break.`,
+            cellIds: [block.id],
+            conflictType: 'Manual Edit Conflict',
+          });
+        }
       }
     }
 

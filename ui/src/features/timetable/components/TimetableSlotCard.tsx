@@ -13,6 +13,7 @@ interface TimetableSlotCardProps {
   isConflict?: boolean;
   isLocked?: boolean;
   isSelectionMode?: boolean;
+  isReadOnly?: boolean;
   onClick?: () => void;
   onTimeChange?: (startTime: string, endTime: string) => void;
 }
@@ -25,6 +26,7 @@ export default memo(function TimetableSlotCard({
   isConflict = false,
   isLocked = false,
   isSelectionMode = false,
+  isReadOnly = false,
   onClick,
   onTimeChange,
 }: TimetableSlotCardProps) {
@@ -47,7 +49,7 @@ export default memo(function TimetableSlotCard({
         }
         
         @container slotcard (min-width: 250px) {
-          .sc-time-panel { width: 88px; min-width: 88px; } /* Desktop */
+          .sc-time-panel { width: 68px; min-width: 68px; } /* Desktop */
         }
       `}</style>
       <div
@@ -62,24 +64,20 @@ export default memo(function TimetableSlotCard({
           h-full
           min-h-[160px]
           flex
-          rounded-[10px]
-          border
-          bg-white
+          rounded-[16px]
           overflow-hidden
           transition-all
           duration-200
         `,
-          // Base style
-          "border-[#CBD5E1]",
-          
+          isReadOnly ? "bg-transparent" : "bg-white border border-[#E5E7EB] shadow-sm",
           // Selection logic
-          isSelectionMode && "cursor-pointer hover:border-blue-400 hover:ring-2 hover:ring-blue-100",
-          (!isSelectionMode && onClick) && "cursor-pointer hover:-translate-y-[2px] hover:shadow-[0_4px_12px_rgba(15,23,42,0.04)]",
+          isSelectionMode && "cursor-pointer ring-2 ring-blue-100",
+          (!isSelectionMode && onClick && !isReadOnly) && "cursor-pointer hover:-translate-y-[2px]",
           
           // States
-          isConflict && "border-orange-500 border-l-[4px] bg-orange-50/30",
-          isSelected && "border-[#2563EB] ring-2 ring-[#2563EB]/20 shadow-md",
-          isLocked && "ring-1 ring-slate-300 bg-slate-50"
+          isConflict && "border border-orange-500 bg-orange-50/30",
+          isSelected && "ring-2 ring-[#2563EB]/40 shadow-md",
+          isLocked && "ring-1 ring-slate-200 opacity-80"
         )}
       >
         {/* Selection Indicator */}
@@ -96,11 +94,15 @@ export default memo(function TimetableSlotCard({
           </div>
         )}
 
-        {/* TimeRail */}
-        <TimeRail startTime={startTime} endTime={endTime} onTimeChange={onTimeChange} />
+        {/* TimeRail - Only visible in edit mode */}
+        {!isReadOnly && (
+          <div className="shrink-0 relative z-30">
+             <TimeRail startTime={startTime} endTime={endTime} onTimeChange={onTimeChange} />
+          </div>
+        )}
 
         {/* Child Content (SubjectClassCard) */}
-        <div className="flex-1 relative min-w-0 bg-transparent flex flex-col z-20">
+        <div className="flex-1 relative min-w-0 flex flex-col z-20 bg-transparent">
           {children}
         </div>
       </div>

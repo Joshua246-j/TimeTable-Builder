@@ -1,7 +1,7 @@
 import { SelectedCell } from "@/types/timetableSpan";
 import { ScheduleEntry, TimetableData } from "@/types/timetable";
 import { selectionEngine } from "./selectionEngine";
-import { calculateDurationMinutes } from "./timeEngine";
+import { hasIntersectingBreak, parseTime, formatTime, calculateDurationMinutes } from "./timeEngine";
 
 export const mergeEngine = {
   calculateRowSpan: (startRow: number, endRow: number): number => {
@@ -14,25 +14,46 @@ export const mergeEngine = {
     });
   },
 
-  canMerge: (cells: SelectedCell[]): boolean => {
-    if (cells.length < 2) return false;
+  canMerge: (
+    cells: SelectedCell[], 
+    breaks: { afterPeriodId: string; durationMinutes: number }[],
+    timeSlots: { id: string; startTime: string; endTime: string }[]
+  ): { success: boolean; reason?: string } => {
+    if (cells.length < 2) return { success: false, reason: "Select at least two adjacent periods to merge." };
     
     // Check adjacency
-    if (!selectionEngine.isAdjacent(cells)) return false;
+    if (!selectionEngine.isAdjacent(cells)) return { success: false, reason: "Only adjacent consecutive periods can be merged." };
 
     // Must be assigned to a subject to merge
     const firstSubjectId = cells[0].subjectId;
-    if (!firstSubjectId) return false;
+    if (!firstSubjectId) return { success: false, reason: "Cannot merge empty slots. Assign a subject first." };
 
-    // Strict Enterprise Validation: Same Day, Same Subject, Same Teacher, Same Room
+    // Strict Enterprise Validation: Same Day, Same Subject
     const firstDay = cells[0].day;
-    // (Assuming teacherId and roomId logic will be integrated into the cells if needed, 
-    // for now we enforce exact subjectId and day matching)
     if (cells.some(c => c.subjectId !== firstSubjectId || c.day !== firstDay)) {
-      return false; 
+      return { success: false, reason: "Merged periods must have the exact same Subject, Room, Faculty, and Class." };
+    }
+    
+    // Break check
+    if (timeSlots.length > 0 && breaks.length > 0) {
+      const sorted = [...cells].sort((a, b) => a.rowIndex - b.rowIndex);
+      const startCell = sorted[0];
+      const endCell = sorted[sorted.length - 1];
+      
+      const absoluteBreaks = breaks.map(b => {
+         const slot = timeSlots.find(s => s.id === b.afterPeriodId) || timeSlots[timeSlots.length - 1];
+         if (!slot) return { startTime: "", endTime: "" };
+         const start = parseTime(slot.endTime);
+         const end = start + b.durationMinutes;
+         return { startTime: slot.endTime, endTime: formatTime(end) };
+      }).filter(b => b.startTime !== "");
+      
+      if (hasIntersectingBreak(startCell.startTime, endCell.endTime, absoluteBreaks)) {
+        return { success: false, reason: "Cannot merge periods because a scheduled break exists between the selected time slots." };
+      }
     }
 
-    return true;
+    return { success: true };
   },
 
   suggestAutoMerge: (
@@ -59,24 +80,32 @@ export const mergeEngine = {
     return mergeGroup.length > 1 ? mergeGroup : [];
   },
 
-  createMergeEntry: (cells: SelectedCell[], subjectId: string): ScheduleEntry | null => {
-    if (!mergeEngine.canMerge(cells)) return null;
+  createMergeEntry: (
+    cells: SelectedCell[], 
+    subjectId: string,
+    breaks: { afterPeriodId: string; durationMinutes: number }[],
+    timeSlots: { id: string; startTime: string; endTime: string }[]
+  ): { entry?: ScheduleEntry; error?: string } => {
+    const validation = mergeEngine.canMerge(cells, breaks, timeSlots);
+    if (!validation.success) return { error: validation.reason };
 
     const sorted = [...cells].sort((a, b) => a.rowIndex - b.rowIndex);
     const startCell = sorted[0];
     const endCell = sorted[sorted.length - 1];
 
     return {
-      id: `merge-${startCell.id}-${Date.now()}`,
-      subjectId: subjectId,
-      dayId: startCell.day,
-      startTime: startCell.startTime,
-      endTime: endCell.endTime,
-      duration: calculateDurationMinutes(startCell.startTime, endCell.endTime),
-      rowStart: startCell.rowIndex,
-      rowSpan: mergeEngine.calculateRowSpan(startCell.rowIndex, endCell.rowIndex),
-      isEditable: true,
-      isLocked: false,
+      entry: {
+        id: `merge-${startCell.id}-${Date.now()}`,
+        subjectId: subjectId,
+        dayId: startCell.day,
+        startTime: startCell.startTime,
+        endTime: endCell.endTime,
+        duration: calculateDurationMinutes(startCell.startTime, endCell.endTime),
+        rowStart: startCell.rowIndex,
+        rowSpan: mergeEngine.calculateRowSpan(startCell.rowIndex, endCell.rowIndex),
+        isEditable: true,
+        isLocked: false,
+      }
     };
   },
 

@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useCallback, useMemo, useEffect } from "react";
+import { useRouter } from "next/navigation";
 import ActionToolbar from "@/features/timetable/components/ActionToolbar";
 import TimetableGrid from "@/features/timetable/components/TimetableGrid";
 import SubjectAllocationPanel from "@/features/timetable/components/SubjectAllocationPanel";
@@ -21,7 +22,7 @@ import { DndContext, DragEndEvent, DragStartEvent, PointerSensor, useSensor, use
 import { toast } from "sonner";
 import { mergeEngine } from "@/lib/mergeEngine";
 import { isOverlap, parseTime } from "@/lib/timeEngine";
-import { merge, remove } from "@/store/timetableEngineSlice";
+import { merge, remove, publishTimetable, restoreFromPublished } from "@/store/timetableEngineSlice";
 import {
   Dialog,
   DialogContent,
@@ -29,18 +30,21 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { AlertTriangle } from "lucide-react";
+import { AlertTriangle, LayoutGrid } from "lucide-react";
 
 const MobileFilters = dynamic(() => import("@/features/timetable/components/MobileFilters"), { ssr: false });
 const MobileSubjectDrawer = dynamic(() => import("@/features/timetable/components/MobileSubjectDrawer"), { ssr: false });
 
 interface TimetableInteractiveWorkspaceProps {
   initialData: TimetableData;
+  isEditable?: boolean;
 }
 
 export default function TimetableInteractiveWorkspace({
   initialData,
+  isEditable = true,
 }: TimetableInteractiveWorkspaceProps) {
+  const router = useRouter();
   const [isMobileDrawerOpen, setIsMobileDrawerOpen] = useState(false);
   const [isConflictDrawerOpen, setIsConflictDrawerOpen] = useState(false);
   const [timetableData] = useState<TimetableData>(initialData);
@@ -49,8 +53,18 @@ export default function TimetableInteractiveWorkspace({
   const [editingGroupId, setEditingGroup] = useState<string | null>(null);
   const dispatch = useDispatch<AppDispatch>();
   const subjectsRedux = useSelector((state: RootState) => state.subject.subjects || {});
-  const { allocations } = useSelector((state: RootState) => state.timetableEngine);
+  const { allocations, status, publishedSnapshot } = useSelector((state: RootState) => state.timetableEngine);
   const validationState = useSelector((state: RootState) => state.validation);
+  
+  // Use the prop instead of internal state
+  const isEditMode = isEditable;
+  
+  // Redirect to builder if trying to view published timetable but none exists
+  useEffect(() => {
+    if (!isEditable && status !== 'PUBLISHED') {
+      router.push('/timetable/builder');
+    }
+  }, [isEditable, status, router]);
   const gridConfig = useSelector((state: RootState) => state.gridConfig);
   const [activeDragData, setActiveDragData] = useState<Record<string, unknown> | null>(null);
   const [pendingTimeChange, setPendingTimeChange] = useState<{
@@ -226,27 +240,21 @@ export default function TimetableInteractiveWorkspace({
   }, [timetableData.cells, allocations]);
 
   const handlePublish = useCallback(() => {
-    // Generate clean JSON payload
-    const publishedData = {
-      timestamp: new Date().toISOString(),
-      gridConfig: gridConfig,
-      allocations: Object.values(allocations).map(alloc => ({
-        id: alloc.id,
-        subjectId: alloc.subjectId,
-        dayId: alloc.dayId,
-        startTime: alloc.startTime,
-        endTime: alloc.endTime,
-        rowSpan: alloc.rowSpan,
-        isLocked: alloc.isLocked || false
-      }))
-    };
-    
-    // Simulate API call
-    console.log("PUBLISHED TIMETABLE DATA (Backend Ready Payload):");
-    console.log(JSON.stringify(publishedData, null, 2));
-    
-    toast.success("Timetable published successfully! (Check console for payload)");
-  }, [allocations, gridConfig]);
+    if (Object.keys(allocations).length === 0) {
+      toast.error("Allocate at least one timetable slot before publishing.");
+      return;
+    }
+
+    dispatch(publishTimetable({ gridConfig }));
+    toast.success("Timetable published successfully!");
+    router.push('/timetable');
+  }, [allocations, dispatch, gridConfig, router]);
+
+  const handleCancelEdit = useCallback(() => {
+    dispatch(restoreFromPublished());
+    toast.info("Restored to published timetable.");
+    router.push('/timetable');
+  }, [dispatch, router]);
 
   return (
     <DndContext sensors={sensors} onDragStart={handleDragStart} onDragEnd={handleDragEnd}>
@@ -255,23 +263,61 @@ export default function TimetableInteractiveWorkspace({
         <div className="flex-1 flex flex-col overflow-hidden bg-[#F8FAFC]">
           <div className="overflow-y-auto flex flex-col p-4 lg:p-6 lg:pl-8 h-full">
             <div className="flex-none">
-              <ActionToolbar 
-                onOpenConflicts={() => setIsConflictDrawerOpen(true)}
-                onPublish={handlePublish}
-              />
-              <div className="mt-4 lg:hidden">
-                <MobileFilters />
-              </div>
+              {!isEditMode ? (
+                <div className="flex w-full items-center justify-between mb-6">
+                  {/* Left: Selected Unit */}
+                  <div className="flex items-center gap-3">
+                    <div className="flex h-8 w-8 items-center justify-center rounded-md border border-slate-200 bg-white text-slate-500 shadow-sm">
+                      <LayoutGrid className="h-4 w-4" />
+                    </div>
+                    
+                    <div className="flex items-center gap-2">
+                      <span className="text-[11px] font-bold text-slate-400 tracking-wider">SELECTED UNIT</span>
+                      <select className="bg-transparent text-[13px] font-bold text-slate-800 outline-none cursor-pointer border-none">
+                        <option>Section CSE V A</option>
+                        <option>Section CSE V B</option>
+                      </select>
+                    </div>
+                  </div>
+
+                  {/* Right: Legend */}
+                  <div className="flex items-center gap-4 px-4 py-2 bg-white border border-slate-200 rounded-full shadow-sm text-[11px] font-bold text-slate-500">
+                    <div className="flex items-center gap-1.5"><div className="w-2 h-2 rounded-full bg-green-500"></div>Theory</div>
+                    <div className="flex items-center gap-1.5"><div className="w-2 h-2 rounded-full bg-yellow-400"></div>Lab</div>
+                    <div className="flex items-center gap-1.5"><div className="w-2 h-2 rounded-full bg-purple-500"></div>Tutorial</div>
+                    <div className="flex items-center gap-1.5"><div className="w-2 h-2 rounded-full bg-orange-500"></div>Elective</div>
+                    <div className="flex items-center gap-1.5"><div className="w-2 h-2 rounded-full bg-blue-500"></div>Seminar</div>
+                  </div>
+                </div>
+              ) : (
+                <>
+                  <ActionToolbar 
+                    onOpenConflicts={() => setIsConflictDrawerOpen(true)}
+                    onPublish={handlePublish}
+                    onCancelEdit={publishedSnapshot ? handleCancelEdit : undefined}
+                  />
+                  <div className="mt-4 lg:hidden">
+                    <MobileFilters />
+                  </div>
+                </>
+              )}
             </div>
 
-            <div className="mt-4 lg:mt-6 flex flex-col pb-6">
-              <div
-                className="
-                
-                  bg-transparent lg:bg-white
-                  relative
-                "
-              >
+            <div className={`flex flex-col pb-6 ${!isEditMode ? 'bg-white rounded-[24px] border border-slate-100 shadow-sm p-6' : 'mt-4 lg:mt-6'}`}>
+              
+              {!isEditMode && (
+                <div className="flex justify-end mb-4">
+                  <button 
+                    onClick={() => router.push('/timetable/builder')}
+                    className="flex items-center gap-2 rounded-full bg-white border border-slate-200 text-[#5A67D8] px-5 py-2 text-[13px] font-bold transition-all hover:bg-slate-50 shadow-sm"
+                  >
+                    <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>
+                    Edit Timetable
+                  </button>
+                </div>
+              )}
+
+              <div className="relative">
                 <TimetableGrid
                   days={activeDays}
                   timeSlots={gridConfig.timeSlots || []}
@@ -279,6 +325,7 @@ export default function TimetableInteractiveWorkspace({
                   subjects={subjectsRedux || {}}
                   selectedCellId={selectedCellId}
                   isGridEditMode={gridConfig.isGridEditMode}
+                  isReadOnly={!isEditMode}
                   breaks={gridConfig.breaks}
                   editingGroupId={editingGroupId}
                   onCancelEdit={() => setEditingGroup(null)}
@@ -411,40 +458,44 @@ export default function TimetableInteractiveWorkspace({
               </div>
             </div>
             
-            <div className="flex-none pt-4 lg:pt-6 border-t border-slate-200 bg-white">
-            <ValidationFooter onOpenConflicts={() => setIsConflictDrawerOpen(true)} />
-            </div>
+            {isEditMode && (
+              <div className="flex-none pt-4 lg:pt-6 border-t border-slate-200 bg-white">
+                <ValidationFooter onOpenConflicts={() => setIsConflictDrawerOpen(true)} />
+              </div>
+            )}
           </div> 
         </div>
 
-        <div
-          className={`
-            hidden
-            lg:block
-            shrink-0
-            h-full
-            overflow-y-auto
-            border-l
-            border-[#E5E7EB]
-            bg-white
-            transition-all duration-300
-            ${sidebarOpen ? "w-[320px]" : "w-[0px] border-none"}
-          `}
-        >
-          <div className="w-[320px] h-[80px] ">
-            <SubjectAllocationPanel
-              subjects={timetableSubjectsArr}
-              onUpdateSubject={handleUpdateSubject}
-              onAddSubject={handleAddSubject}
-              onClose={() => setSidebarOpen(false)}
-            />
+        {isEditMode && (
+          <div
+            className={`
+              hidden
+              lg:block
+              shrink-0
+              h-full
+              overflow-y-auto
+              border-l
+              border-[#E5E7EB]
+              bg-white
+              transition-all duration-300
+              ${sidebarOpen ? "w-[320px]" : "w-[0px] border-none"}
+            `}
+          >
+            <div className="w-[320px] h-[80px] ">
+              <SubjectAllocationPanel
+                subjects={timetableSubjectsArr}
+                onUpdateSubject={handleUpdateSubject}
+                onAddSubject={handleAddSubject}
+                onClose={() => setSidebarOpen(false)}
+              />
+            </div>
           </div>
-        </div>
+        )}
         
-        <GridConfigPanel />
+        {isEditMode && <GridConfigPanel />}
       </div>
 
-      {!sidebarOpen && (
+      {isEditMode && !sidebarOpen && (
         <button
           onClick={() => setSidebarOpen(true)}
           className="hidden lg:flex fixed right-0 top-1/2 -translate-y-1/2 items-start gap-1 rounded-l-xl bg-white border border-r-0 border-slate-200 p-4 shadow-lg hover:bg-slate-50 transition-all z-40 flex-col"
@@ -457,17 +508,21 @@ export default function TimetableInteractiveWorkspace({
         </button>
       )}
 
-      <FloatingActionButton
-        onOpenSubjectAllocation={() => setIsMobileDrawerOpen(true)}
-      />
+      {isEditMode && (
+        <FloatingActionButton
+          onOpenSubjectAllocation={() => setIsMobileDrawerOpen(true)}
+        />
+      )}
 
-      <MobileSubjectDrawer
-        open={isMobileDrawerOpen}
-        onOpenChange={setIsMobileDrawerOpen}
-        subjects={timetableSubjectsArr}
-        onUpdateSubject={handleUpdateSubject}
-        onAddSubject={handleAddSubject}
-      />
+      {isEditMode && (
+        <MobileSubjectDrawer
+          open={isMobileDrawerOpen}
+          onOpenChange={setIsMobileDrawerOpen}
+          subjects={timetableSubjectsArr}
+          onUpdateSubject={handleUpdateSubject}
+          onAddSubject={handleAddSubject}
+        />
+      )}
 
       <ConflictDrawer 
         isOpen={isConflictDrawerOpen}

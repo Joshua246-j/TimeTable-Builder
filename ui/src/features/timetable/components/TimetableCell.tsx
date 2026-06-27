@@ -43,6 +43,7 @@ interface TimetableCellProps {
   onSaveEdit?: (subject: SubjectCardData, updatedTime?: {startTime: string; endTime: string}, swappedSubjectId?: string) => void;
   onTimeChange?: (cell: TimetableCellType, newStartTime: string, newEndTime: string) => void;
   isGridEditMode?: boolean;
+  isReadOnly?: boolean;
 }
 
 export default memo(function TimetableCell({
@@ -68,6 +69,7 @@ export default memo(function TimetableCell({
   onSaveEdit,
   onTimeChange,
   isGridEditMode = false,
+  isReadOnly = false,
 }: TimetableCellProps) {
   const dispatch = useDispatch<AppDispatch>();
   
@@ -77,6 +79,7 @@ export default memo(function TimetableCell({
       type: "CELL",
       cell,
     },
+    disabled: isReadOnly,
   });
   
   const { setNodeRef: setDragRef, attributes, listeners, isDragging } = useDraggable({
@@ -89,11 +92,11 @@ export default memo(function TimetableCell({
       startTime: mergedGroup ? mergedGroup.startTime : cell.startTime,
       endTime: mergedGroup ? mergedGroup.endTime : cell.endTime,
     },
-    disabled: isGridEditMode || (mergedGroup ? (mergedGroup.isLocked || isLocked) : isLocked),
+    disabled: isGridEditMode || isReadOnly || (mergedGroup ? (mergedGroup.isLocked || isLocked) : isLocked),
   });
 
   const handleSlotClick = () => {
-    if (isGridEditMode) return;
+    if (isGridEditMode || isReadOnly) return;
     if (selectionMode && onSelectionToggle && rowIndex !== undefined) {
       onSelectionToggle({
         id: cell.id,
@@ -120,7 +123,7 @@ export default memo(function TimetableCell({
     return (
       <div 
         ref={isGridEditMode ? undefined : setNodeRef} 
-        className={`relative ${isOver && !isGridEditMode ? "ring-2 ring-blue-500 rounded-[10px]" : ""}`} 
+        className={`relative h-full flex-1 flex flex-col ${isOver && !isGridEditMode ? "ring-2 ring-blue-500 rounded-[10px]" : ""}`} 
         style={{ gridRow: `span ${rowSpan}` }}
       >
         <div 
@@ -135,6 +138,7 @@ export default memo(function TimetableCell({
             isSelected={selected || isSpanSelected}
             isLocked={mergedGroup.isLocked || isLocked}
             isSelectionMode={selectionMode}
+            isReadOnly={isReadOnly}
             onClick={handleSlotClick}
             onTimeChange={(newStart, newEnd) => onTimeChange?.({ ...cell, id: mergedGroup.id, assignment: { subjectId: mergedGroup.subjectId } }, newStart, newEnd)}
           >
@@ -143,14 +147,15 @@ export default memo(function TimetableCell({
               scheduleEntry={mergedGroup}
               hasConflict={subject?.hasConflict}
               isLocked={mergedGroup.isLocked || isLocked}
-              onToggleLock={isGridEditMode ? undefined : () => {
+              isReadOnly={isReadOnly}
+              onToggleLock={(isGridEditMode || isReadOnly) ? undefined : () => {
                 dispatch(toggleLockSlot({ id: mergedGroup.id }));
               }}
-              onEdit={isGridEditMode ? undefined : () => onEditTime?.({ ...cell, id: mergedGroup.id, assignment: { subjectId: mergedGroup.subjectId } })}
-              onDelete={isGridEditMode ? undefined : () => {
+              onEdit={(isGridEditMode || isReadOnly) ? undefined : () => onEditTime?.({ ...cell, id: mergedGroup.id, assignment: { subjectId: mergedGroup.subjectId } })}
+              onDelete={(isGridEditMode || isReadOnly) ? undefined : () => {
                 dispatch(removeSubjectAssignment({ cellId: mergedGroup.id }));
               }}
-              onMerge={isGridEditMode ? undefined : () => {
+              onMerge={(isGridEditMode || isReadOnly) ? undefined : () => {
                 dispatch(enableSelectionMode());
                 if (rowIndex !== undefined) {
                   dispatch(toggleCellSelection({
@@ -163,7 +168,7 @@ export default memo(function TimetableCell({
                   }));
                 }
               }}
-              onSplit={isGridEditMode ? undefined : () => {
+              onSplit={(isGridEditMode || isReadOnly) ? undefined : () => {
                 dispatch(splitMergedPeriod({ mergedId: mergedGroup.id }));
               }}
               assignedTime={`${mergedGroup.startTime} - ${mergedGroup.endTime}`}
@@ -201,7 +206,7 @@ export default memo(function TimetableCell({
      NORMAL CELL
   ======================================= */
   return (
-    <div ref={isGridEditMode ? undefined : setNodeRef} className={`relative ${isOver && !isGridEditMode ? "ring-2 ring-blue-500 rounded-[10px]" : ""}`} style={{ gridRow: `span ${rowSpan}` }}>
+    <div ref={isGridEditMode ? undefined : setNodeRef} className={`relative h-full flex-1 flex flex-col ${isOver && !isGridEditMode ? "ring-2 ring-blue-500 rounded-[10px]" : ""}`} style={{ gridRow: `span ${rowSpan}` }}>
       {cell.isAssigned && subject ? (
         <div 
           ref={isGridEditMode ? undefined : (setDragRef as unknown as React.Ref<HTMLDivElement>)}
@@ -216,6 +221,7 @@ export default memo(function TimetableCell({
             isLocked={isLocked}
             isConflict={isConflict}
             isSelectionMode={selectionMode}
+            isReadOnly={isReadOnly}
             onClick={handleSlotClick}
             onTimeChange={(newStart, newEnd) => onTimeChange?.(cell, newStart, newEnd)}
           >
@@ -224,12 +230,13 @@ export default memo(function TimetableCell({
               hasConflict={isConflict}
               conflictData={conflictData}
               isLocked={isLocked}
-              onToggleLock={isGridEditMode ? undefined : () => {
+              isReadOnly={isReadOnly}
+              onToggleLock={(isGridEditMode || isReadOnly) ? undefined : () => {
                 dispatch(toggleLockSlot({ id: cell.id }));
               }}
-              onEdit={isGridEditMode ? undefined : () => onEditTime?.(cell)}
-              onDelete={isGridEditMode ? undefined : () => onSubjectClick?.(cell)}
-              onMerge={isGridEditMode ? undefined : () => {
+              onEdit={(isGridEditMode || isReadOnly) ? undefined : () => onEditTime?.(cell)}
+              onDelete={(isGridEditMode || isReadOnly) ? undefined : () => onSubjectClick?.(cell)}
+              onMerge={(isGridEditMode || isReadOnly) ? undefined : () => {
                 dispatch(enableSelectionMode());
                 if (rowIndex !== undefined) {
                   dispatch(toggleCellSelection({
@@ -253,6 +260,7 @@ export default memo(function TimetableCell({
           onClick={handleSlotClick}
           startTime={cell.startTime}
           endTime={cell.endTime}
+          isReadOnly={isReadOnly}
         />
       )}
 

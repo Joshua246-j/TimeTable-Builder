@@ -1,5 +1,5 @@
 import type { ReactNode } from "react";
-import NavBar from "@/components/NavBar";
+import SideNavbar from "@/components/SideNavbar";
 
 interface DashboardLayoutProps {
   children: ReactNode;
@@ -8,11 +8,17 @@ interface DashboardLayoutProps {
 // src/app/(dashboard)/layout.tsx
 
 export default function DashboardLayout({ children }: DashboardLayoutProps) {
+  // In a real app, this would be fetched from auth context
+  const currentRole = "TEACHER";
+
   return (
-    <div className="h-screen bg-[#F7F8FC] flex flex-col font-inter">  {/* min-h-screen → h-screen */}
-      <NavBar />
-      <div className="flex-1 overflow-hidden">
-        {children}
+    <div className="flex h-screen w-full bg-[#F7F8FC] font-inter overflow-hidden">
+      <SideNavbar currentRole={currentRole} />
+      
+      <div className="flex flex-col flex-1 min-w-0">
+        <main className="flex-1 overflow-hidden relative">
+          {children}
+        </main>
       </div>
     </div>
   );

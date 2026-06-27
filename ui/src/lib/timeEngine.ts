@@ -208,3 +208,37 @@ export function recalculateSequentialTimes(
     };
   });
 }
+
+/**
+ * Checks if a time range intersects with any break.
+ * Note: Breaks might be defined just as `afterPeriodId` and `durationMinutes`. 
+ * If full break start/end times are available, we check overlaps.
+ */
+export function hasIntersectingBreak(
+  startTime: string,
+  endTime: string,
+  breaks: { startTime: string; endTime: string }[]
+): boolean {
+  const startMins = parseTime(startTime);
+  const endMins = parseTime(endTime);
+  
+  for (const b of breaks) {
+    if (!b.startTime || !b.endTime) continue;
+    const bStart = parseTime(b.startTime);
+    const bEnd = parseTime(b.endTime);
+    // Intersection condition: max(startA, startB) < min(endA, endB)
+    if (Math.max(startMins, bStart) < Math.min(endMins, bEnd)) {
+      return true; // Overlaps with a break
+    }
+  }
+  return false;
+}
+
+/**
+ * Checks if a given duration is valid for the current grid config.
+ * (e.g. exactly matching the base period or a multiple of it)
+ */
+export function isValidDuration(durationMinutes: number, basePeriodMinutes: number): boolean {
+  if (basePeriodMinutes <= 0) return true;
+  return durationMinutes % basePeriodMinutes === 0;
+}

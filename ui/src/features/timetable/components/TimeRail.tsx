@@ -2,10 +2,12 @@
 
 import { memo, useState, useEffect } from "react";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { useDispatch } from "react-redux";
-import { AppDispatch } from "@/store/store";
+import { useDispatch, useSelector } from "react-redux";
+import { AppDispatch, RootState } from "@/store/store";
 import { updateTimeAllocation, updatePeriodDurationAndSync } from "@/store/syntheticActions";
 import { CircularTimePicker } from "./CircularTimePicker";
+import { parseTime, isValidDuration } from "@/lib/timeEngine";
+import { toast } from "sonner";
 
 interface TimeRailProps {
   cellId?: string;       // allocation id for Redux dispatch
@@ -28,6 +30,8 @@ export default memo(function TimeRail({
   const [localStart, setLocalStart] = useState(startTime || "09:00");
   const [localEnd, setLocalEnd] = useState(endTime || "10:00");
 
+  const gridConfig = useSelector((state: RootState) => state.gridConfig);
+
   useEffect(() => {
     if (startTime) setLocalStart(startTime);
     if (endTime) setLocalEnd(endTime);
@@ -44,17 +48,21 @@ export default memo(function TimeRail({
     setIsOpen(open);
   };
 
-  const parseTimeStr = (t: string) => {
-    const [h, m] = t.split(":").map(Number);
-    return h * 60 + m;
-  };
-
   const handleConfirm = () => {
-    const startMins = parseTimeStr(localStart);
-    const endMins = parseTimeStr(localEnd);
+    const startMins = parseTime(localStart);
+    const endMins = parseTime(localEnd);
 
     if (endMins <= startMins) {
-      alert("End time must be after start time");
+      toast.error("End time must be after start time");
+      return;
+    }
+
+    const duration = endMins - startMins;
+    if (!isValidDuration(duration, gridConfig.defaultPeriodDuration)) {
+      toast.error(`Selected duration (${duration} minutes) exceeds the configured timetable period (${gridConfig.defaultPeriodDuration} minutes). Update the Grid Configuration to support longer periods or choose a valid duration.`);
+      setLocalStart(startTime);
+      setLocalEnd(endTime);
+      setIsOpen(false);
       return;
     }
 
@@ -99,16 +107,35 @@ export default memo(function TimeRail({
     return timeStr;
   };
 
+  const computeDuration = (start: string, end: string) => {
+    const sMins = parseTime(start);
+    const eMins = parseTime(end);
+    if(isNaN(sMins) || isNaN(eMins)) return "1h 00m";
+    const diff = eMins - sMins;
+    if(diff <= 0) return "1h 00m";
+    const h = Math.floor(diff / 60);
+    const m = diff % 60;
+    return `${h > 0 ? h + 'h ' : ''}${m > 0 ? m + 'm' : ''}`.trim() || '1h 00m';
+  };
+
+  const durationStr = computeDuration(startTime, endTime);
+
   return (
     <Popover open={isOpen} onOpenChange={handleOpen}>
       <PopoverTrigger asChild>
-        <button className="sc-time-panel shrink-0 bg-[#F8FAFC] border-r border-[#E2E8F0] flex flex-col items-center justify-center py-[14px] px-1 relative z-10 rounded-l-[10px] hover:bg-slate-100 transition-colors cursor-pointer outline-none">
-          <div className="text-[12px] font-[700] text-[#0D2463] text-center leading-tight tracking-wide">
-            {formatTimeRailDisplay(startTime, true, endTime)}
+        <button className="sc-time-panel shrink-0 bg-[#F8FAFC] border-r border-[#E2E8F0] flex flex-col items-center justify-center py-2 px-1 relative z-10 rounded-l-[16px] hover:bg-slate-100 transition-colors cursor-pointer outline-none h-full">
+          <div className="flex-1 flex flex-col items-center justify-center w-full mt-1.5">
+            <div className="text-[11px] font-[800] text-[#0D2463] text-center leading-tight tracking-wide whitespace-nowrap">
+              {formatTimeRailDisplay(startTime, true, endTime)}
+            </div>
+            <div className="w-[10px] h-[1.5px] bg-[#0D2463] my-[6px] opacity-60" />
+            <div className="text-[11px] font-[800] text-[#0D2463] text-center leading-tight tracking-wide whitespace-nowrap">
+              {formatTimeRailDisplay(endTime, false, startTime)}
+            </div>
           </div>
-          <div className="w-[12px] h-[1.5px] bg-[#0D2463] my-[4px] opacity-60" />
-          <div className="text-[12px] font-[700] text-[#0D2463] mb-1 text-center leading-tight tracking-wide">
-            {formatTimeRailDisplay(endTime, false, startTime)}
+          <div className="mt-auto pt-2 flex items-center justify-center gap-1 text-[#4F46E5] opacity-80">
+            <svg xmlns="http://www.w3.org/2000/svg" width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+            <span className="text-[10px] font-[600] tracking-wide">{durationStr}</span>
           </div>
         </button>
       </PopoverTrigger>

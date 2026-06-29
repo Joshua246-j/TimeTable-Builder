@@ -12,7 +12,7 @@ export interface TimetableEngineState {
   publishedAt: string | null;
   publishedSnapshot: {
     allocations: Record<string, ScheduleEntry>;
-    gridConfig: any; // We'll store the entire grid config state here on publish
+    gridConfig: Record<string, unknown>; // We'll store the entire grid config state here on publish
   } | null;
 }
 
@@ -179,7 +179,7 @@ export const timetableEngineSlice = createSlice({
       state.status = 'DRAFT';
       state.isDirty = true;
     },
-    publishTimetable: (state, action: PayloadAction<{ gridConfig: any }>) => {
+    publishTimetable: (state, action: PayloadAction<{ gridConfig: Record<string, unknown> }>) => {
       // Must have at least one allocation to publish
       if (Object.keys(state.allocations).length === 0) return;
 

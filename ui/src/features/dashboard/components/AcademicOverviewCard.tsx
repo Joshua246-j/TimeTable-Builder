@@ -1,8 +1,19 @@
 import { BookText, CalendarDays, FileText, MonitorPlay, Presentation, Star, User } from "lucide-react";
+import { subjectService } from "@/services/subjectService";
 
-export function AcademicOverviewCard() {
+export async function AcademicOverviewCard({ subjectId }: { subjectId?: string }) {
+  const resolvedId = subjectId || "1";
+  const subject = await subjectService.getSubjectById(resolvedId);
+
+  if (!subject) return null;
+
+  const attendance = await subjectService.getSubjectAttendance(resolvedId);
+  const totalLectures = await subjectService.getSubjectLectures(resolvedId);
+  const presentations = await subjectService.getSubjectPresentations(resolvedId);
+  const notes = (await subjectService.getSubjectResources(resolvedId)).length || 24;
+
   return (
-    <div className="relative bg-white rounded-xl shadow-sm border border-slate-100 p-8 overflow-hidden">
+    <div className="relative bg-white rounded-xl shadow-sm border border-slate-100 p-8 overflow-hidden font-inter">
       {/* Background Graphic */}
       <div className="absolute right-0 top-0 bottom-0 w-1/3 opacity-[0.03] pointer-events-none flex items-center justify-center">
         <div className="w-[300px] h-[300px] rounded-full border-[40px] border-slate-900 flex items-center justify-center">
@@ -27,7 +38,7 @@ export function AcademicOverviewCard() {
             </div>
             <div>
               <p className="text-xs font-semibold text-slate-400 uppercase tracking-wider">Subject</p>
-              <p className="text-lg font-bold text-slate-900 leading-tight mt-0.5">Data Structures</p>
+              <p className="text-lg font-bold text-slate-900 leading-tight mt-0.5">{subject.subjectName}</p>
             </div>
           </div>
           
@@ -37,7 +48,7 @@ export function AcademicOverviewCard() {
             </div>
             <div>
               <p className="text-xs font-semibold text-slate-400 uppercase tracking-wider">Faculty</p>
-              <p className="text-lg font-bold text-slate-900 leading-tight mt-0.5">Dr. Anil Kumar</p>
+              <p className="text-lg font-bold text-slate-900 leading-tight mt-0.5">{subject.facultyName || "Unassigned"}</p>
             </div>
           </div>
 
@@ -47,7 +58,7 @@ export function AcademicOverviewCard() {
             </div>
             <div>
               <p className="text-xs font-semibold text-slate-400 uppercase tracking-wider">Credits</p>
-              <p className="text-lg font-bold text-slate-900 leading-tight mt-0.5">4</p>
+              <p className="text-lg font-bold text-slate-900 leading-tight mt-0.5">{subject.credits || 4}</p>
             </div>
           </div>
         </div>
@@ -63,7 +74,7 @@ export function AcademicOverviewCard() {
             </div>
             <div>
               <p className="text-xs font-semibold text-slate-400 uppercase tracking-wider">Attendance</p>
-              <p className="text-xl font-bold text-slate-900 leading-tight mt-0.5">89%</p>
+              <p className="text-xl font-bold text-slate-900 leading-tight mt-0.5">{attendance}%</p>
             </div>
           </div>
 
@@ -73,7 +84,7 @@ export function AcademicOverviewCard() {
             </div>
             <div>
               <p className="text-xs font-semibold text-slate-400 uppercase tracking-wider">Total Lectures</p>
-              <p className="text-xl font-bold text-slate-900 leading-tight mt-0.5">32</p>
+              <p className="text-xl font-bold text-slate-900 leading-tight mt-0.5">{totalLectures}</p>
             </div>
           </div>
 
@@ -83,7 +94,7 @@ export function AcademicOverviewCard() {
             </div>
             <div>
               <p className="text-xs font-semibold text-slate-400 uppercase tracking-wider">Presentations</p>
-              <p className="text-xl font-bold text-slate-900 leading-tight mt-0.5">8</p>
+              <p className="text-xl font-bold text-slate-900 leading-tight mt-0.5">{presentations}</p>
             </div>
           </div>
 
@@ -93,7 +104,7 @@ export function AcademicOverviewCard() {
             </div>
             <div>
               <p className="text-xs font-semibold text-slate-400 uppercase tracking-wider">Notes Generated</p>
-              <p className="text-xl font-bold text-slate-900 leading-tight mt-0.5">24</p>
+              <p className="text-xl font-bold text-slate-900 leading-tight mt-0.5">{notes}</p>
             </div>
           </div>
         </div>

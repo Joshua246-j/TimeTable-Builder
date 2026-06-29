@@ -23,7 +23,7 @@ export const runValidation = createAsyncThunk<
     const state = getState();
     
     if (state.timetableEngine.status === 'PUBLISHED') {
-      dispatch(setValidationResults([]));
+      dispatch(setValidationResults({ isValid: true, warnings: [], conflicts: [] }));
       return;
     }
     

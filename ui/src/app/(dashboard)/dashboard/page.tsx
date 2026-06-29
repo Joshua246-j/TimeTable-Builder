@@ -3,6 +3,7 @@ import { AcademicModuleShell } from "@/features/dashboard/components/AcademicMod
 import { OverviewContent } from "@/features/dashboard/components/OverviewContent";
 import { OrgAdminDashboard } from "@/features/dashboard/components/OrgAdminDashboard";
 import { DeptAdminDashboard } from "@/features/dashboard/components/DeptAdminDashboard";
+import { TeacherDashboard } from "@/features/dashboard/components/TeacherDashboard";
 import { UserRole } from "@/constants/navigation";
 
 export const metadata: Metadata = {
@@ -25,11 +26,7 @@ export default function DashboardPage() {
       return <DeptAdminDashboard />;
     case "TEACHER":
     case "FACULTY":
-      return (
-        <AcademicModuleShell activeTab="overview">
-          <OverviewContent />
-        </AcademicModuleShell>
-      );
+      return <TeacherDashboard />;
     case "STUDENT":
       return (
         <div className="flex flex-col h-full w-full bg-[#F7F8FC] p-8">

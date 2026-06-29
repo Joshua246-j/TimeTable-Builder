@@ -1,35 +1,28 @@
 "use client";
 
-import { useState, memo, useCallback } from "react";
+import { memo, useCallback } from "react";
 import { Plus, X } from "lucide-react";
+import { useRouter } from "next/navigation";
 
 import SubjectAllocationCard from "./SubjectAllocationCard";
-import SubjectAssignmentEditor from "./SubjectAssignmentEditor";
 import type { SubjectCardData } from "@/types/timetable";
 
 interface SubjectAllocationPanelProps {
   subjects: SubjectCardData[];
   onUpdateSubject: (subject: SubjectCardData) => void;
-  onAddSubject: (subject: SubjectCardData) => void;
+  onAddSubject: () => void;
   onClose?: () => void;
 }
 
 export default memo(function SubjectAllocationPanel({
   subjects,
-  onUpdateSubject,
-  onAddSubject,
   onClose,
 }: SubjectAllocationPanelProps) {
-  const [editingId, setEditingId] = useState("");
-
-  const handleSave = useCallback((updatedSubject: SubjectCardData) => {
-    onUpdateSubject(updatedSubject);
-    setEditingId("");
-  }, [onUpdateSubject]);
+  const router = useRouter();
 
   const handleAddNew = useCallback(() => {
-    setEditingId('NEW_DRAFT');
-  }, []);
+    router.push("/dashboard/academic-modules/new?from=/dashboard/timetable/builder");
+  }, [router]);
 
   return (
     <aside
@@ -104,51 +97,13 @@ export default memo(function SubjectAllocationPanel({
         "
       >
         <div className="space-y-4">
-          {editingId === 'NEW_DRAFT' && (
-            <div className="mb-4">
-              <SubjectAssignmentEditor
-                subject={{
-                  id: `new-${Date.now()}`,
-                  subjectName: "",
-                  code: "",
-                  type: "THEORY",
-                  credits: 3,
-                  facultyName: "",
-                  roomName: "",
-                }}
-                onCancel={() => setEditingId("")}
-                onSave={(subj) => {
-                  if (!subj.subjectName) {
-                    alert("Subject Name is required!");
-                    return;
-                  }
-                  onAddSubject(subj);
-                  setEditingId("");
-                }}
-              />
-            </div>
-          )}
-
-          {subjects.map((subject) => {
-            if (editingId === subject.id) {
-              return (
-                <div key={`edit-${subject.id}`} className="mb-4">
-                  <SubjectAssignmentEditor
-                    subject={subject}
-                    onCancel={() => setEditingId("")}
-                    onSave={handleSave}
-                  />
-                </div>
-              );
-            }
-            return (
-              <SubjectAllocationCard
-                key={subject.id}
-                subject={subject}
-                onEdit={() => setEditingId(subject.id)}
-              />
-            );
-          })}
+          {subjects.map((subject) => (
+            <SubjectAllocationCard
+              key={subject.id}
+              subject={subject}
+              onEdit={() => router.push(`/dashboard/academic-modules/${subject.id}/settings?from=/dashboard/timetable/builder`)}
+            />
+          ))}
         </div>
       </div>
 

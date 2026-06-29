@@ -12,6 +12,7 @@ interface BreakRowProps {
   onRemove?: () => void;
   onEditDuration?: (newDuration: number) => void;
   isGridEditMode?: boolean;
+  isReadOnly?: boolean;
 }
 
 export default function BreakRow({
@@ -21,7 +22,8 @@ export default function BreakRow({
   durationMinutes,
   onRemove,
   onEditDuration,
-  isGridEditMode
+  isGridEditMode,
+  isReadOnly
 }: BreakRowProps) {
   const [isEditing, setIsEditing] = useState(false);
   const [editVal, setEditVal] = useState(durationMinutes);
@@ -72,13 +74,13 @@ export default function BreakRow({
             ☕ {startTime} — {endTime} • {label}
             {!isEditing && ` (${durationMinutes}m)`}
           </p>
-          {!isEditing && onEditDuration && (
+          {!isEditing && onEditDuration && !isReadOnly && (
             <button
               onClick={() => setIsEditing(true)}
               className="flex items-center justify-center w-6 h-6 rounded-md bg-white border border-slate-200 shadow-sm text-slate-400 hover:text-[#4F6BFF] hover:border-[#4F6BFF]/30 hover:shadow-md transition-all active:scale-95 ml-1"
               title="Edit Break Time"
             >
-              <Pencil className="w-3 h-3" />
+              <Pencil className="w-3.5 h-3.5" />
             </button>
           )}
           

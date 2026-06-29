@@ -7,6 +7,7 @@ import roomReducer from './roomSlice';
 import uiReducer from './uiSlice';
 import historyReducer from './historySlice';
 import gridConfigReducer from './gridConfigSlice';
+import timetableDraftReducer from './timetableDraftSlice';
 
 /**
  * Global Redux Store Configuration.
@@ -23,6 +24,7 @@ export const store = configureStore({
     ui: uiReducer,
     history: historyReducer,
     gridConfig: gridConfigReducer,
+    timetableDrafts: timetableDraftReducer,
   },
 });
 

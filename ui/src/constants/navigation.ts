@@ -18,10 +18,10 @@ import {
   GraduationCap,
   Building2,
   BarChart3,
-  Eye,
   Settings,
   LucideIcon,
-  Users
+  Users,
+  LibraryBig
 } from "lucide-react";
 
 export type UserRole = "ADMIN" | "ORG_ADMIN" | "DEPT_ADMIN" | "TEACHER" | "FACULTY" | "STUDENT" | "HOD";
@@ -42,8 +42,15 @@ export const NAVIGATION_ITEMS: NavigationItem[] = [
   },
 
   {
+    title: "Academic Modules",
+    href: "/dashboard/academic-modules",
+    icon: LibraryBig,
+    roles: ["ADMIN", "ORG_ADMIN", "DEPT_ADMIN", "TEACHER", "FACULTY", "HOD"]
+  },
+
+  {
     title: "Timetable",
-    href: "/timetable",
+    href: "/dashboard/timetable/",
     icon: CalendarDays,
     roles: ["ADMIN", "ORG_ADMIN", "DEPT_ADMIN", "TEACHER", "HOD"]
   },
@@ -119,6 +126,8 @@ export const BREADCRUMB_LABELS: Record<
   string
 > = {
   dashboard: "Dashboard",
+
+  "academic-modules": "Academic Modules",
 
   timetable: "Timetable",
   "timetable/builder": "Timetable Builder",

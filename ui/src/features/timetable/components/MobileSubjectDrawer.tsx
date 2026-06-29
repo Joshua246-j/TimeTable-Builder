@@ -15,7 +15,7 @@ interface MobileSubjectDrawerProps {
   onOpenChange: (open: boolean) => void;
   subjects: SubjectCardData[];
   onUpdateSubject: (subject: SubjectCardData) => void;
-  onAddSubject: (subject: SubjectCardData) => void;
+  onAddSubject: () => void;
 }
 
 export default function MobileSubjectDrawer({

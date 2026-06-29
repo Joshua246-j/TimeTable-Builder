@@ -3,10 +3,12 @@ import type { SubjectCardData } from '@/types/timetable';
 
 export interface SubjectState {
   subjects: Record<string, SubjectCardData>;
+  activeSubjectId: string | null;
 }
 
 const initialState: SubjectState = {
   subjects: {},
+  activeSubjectId: null,
 };
 
 export const subjectSlice = createSlice({
@@ -27,8 +29,11 @@ export const subjectSlice = createSlice({
       if (state.subjects[action.payload]?.isEditable === false) return;
       delete state.subjects[action.payload];
     },
+    setActiveSubjectId: (state, action: PayloadAction<string | null>) => {
+      state.activeSubjectId = action.payload;
+    },
   },
 });
 
-export const { setSubjects, addSubject, updateSubject, deleteSubject } = subjectSlice.actions;
+export const { setSubjects, addSubject, updateSubject, deleteSubject, setActiveSubjectId } = subjectSlice.actions;
 export default subjectSlice.reducer;

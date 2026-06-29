@@ -4,7 +4,7 @@ import { GeneratedOverviewCard } from './GeneratedOverviewCard';
 import { LectureRecordingCard } from './LectureRecordingCard';
 import { LiveTranscriptCard } from './LiveTranscriptCard';
 
-export function LectureContent() {
+export function LectureContent({}: { subjectId?: string }) {
   return (
     <div className="grid grid-cols-1 lg:grid-cols-[2.2fr_1fr] gap-6 xl:gap-8 mt-2">
       

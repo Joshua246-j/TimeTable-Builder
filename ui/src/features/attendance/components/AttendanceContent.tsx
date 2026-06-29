@@ -10,7 +10,9 @@ import { AttendanceDistributionCard } from './AttendanceDistributionCard';
 import { Student, AttendanceStatus } from '../types';
 import { AttendanceService } from '@/services';
 
-export function AttendanceContent() {
+import { MOCK_SUBJECTS } from '@/lib/mockData';
+
+export function AttendanceContent({ subjectId }: { subjectId?: string }) {
   const [students, setStudents] = useState<Student[]>([]);
   const [isLoading, setIsLoading] = useState(true);
 
@@ -65,12 +67,15 @@ export function AttendanceContent() {
     return <div className="flex items-center justify-center h-96"><div className="animate-spin rounded-full h-8 w-8 border-b-2 border-[#5A67D8]"></div></div>;
   }
 
+  const resolvedId = subjectId || '1';
+  const subject = MOCK_SUBJECTS[resolvedId] || MOCK_SUBJECTS['1'];
+
   const mockLectureInfo = {
-    subject: 'Data Structures',
-    faculty: 'Dr. Anil Kumar',
+    subject: subject.subjectName,
+    faculty: subject.facultyName || 'Dr. Anil Kumar',
     date: 'October 24, 2025',
     time: '09:00 AM - 10:30 AM',
-    section: 'CSE V A'
+    section: subject.section || 'CSE V A'
   };
 
   const mockSummary = {

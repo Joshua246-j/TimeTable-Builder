@@ -6,7 +6,7 @@ import { LecturePointSourceCard } from './LecturePointSourceCard';
 import { ImportContentCard } from './ImportContentCard';
 import { ExportPresentationCard } from './ExportPresentationCard';
 
-export function PresentationContent() {
+export function PresentationContent({}: { subjectId?: string }) {
   return (
     <div className="grid grid-cols-1 lg:grid-cols-[2.2fr_1fr] gap-6 xl:gap-8 mt-2">
       

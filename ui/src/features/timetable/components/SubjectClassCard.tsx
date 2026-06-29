@@ -12,6 +12,7 @@ import {
   Lock,
 } from "lucide-react";
 
+import Link from "next/link";
 import SubjectPreviewPopover from "./SubjectPreviewPopover";
 
 import {
@@ -44,6 +45,7 @@ interface SubjectClassCardProps {
   onDelete?: () => void;
   onMerge?: () => void;
   onSplit?: () => void;
+  onToggleLock?: () => void;
   assignedTime?: string;
   assignedDay?: string;
 }
@@ -79,7 +81,10 @@ export default memo(function SubjectClassCard({
 
   if (isReadOnly) {
     return (
-      <div className={`flex-1 p-[16px] flex flex-col relative min-w-0 h-full font-inter bg-white rounded-[16px] overflow-hidden ${rowSpan > 1 ? 'justify-center' : ''}`}>
+      <Link 
+        href={`/dashboard/academic-modules/${data?.id || '1'}/`}
+        className={`flex-1 p-[16px] flex flex-col relative min-w-0 h-full font-inter bg-white rounded-[16px] overflow-hidden border border-slate-100 shadow-sm hover:shadow-md hover:border-slate-300 hover:-translate-y-0.5 transition-all duration-300 ${rowSpan > 1 ? 'justify-center' : ''}`}
+      >
         {/* Thick Left Border Indicator */}
         <div className="absolute left-0 top-0 bottom-0 w-[4px] bg-[#4F6BFF] rounded-l-[16px]"></div>
 
@@ -99,9 +104,10 @@ export default memo(function SubjectClassCard({
         <div className="absolute bottom-3 right-3">
           <div className={`w-[6px] h-[6px] rounded-full ${getDotColor()}`}></div>
         </div>
-      </div>
+      </Link>
     );
   }
+
 
   return (
     <div className="flex-1 p-2.5 flex flex-col relative min-w-0 h-full font-inter bg-white rounded-r-[16px]">

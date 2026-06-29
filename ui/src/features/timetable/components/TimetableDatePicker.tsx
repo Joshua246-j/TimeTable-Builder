@@ -10,7 +10,7 @@ interface TimetableDatePickerProps {
   selectedWeek: string; // YYYY-WXX
   onNavigate: (action: 'PREV_DAY' | 'NEXT_DAY' | 'PREV_WEEK' | 'NEXT_WEEK' | 'TODAY') => void;
   onSelectDate: (date: Date) => void;
-  publishedVersions: any[];
+  publishedVersions: Record<string, unknown>[];
 }
 
 export default function TimetableDatePicker({
@@ -185,7 +185,7 @@ export default function TimetableDatePicker({
                   const isToday = isSameDay(item.date, new Date("2026-06-29")); // Assuming system Today
                   
                   const hasPublished = publishedVersions.some(v => {
-                    const pubDate = new Date(v.publishedAt);
+                    const pubDate = new Date(v.publishedAt as string | number | Date);
                     return isSameDay(item.date, pubDate);
                   });
                   

@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from 'react';
+import React from 'react';
 import { useSelector, useDispatch } from 'react-redux';
 import { RootState, AppDispatch } from '@/store/store';
 import { 
@@ -8,20 +8,19 @@ import {
   saveActiveDraft, 
   createNewDraft, 
   duplicateExistingDraft, 
-  deleteExistingDraft,
-  renameExistingDraft
+  deleteExistingDraft
 } from '@/store/timetableDraftSlice';
 import { setAllocations } from '@/store/timetableEngineSlice';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Button } from '@/components/ui/button';
-import { Save, Plus, Copy, Trash2, Edit2, CheckCircle2, History } from 'lucide-react';
+import { Save, Plus, Copy, Trash2, CheckCircle2, History } from 'lucide-react';
 import { toast } from 'sonner';
 
 interface DraftManagerToolbarProps {
   onPublishClick: () => void;
 }
 
-export default function DraftManagerToolbar({ onPublishClick }: DraftManagerToolbarProps) {
+export default function DraftManagerToolbar({ }: DraftManagerToolbarProps) {
   const dispatch = useDispatch<AppDispatch>();
   const { drafts, activeDraftId, publishedDraftId } = useSelector((state: RootState) => state.timetableDrafts);
   const { allocations, isDirty } = useSelector((state: RootState) => state.timetableEngine);
@@ -43,13 +42,13 @@ export default function DraftManagerToolbar({ onPublishClick }: DraftManagerTool
 
   const handleCreateNew = async () => {
     try {
-      const result = await dispatch(createNewDraft({ 
+      await dispatch(createNewDraft({ 
         name: `New Draft ${drafts.length + 1}`, 
         description: '' 
       })).unwrap();
       dispatch(setAllocations({})); // Clear grid
       toast.success("Created new draft");
-    } catch (e) {
+    } catch {
       toast.error("Failed to create draft");
     }
   };
@@ -59,7 +58,7 @@ export default function DraftManagerToolbar({ onPublishClick }: DraftManagerTool
     try {
       await dispatch(saveActiveDraft({ id: activeDraftId, allocations })).unwrap();
       toast.success("Draft saved successfully");
-    } catch (e) {
+    } catch {
       toast.error("Failed to save draft");
     }
   };
@@ -70,9 +69,9 @@ export default function DraftManagerToolbar({ onPublishClick }: DraftManagerTool
       // First save current state
       await dispatch(saveActiveDraft({ id: activeDraftId, allocations })).unwrap();
       // Then duplicate
-      const result = await dispatch(duplicateExistingDraft({ id: activeDraftId, newName: `${activeDraft.name} (Copy)` })).unwrap();
+      await dispatch(duplicateExistingDraft({ id: activeDraftId, newName: `${activeDraft.name} (Copy)` })).unwrap();
       toast.success("Draft duplicated");
-    } catch (e) {
+    } catch {
       toast.error("Failed to duplicate draft");
     }
   };
@@ -89,7 +88,7 @@ export default function DraftManagerToolbar({ onPublishClick }: DraftManagerTool
         // The slice handles selecting another draft. We just need to load its allocations.
         // Handled in a useEffect down below.
         toast.success("Draft deleted");
-      } catch (e) {
+      } catch {
         toast.error("Failed to delete draft");
       }
     }

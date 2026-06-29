@@ -13,10 +13,10 @@ export function AcademicModulesClient() {
   const [subjects, setSubjects] = useState<SubjectCardData[]>([]);
   const [loading, setLoading] = useState(true);
 
-  // Search & Filter State
+  // Search State
   const [searchQuery, setSearchQuery] = useState("");
-  const [departmentFilter, setDepartmentFilter] = useState("All");
-  const [statusFilter, setStatusFilter] = useState("All");
+  const [departmentFilter] = useState("All");
+  const [statusFilter] = useState("All");
 
   // Sorting State
   const [sortKey, setSortKey] = useState<string>("code");
@@ -65,20 +65,22 @@ export function AcademicModulesClient() {
     }
 
     // Sort
-    result.sort((a: any, b: any) => {
-      let valA = a[sortKey];
-      let valB = b[sortKey];
+    result.sort((a: SubjectCardData, b: SubjectCardData) => {
+      let valA = a[sortKey as keyof SubjectCardData] as string | number | undefined;
+      let valB = b[sortKey as keyof SubjectCardData] as string | number | undefined;
 
       if (typeof valA === 'string') valA = valA.toLowerCase();
       if (typeof valB === 'string') valB = valB.toLowerCase();
 
-      if (valA < valB) return sortDirection === 'asc' ? -1 : 1;
-      if (valA > valB) return sortDirection === 'asc' ? 1 : -1;
+      if (valA !== undefined && valB !== undefined) {
+        if (valA < valB) return sortDirection === 'asc' ? -1 : 1;
+        if (valA > valB) return sortDirection === 'asc' ? 1 : -1;
+      }
       return 0;
     });
 
     return result;
-  }, [subjects, searchQuery, departmentFilter, statusFilter, sortKey, sortDirection]);
+  }, [subjects, searchQuery, departmentFilter, sortKey, sortDirection]);
 
   const handleSort = (key: string) => {
     if (sortKey === key) {

@@ -1,6 +1,4 @@
 import { Metadata } from "next";
-import { AcademicModuleShell } from "@/features/dashboard/components/AcademicModuleShell";
-import { OverviewContent } from "@/features/dashboard/components/OverviewContent";
 import { OrgAdminDashboard } from "@/features/dashboard/components/OrgAdminDashboard";
 import { DeptAdminDashboard } from "@/features/dashboard/components/DeptAdminDashboard";
 import { TeacherDashboard } from "@/features/dashboard/components/TeacherDashboard";

@@ -4,7 +4,7 @@ import { useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { NAVIGATION_ITEMS, UserRole } from "@/constants/navigation";
-import { LogOut, ChevronLeft, Settings, GraduationCap } from "lucide-react";
+import { ChevronLeft, Settings, GraduationCap } from "lucide-react";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 
 interface SideNavbarProps {

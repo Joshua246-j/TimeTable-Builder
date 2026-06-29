@@ -8,8 +8,7 @@ import {
   Trash2,
   CheckCircle2,
   History,
-  Save,
-  X
+  Save
 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
@@ -46,7 +45,6 @@ export default function ActionToolbar({
   const hasConflicts = conflicts.length > 0;
   const canPublish = hasAllocations && !hasConflicts && isDirty;
 
-  const activeDraft = drafts.find(d => d.id === activeDraftId);
   const isPublished = activeDraftId === publishedDraftId;
 
   const handleDraftSelect = (id: string) => {
@@ -66,7 +64,7 @@ export default function ActionToolbar({
       })).unwrap();
       dispatch(setAllocations({}));
       toast.success("Created new draft");
-    } catch (e) {
+    } catch {
       toast.error("Failed to create draft");
     }
   };
@@ -81,7 +79,7 @@ export default function ActionToolbar({
       try {
         await dispatch(deleteExistingDraft(activeDraftId)).unwrap();
         toast.success("Draft deleted");
-      } catch (e) {
+      } catch {
         toast.error("Failed to delete draft");
       }
     }
@@ -92,7 +90,7 @@ export default function ActionToolbar({
     try {
       await dispatch(saveActiveDraft({ id: activeDraftId, allocations })).unwrap();
       toast.success("Draft saved successfully");
-    } catch (e) {
+    } catch {
       toast.error("Failed to save draft");
     }
   };

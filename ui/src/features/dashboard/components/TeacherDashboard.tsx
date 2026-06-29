@@ -2,9 +2,15 @@ import React from 'react';
 import Link from 'next/link';
 import { 
   Bell, ChevronDown, Download, LayoutDashboard, Calendar, Users, FileText, 
-  BookOpen, CalendarDays, CheckCircle2, AlertCircle, Clock, Check, 
-  MessageSquare, User, FileQuestion, Megaphone, BellRing, ArrowRight, Upload
+  BookOpen, CalendarDays, Clock, Check, 
+  User, FileQuestion, Megaphone, BellRing, Upload
 } from 'lucide-react';
+import { TimetableRow } from './teacher-widgets/TimetableRow';
+import { AttendanceItem } from './teacher-widgets/AttendanceItem';
+import { EvaluationItem } from './teacher-widgets/EvaluationItem';
+import { NotificationItem } from './teacher-widgets/NotificationItem';
+import { WorkloadStat } from './teacher-widgets/WorkloadStat';
+import { ExamItem } from './teacher-widgets/ExamItem';
 
 export function TeacherDashboard() {
   return (
@@ -31,7 +37,7 @@ export function TeacherDashboard() {
         <div className="flex flex-col md:flex-row justify-between items-start md:items-end gap-4 pb-2">
           <div>
             <h1 className="text-[24px] font-[800] text-slate-900 tracking-tight leading-tight">Teacher Dashboard</h1>
-            <p className="text-[13px] font-[500] text-slate-500 mt-1">Get a complete overview of today's teaching schedule, classroom activities, pending academic tasks, and workload.</p>
+            <p className="text-[13px] font-[500] text-slate-500 mt-1">Get a complete overview of today&apos;s teaching schedule, classroom activities, pending academic tasks, and workload.</p>
           </div>
           <div className="flex items-center gap-3">
             <button className="flex items-center justify-center px-4 py-2 bg-[#4F46E5] text-white hover:bg-[#4338CA] rounded-xl text-[13px] font-[700] transition-colors shadow-[0_2px_10px_rgba(79,70,229,0.2)] whitespace-nowrap">
@@ -53,7 +59,7 @@ export function TeacherDashboard() {
               <div className="w-10 h-10 rounded-xl bg-indigo-50 flex items-center justify-center">
                 <CalendarDays className="w-5 h-5 text-[#5A67D8]" />
               </div>
-              <span className="text-[10px] font-[800] text-slate-400 uppercase tracking-wider">TODAY'S TIMETABLE</span>
+              <span className="text-[10px] font-[800] text-slate-400 uppercase tracking-wider">TODAY&apos;S TIMETABLE</span>
             </div>
             <div className="flex items-baseline gap-2 mb-1">
               <span className="text-[32px] font-[800] text-slate-900 leading-none">5</span>
@@ -124,7 +130,7 @@ export function TeacherDashboard() {
             <div className="flex justify-between items-center mb-6">
               <div className="flex items-center gap-2">
                 <CalendarDays className="w-5 h-5 text-[#5A67D8]" />
-                <h3 className="text-[16px] font-[800] text-slate-900 tracking-tight">Today's Timetable</h3>
+                <h3 className="text-[16px] font-[800] text-slate-900 tracking-tight">Today&apos;s Timetable</h3>
               </div>
               <Link href="/dashboard/timetable" className="text-[12px] font-[700] text-[#5A67D8] hover:underline">
                 View Full Timetable
@@ -325,142 +331,6 @@ export function TeacherDashboard() {
           </div>
         </div>
 
-      </div>
-    </div>
-  );
-}
-
-// ---------------------- Subcomponents ----------------------
-
-function TimetableRow({ time, endTime, subject, code, room, status, dotColor }: any) {
-  const isOngoing = status === 'ongoing';
-  const isCompleted = status === 'completed';
-
-  return (
-    <div className="flex items-center gap-6 py-3 relative group z-10">
-      <div className="w-[60px] shrink-0 text-right">
-        <span className={`block text-[11px] font-[800] ${isOngoing ? 'text-[#5A67D8]' : 'text-slate-600'}`}>{time}</span>
-        <span className="block text-[9px] font-[600] text-slate-400 mt-0.5">{endTime}</span>
-      </div>
-      
-      <div className="relative shrink-0 flex items-center justify-center">
-        {isOngoing ? (
-          <div className="w-3 h-3 rounded-full bg-[#5A67D8] relative z-10 ring-4 ring-indigo-100 flex items-center justify-center">
-             <div className="w-1 h-1 rounded-full bg-white"></div>
-          </div>
-        ) : (
-          <div className={`w-2.5 h-2.5 rounded-full ${isCompleted ? 'bg-slate-300' : dotColor || 'bg-[#5A67D8]'} relative z-10`}></div>
-        )}
-      </div>
-
-      <div className={`flex-1 rounded-xl p-4 flex items-center justify-between ${isOngoing ? 'bg-indigo-50/50 border border-indigo-100 shadow-sm' : 'hover:bg-slate-50 transition-colors border border-transparent'}`}>
-        <div className="flex flex-col">
-          <span className={`text-[13px] font-[800] ${isCompleted ? 'text-slate-500' : 'text-slate-900'} leading-none mb-1.5`}>{subject}</span>
-          <span className="text-[11px] font-[600] text-slate-400 leading-none">{code}</span>
-        </div>
-        <div className="flex flex-col items-end gap-1.5">
-          <span className={`text-[12px] font-[800] ${isCompleted ? 'text-slate-500' : 'text-slate-900'}`}>{room}</span>
-          <span className={`text-[9px] font-[800] uppercase tracking-wider ${isCompleted ? 'text-emerald-500' : isOngoing ? 'text-[#5A67D8]' : 'text-slate-400'}`}>
-            {status}
-          </span>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-function AttendanceItem({ title, time, label, type, icon }: any) {
-  const isWarning = type === 'warning';
-  const isSuccess = type === 'success';
-
-  return (
-    <div className="flex items-center justify-between px-4 py-3 bg-white border border-slate-100 rounded-xl hover:shadow-sm transition-all group">
-      <div className="flex items-center gap-3">
-        <div className={`w-8 h-8 rounded-lg flex items-center justify-center ${
-          isWarning ? 'bg-indigo-50 text-indigo-500' : 
-          isSuccess ? 'bg-emerald-50 text-emerald-500' : 
-          'bg-slate-50 text-slate-400'
-        }`}>
-          {icon}
-        </div>
-        <div className="flex flex-col">
-          <span className={`text-[12px] font-[800] ${isSuccess ? 'text-slate-500 line-through' : 'text-slate-900'}`}>{title}</span>
-          <span className="text-[10px] font-[600] text-slate-400 mt-0.5">{time}</span>
-        </div>
-      </div>
-      <span className={`text-[10px] font-[800] ${
-        isWarning ? 'text-orange-500' : 
-        isSuccess ? 'text-emerald-500' : 
-        'text-orange-300'
-      }`}>{label}</span>
-    </div>
-  );
-}
-
-function EvaluationItem({ icon, title, count, label, opacity = "" }: any) {
-  return (
-    <div className={`flex items-center justify-between p-3 rounded-xl hover:bg-slate-50 transition-colors ${opacity}`}>
-      <div className="flex items-center gap-4">
-        <div className="w-8 h-8 rounded-lg bg-indigo-50/50 flex items-center justify-center text-[#5A67D8]">
-          {icon}
-        </div>
-        <span className="text-[13px] font-[700] text-slate-800">{title}</span>
-      </div>
-      <div className="flex flex-col items-end">
-        <span className="text-[15px] font-[800] text-slate-900 leading-none mb-1">{count}</span>
-        <span className="text-[9px] font-[700] text-slate-400 uppercase tracking-widest leading-none">{label}</span>
-      </div>
-    </div>
-  );
-}
-
-function NotificationItem({ icon, text, time, unread }: any) {
-  return (
-    <div className="flex items-center justify-between py-3.5 border-b border-slate-50 last:border-0 hover:bg-slate-50/50 rounded-lg px-2 transition-colors">
-      <div className="flex items-center gap-3">
-        <div className="w-6 h-6 rounded-full bg-slate-100 flex items-center justify-center text-slate-400 shrink-0">
-          {icon}
-        </div>
-        <span className="text-[12px] font-[600] text-slate-600 line-clamp-1 pr-4">{text}</span>
-      </div>
-      <div className="flex items-center gap-3 shrink-0">
-        <span className="text-[10px] font-[600] text-slate-400">{time}</span>
-        <div className={`w-1.5 h-1.5 rounded-full ${unread ? 'bg-[#5A67D8]' : 'bg-transparent'}`}></div>
-      </div>
-    </div>
-  );
-}
-
-function WorkloadStat({ label, value, sub }: any) {
-  return (
-    <div className="flex flex-col">
-      <span className="text-[9px] font-[800] text-slate-400 uppercase tracking-wider mb-2">{label}</span>
-      <div className="flex items-baseline gap-1">
-        <span className="text-[28px] font-[800] text-slate-900 leading-none">{value}</span>
-        <span className="text-[11px] font-[600] text-slate-400">{sub}</span>
-      </div>
-    </div>
-  );
-}
-
-function ExamItem({ month, day, subject, code, room }: any) {
-  return (
-    <div className="flex items-center gap-4 min-w-[250px] flex-1">
-      <div className="flex flex-col items-center justify-center w-12 h-14 bg-white border-2 border-slate-900 rounded-xl overflow-hidden shrink-0">
-        <div className="bg-slate-900 w-full text-center py-0.5">
-           <span className="text-[9px] font-[800] text-white uppercase tracking-wider leading-none block">{month}</span>
-        </div>
-        <div className="flex-1 flex items-center justify-center bg-white w-full">
-           <span className="text-[18px] font-[800] text-slate-900 leading-none block">{day}</span>
-        </div>
-      </div>
-      <div className="flex flex-col">
-        <span className="text-[13px] font-[800] text-slate-900 mb-1">{subject}</span>
-        <span className="text-[10px] font-[600] text-slate-500 mb-1">{code}</span>
-        <div className="flex items-center gap-1.5">
-          <span className="text-[10px] font-[600] text-slate-400">{room}</span>
-          <span className="text-[9px] font-[800] text-orange-500 uppercase">UPCOMING</span>
-        </div>
       </div>
     </div>
   );

@@ -40,6 +40,13 @@ export function TeacherDashboard() {
             <p className="text-[13px] font-[500] text-slate-500 mt-1">Get a complete overview of today&apos;s teaching schedule, classroom activities, pending academic tasks, and workload.</p>
           </div>
           <div className="flex items-center gap-3">
+            <Link 
+              href="/dashboard/academic-modules"
+              className="flex items-center justify-center px-4 py-2 bg-white text-slate-700 border border-slate-200 hover:bg-slate-50 rounded-xl text-[13px] font-[700] transition-colors shadow-sm whitespace-nowrap"
+            >
+              <BookOpen className="w-4 h-4 mr-2 text-[#5A67D8]" />
+              Academic Modules
+            </Link>
             <button className="flex items-center justify-center px-4 py-2 bg-[#4F46E5] text-white hover:bg-[#4338CA] rounded-xl text-[13px] font-[700] transition-colors shadow-[0_2px_10px_rgba(79,70,229,0.2)] whitespace-nowrap">
               <LayoutDashboard className="w-4 h-4 mr-2" />
               Generate Dashboard Report

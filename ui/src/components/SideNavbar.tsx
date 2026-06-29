@@ -22,7 +22,7 @@ export default function SideNavbar({ currentRole = "TEACHER" }: SideNavbarProps)
 
   return (
     <aside 
-      className={`relative flex flex-col h-full bg-[#FAFAFA] border-r border-[#E5E7EB] shrink-0 font-inter transition-all duration-300 ease-[cubic-bezier(0.2,0,0,1)] z-50 ${isCollapsed ? "w-[64px]" : "w-[220px]"}`}
+      className={`relative flex flex-col h-full bg-white border-r border-[#E5E7EB] shrink-0 font-inter transition-[width] duration-300 ease-in-out z-50 ${isCollapsed ? "w-[80px]" : "w-[240px]"}`}
     >
       {/* Edge-Attached Toggle Button with Large Hit Area */}
       <div 
@@ -40,26 +40,26 @@ export default function SideNavbar({ currentRole = "TEACHER" }: SideNavbarProps)
       </div>
 
       {/* Top section: Logo & Branding */}
-      <div className={`flex shrink-0 transition-all duration-300 ease-in-out ${isCollapsed ? 'flex-col items-center pt-5 pb-4' : 'h-14 items-center px-4 mt-2'}`}>
-        <div className={`flex items-center gap-3 overflow-hidden w-full ${isCollapsed ? 'justify-center' : ''}`}>
-          <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md bg-indigo-600 text-white shadow-sm transition-all duration-300">
-            <GraduationCap className="h-4 w-4" />
+      <div className="flex shrink-0 h-24 items-center overflow-hidden">
+        <div className="flex items-center ml-[20px]">
+          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-[#5A67D8] text-white shadow-sm">
+            <GraduationCap className="h-5 w-5" />
           </div>
           
-          <div className={`flex flex-col whitespace-nowrap overflow-hidden transition-all duration-300 ease-[cubic-bezier(0.2,0,0,1)] ${isCollapsed ? "opacity-0 w-0" : "opacity-100 flex-1"}`}>
-            <h1 className="text-[14px] font-[700] text-[#111827] tracking-tight leading-none mb-0.5">
+          <div className={`flex flex-col whitespace-nowrap overflow-hidden transition-[width,opacity,margin] duration-300 ease-in-out ${isCollapsed ? "w-0 opacity-0 ml-0" : "w-[140px] opacity-100 ml-3"}`}>
+            <h1 className="text-[15px] font-[800] text-[#111827] tracking-tight leading-none mb-1">
               IIS
             </h1>
-            <div className="text-[11px] font-[500] text-slate-500 tracking-wide truncate leading-none">
-              Amal Jyothi
+            <div className="text-[10px] font-[600] text-slate-500 tracking-wide truncate leading-tight">
+              Amal Jyothi College of<br/>Engineering
             </div>
           </div>
         </div>
       </div>
 
       {/* Primary Navigation */}
-      <div className="flex flex-col flex-1 py-3 px-3 overflow-y-auto scrollbar-none border-t border-transparent">
-        <nav className="flex flex-col gap-0.5 flex-1">
+      <div className="flex flex-col flex-1 py-2 overflow-y-auto scrollbar-none border-t border-transparent px-4">
+        <nav className="flex flex-col gap-1.5 flex-1">
           <TooltipProvider delayDuration={150}>
             {visibleItems.map((item) => {
               const isActive = item.href === '/dashboard' 
@@ -72,23 +72,22 @@ export default function SideNavbar({ currentRole = "TEACHER" }: SideNavbarProps)
                   key={item.href}
                   href={item.href}
                   className={`
-                    flex items-center rounded-md text-[13px] font-[500] transition-all duration-150 ease-out group relative focus:outline-none focus-visible:ring-2 focus-visible:ring-slate-300
-                    ${
-                      isActive
-                        ? "bg-slate-200/50 text-slate-900 font-[600]"
-                        : "text-slate-600 hover:bg-slate-200/30 hover:text-slate-900"
-                    }
-                    ${isCollapsed ? "justify-center w-[40px] h-[40px] mx-auto" : "gap-2.5 px-3 py-2 w-full"}
+                    flex items-center rounded-xl text-[13px] font-[700] transition-[width,padding,background-color,color] duration-300 ease-in-out overflow-hidden focus:outline-none focus-visible:ring-2 focus-visible:ring-slate-300 mx-auto
+                    ${isActive ? "bg-[#5A67D8] text-white shadow-sm" : "text-slate-600 hover:bg-slate-50 hover:text-slate-900"}
+                    ${isCollapsed ? "w-[44px] px-[13px]" : "w-full px-4"}
+                    py-3
                   `}
                 >
                   <Icon
-                    className={`shrink-0 w-[16px] h-[16px] transition-colors duration-150 ${
-                      isActive ? "text-slate-900" : "text-slate-400 group-hover:text-slate-700"
+                    className={`shrink-0 w-[18px] h-[18px] transition-colors duration-150 ${
+                      isActive ? "text-white" : "text-slate-500 group-hover:text-slate-700"
                     }`}
                   />
-                  <span className={`whitespace-nowrap overflow-hidden transition-all duration-300 ease-[cubic-bezier(0.2,0,0,1)] ${isCollapsed ? "opacity-0 w-0 max-w-0" : "opacity-100 flex-1"}`}>
-                    {item.title}
-                  </span>
+                  <div className={`overflow-hidden transition-[width,opacity,margin] duration-300 ease-in-out flex items-center ${isCollapsed ? "w-0 opacity-0 ml-0" : "w-auto flex-1 opacity-100 ml-3.5"}`}>
+                    <span className="whitespace-nowrap">
+                      {item.title}
+                    </span>
+                  </div>
                 </Link>
               );
 
@@ -111,49 +110,27 @@ export default function SideNavbar({ currentRole = "TEACHER" }: SideNavbarProps)
         </nav>
       </div>
 
-      {/* Secondary Actions: Settings & Logs */}
-      <div className={`shrink-0 flex flex-col gap-0.5 transition-all duration-300 ease-[cubic-bezier(0.2,0,0,1)] px-3 py-2`}>
-        <TooltipProvider delayDuration={150}>
-          {[
-            { title: "Settings", icon: Settings, href: "/settings" },
-            { title: "Activity Logs", icon: LogOut, href: "#" }
-          ].map((item, idx) => {
-            const Icon = item.icon;
-            const linkContent = (
-              <button key={idx} className={`flex items-center rounded-md text-[13px] font-[500] text-slate-600 hover:bg-slate-200/30 hover:text-slate-900 transition-all duration-150 ease-out group relative focus:outline-none focus-visible:ring-2 focus-visible:ring-slate-300 ${isCollapsed ? "justify-center w-[40px] h-[40px] mx-auto" : "gap-2.5 px-3 py-2 w-full"}`}>
-                <Icon className="w-[16px] h-[16px] shrink-0 text-slate-400 group-hover:text-slate-700 transition-colors" />
-                <span className={`whitespace-nowrap overflow-hidden transition-all duration-300 ease-[cubic-bezier(0.2,0,0,1)] ${isCollapsed ? "opacity-0 w-0 max-w-0" : "opacity-100 flex-1 text-left"}`}>
-                  {item.title}
-                </span>
-              </button>
-            );
-
-            if (isCollapsed) {
-              return (
-                <Tooltip key={item.title}>
-                  <TooltipTrigger asChild>{linkContent}</TooltipTrigger>
-                  <TooltipContent side="right" className="font-medium text-xs py-1.5 px-2.5 bg-slate-800 text-white border-slate-700 shadow-md rounded-md" sideOffset={14}>
-                    {item.title}
-                  </TooltipContent>
-                </Tooltip>
-              );
-            }
-            return linkContent;
-          })}
-        </TooltipProvider>
-      </div>
-
-      {/* User Profile */}
-      <div className={`mt-auto shrink-0 flex flex-col border-t border-slate-200/60 transition-all duration-300 ease-[cubic-bezier(0.2,0,0,1)] ${isCollapsed ? 'p-2' : 'p-3'}`}>
-        <button className={`flex items-center gap-2.5 rounded-md transition-all duration-150 ease-out group focus:outline-none focus-visible:ring-2 focus-visible:ring-slate-300 ${isCollapsed ? "justify-center w-[44px] h-[44px] mx-auto" : "px-2.5 py-2 w-full hover:bg-slate-200/30"}`}>
-          <div className={`flex shrink-0 h-6 w-6 items-center justify-center rounded-full bg-gradient-to-tr from-indigo-900 to-slate-800 text-[10px] font-bold text-white shadow-sm ring-1 ring-slate-900/5 ${isCollapsed ? "mx-auto h-7 w-7 text-[11px]" : ""}`}>
-            T
+      {/* Secondary Actions: Settings & Profile */}
+      <div className={`shrink-0 flex flex-col gap-1.5 px-4 py-4 mb-2`}>
+        
+        {/* Settings */}
+        <Link href="/settings" className={`flex items-center rounded-xl text-[13px] font-[700] text-slate-600 hover:bg-slate-50 hover:text-slate-900 transition-[width,padding] duration-300 ease-in-out overflow-hidden mx-auto focus:outline-none ${isCollapsed ? "w-[44px] px-[13px]" : "w-full px-4"} py-3`}>
+          <Settings className="w-[18px] h-[18px] shrink-0 text-slate-500 group-hover:text-slate-700 transition-colors" />
+          <div className={`overflow-hidden transition-[width,opacity,margin] duration-300 ease-in-out flex items-center ${isCollapsed ? "w-0 opacity-0 ml-0" : "w-auto flex-1 opacity-100 ml-3.5"}`}>
+            <span className="whitespace-nowrap">Settings</span>
           </div>
-          <div className={`flex flex-col items-start whitespace-nowrap overflow-hidden transition-all duration-300 ease-[cubic-bezier(0.2,0,0,1)] ${isCollapsed ? "opacity-0 w-0 max-w-0" : "opacity-100"}`}>
-            <span className="text-[13px] font-[600] text-slate-900 group-hover:text-slate-900 transition-colors leading-none mb-1">Teacher</span>
-            <span className="text-[11px] font-[400] text-slate-500 leading-none">Faculty Member</span>
+        </Link>
+        
+        {/* Profile */}
+        <button className={`flex items-center rounded-xl text-[13px] font-[700] text-slate-600 hover:bg-slate-50 hover:text-slate-900 transition-[width,padding] duration-300 ease-in-out overflow-hidden mx-auto focus:outline-none ${isCollapsed ? "w-[44px] px-[11px]" : "w-full px-3.5"} py-2.5`}>
+          <div className="flex h-[22px] w-[22px] shrink-0 items-center justify-center rounded-full bg-[#E0E7FF] text-[#5A67D8] font-bold text-[10px]">
+            AK
+          </div>
+          <div className={`overflow-hidden transition-[width,opacity,margin] duration-300 ease-in-out flex items-center ${isCollapsed ? "w-0 opacity-0 ml-0" : "w-auto flex-1 opacity-100 ml-3.5"}`}>
+            <span className="whitespace-nowrap">Profile</span>
           </div>
         </button>
+
       </div>
     </aside>
   );

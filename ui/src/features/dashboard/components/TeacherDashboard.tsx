@@ -1,321 +1,328 @@
 import React from 'react';
 import Link from 'next/link';
 import { 
-  BookOpen, Clock, CalendarDays, Users, BookMarked, MonitorPlay, 
-  ArrowUpRight, Target, ClipboardList, Megaphone, Calendar
+  Bell, ChevronDown, Download, LayoutDashboard, Calendar, Users, FileText, 
+  BookOpen, CalendarDays, CheckCircle2, AlertCircle, Clock, Check, 
+  MessageSquare, User, FileQuestion, Megaphone, BellRing, ArrowRight, Upload
 } from 'lucide-react';
 
 export function TeacherDashboard() {
   return (
-    <div className="flex flex-col h-full w-full bg-[#F7F8FC] p-8 font-inter overflow-y-auto">
-      <div className="max-w-[1400px] mx-auto w-full flex flex-col gap-6">
+    <div className="flex flex-col h-full w-full bg-[#F8FAFC] font-inter overflow-y-auto">
+      
+      {/* Top Context Bar */}
+      <div className="w-full flex items-center justify-end px-8 pt-6 pb-2 gap-3">
+        <button className="flex items-center gap-2 bg-white border border-slate-200 rounded-lg px-3 py-1.5 text-[12px] font-bold text-slate-600 hover:bg-slate-50 transition-colors shadow-sm">
+          <div className="w-1.5 h-1.5 rounded-full bg-[#5A67D8]"></div>
+          Odd Sem 2024-25 <ChevronDown className="w-3 h-3 text-slate-400" />
+        </button>
+        <button className="flex items-center gap-2 bg-white border border-slate-200 rounded-lg px-3 py-1.5 text-[12px] font-bold text-slate-600 hover:bg-slate-50 transition-colors shadow-sm">
+          CSE Department <ChevronDown className="w-3 h-3 text-slate-400" />
+        </button>
+        <button className="flex items-center justify-center bg-white border border-slate-200 rounded-lg w-8 h-8 text-slate-400 hover:text-slate-600 hover:bg-slate-50 transition-colors shadow-sm relative">
+          <Bell className="w-4 h-4" />
+          <div className="absolute top-1.5 right-1.5 w-1.5 h-1.5 bg-red-500 rounded-full border border-white"></div>
+        </button>
+      </div>
+
+      <div className="px-8 pb-10 w-full flex flex-col gap-6 max-w-[1600px] mx-auto">
         
         {/* Header Section */}
-        <div className="flex flex-col md:flex-row justify-between items-start md:items-center bg-white p-6 rounded-xl border border-slate-100 shadow-sm gap-4">
+        <div className="flex flex-col md:flex-row justify-between items-start md:items-end gap-4 pb-2">
           <div>
-            <h1 className="text-2xl font-bold text-slate-900 tracking-tight">Teacher Dashboard</h1>
-            <p className="text-[14px] text-slate-500 mt-1">Monitor your classes, student engagement, subject performance, and upcoming academic activities.</p>
+            <h1 className="text-[24px] font-[800] text-slate-900 tracking-tight leading-tight">Teacher Dashboard</h1>
+            <p className="text-[13px] font-[500] text-slate-500 mt-1">Get a complete overview of today's teaching schedule, classroom activities, pending academic tasks, and workload.</p>
           </div>
           <div className="flex items-center gap-3">
-            <Link 
-              href="/dashboard/timetable"
-              className="flex items-center justify-center px-4 py-2 bg-slate-50 text-slate-600 border border-slate-200 hover:bg-slate-100 hover:text-slate-900 rounded-lg text-sm font-semibold transition-colors shadow-sm whitespace-nowrap"
-            >
-              View Timetable
-            </Link>
-            <Link 
-              href="/dashboard/academic-modules"
-              className="flex items-center justify-center px-4 py-2 bg-[#5A67D8] text-white hover:bg-indigo-700 rounded-lg text-sm font-semibold transition-colors shadow-sm whitespace-nowrap"
-            >
-              <BookOpen className="w-4 h-4 mr-2" />
-              Academic Modules
-            </Link>
+            <button className="flex items-center justify-center px-4 py-2 bg-[#4F46E5] text-white hover:bg-[#4338CA] rounded-xl text-[13px] font-[700] transition-colors shadow-[0_2px_10px_rgba(79,70,229,0.2)] whitespace-nowrap">
+              <LayoutDashboard className="w-4 h-4 mr-2" />
+              Generate Dashboard Report
+            </button>
+            <button className="flex items-center justify-center px-4 py-2 bg-white text-slate-700 border border-slate-200 hover:bg-slate-50 rounded-xl text-[13px] font-[700] transition-colors shadow-sm whitespace-nowrap">
+              <Download className="w-4 h-4 mr-2 text-slate-400" />
+              Export Details
+            </button>
           </div>
         </div>
 
         {/* Row 1: Top Metrics */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-          <MetricWidget 
-            icon={<MonitorPlay className="w-5 h-5 text-[#5A67D8]" />}
-            iconBg="bg-[#5A67D8]/10"
-            title="Next Class"
-            value="10:30 AM"
-            subtitle="Data Structures - CS301"
-            pillText="In 45 mins"
-            pillColor="text-[#5A67D8] bg-[#5A67D8]/10"
-          />
-          <MetricWidget 
-            icon={<Target className="w-5 h-5 text-emerald-500" />}
-            iconBg="bg-emerald-500/10"
-            title="Today's Attendance"
-            value="88.4%"
-            subtitle={
-              <span className="flex items-center text-emerald-600 font-semibold text-xs">
-                <ArrowUpRight className="w-3 h-3 mr-0.5" /> 2.1% vs last week
-              </span>
-            }
-            pillText="Excellent"
-            pillColor="text-emerald-600 bg-emerald-100"
-          />
-          <MetricWidget 
-            icon={<ClipboardList className="w-5 h-5 text-orange-500" />}
-            iconBg="bg-orange-500/10"
-            title="Pending Tasks"
-            value="14"
-            subtitle="Assignments to grade"
-            pillText="Action Needed"
-            pillColor="text-orange-600 bg-orange-100"
-          />
-          <MetricWidget 
-            icon={<Users className="w-5 h-5 text-cyan-500" />}
-            iconBg="bg-cyan-500/10"
-            title="Total Students"
-            value="342"
-            subtitle={
-              <span className="flex items-center text-emerald-600 font-semibold text-xs">
-                <ArrowUpRight className="w-3 h-3 mr-0.5" /> 12 vs last sem
-              </span>
-            }
-            pillText="Active"
-            pillColor="text-cyan-600 bg-cyan-100"
-          />
-        </div>
-
-        {/* Row 2: Insights */}
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
-          
-          {/* Today's Schedule (Matches "Academic Calendar Timeline" card) */}
-          <div className="lg:col-span-4 bg-white rounded-xl shadow-sm border border-slate-100 p-6 flex flex-col">
-            <h3 className="text-[16px] font-bold text-slate-900 tracking-tight">Today's Schedule</h3>
-            <p className="text-[13px] text-slate-500 mb-6">Upcoming classes and labs</p>
-            
-            <div className="relative border-l border-slate-200 ml-3 flex flex-col gap-8 flex-grow">
-              <TimelineItem time="09:00 AM" title="Software Engineering" room="Room 402" status="completed" />
-              <TimelineItem time="10:30 AM" title="Data Structures" room="Room 301" status="current" />
-              <TimelineItem time="01:30 PM" title="DS Lab Batch A" room="Lab 1" status="upcoming" />
-              <TimelineItem time="03:00 PM" title="Mentoring Session" room="Room 301" status="upcoming" />
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-5">
+          {/* Classes Scheduled */}
+          <div className="bg-white rounded-[20px] p-6 shadow-sm border border-slate-100 flex flex-col relative overflow-hidden group">
+            <div className="flex justify-between items-start mb-6">
+              <div className="w-10 h-10 rounded-xl bg-indigo-50 flex items-center justify-center">
+                <CalendarDays className="w-5 h-5 text-[#5A67D8]" />
+              </div>
+              <span className="text-[10px] font-[800] text-slate-400 uppercase tracking-wider">TODAY'S TIMETABLE</span>
+            </div>
+            <div className="flex items-baseline gap-2 mb-1">
+              <span className="text-[32px] font-[800] text-slate-900 leading-none">5</span>
+              <span className="text-[13px] font-[600] text-slate-500">Classes Scheduled</span>
+            </div>
+            <div className="mt-4">
+              <span className="inline-flex px-2 py-1 rounded bg-emerald-50 text-emerald-600 text-[10px] font-[800] uppercase tracking-wider">ON TRACK</span>
             </div>
           </div>
 
-          {/* Attendance Trends (Matches "Attendance Trends" card) */}
-          <div className="lg:col-span-5 bg-white rounded-xl shadow-sm border border-slate-100 p-6 flex flex-col">
-            <div className="flex justify-between items-center mb-2">
-              <h3 className="text-[16px] font-bold text-slate-900 tracking-tight">Class Attendance Trends</h3>
-              <select className="text-[12px] font-semibold text-slate-600 bg-slate-50 border border-slate-200 rounded-md px-2 py-1 outline-none focus:ring-1 focus:ring-[#5A67D8]">
-                <option>This Week</option>
-                <option>Last Week</option>
-                <option>This Month</option>
-              </select>
-            </div>
-            
-            <div className="bg-slate-50/50 rounded-xl p-5 flex flex-col mt-4 flex-grow border border-slate-100/50">
-              <div className="mb-2">
-                <span className="text-[12px] font-semibold text-slate-500">Average Attendance</span>
-                <div className="flex items-baseline gap-2">
-                  <span className="text-2xl font-bold text-slate-900">88.4%</span>
-                  <span className="flex items-center text-emerald-600 font-semibold text-[11px]">
-                    <ArrowUpRight className="w-3 h-3 mr-0.5" /> 2.1% vs last week
-                  </span>
-                </div>
+          {/* Classes Awaiting */}
+          <div className="bg-white rounded-[20px] p-6 shadow-sm border border-slate-100 flex flex-col relative overflow-hidden group">
+            <div className="flex justify-between items-start mb-6">
+              <div className="w-10 h-10 rounded-xl bg-purple-50 flex items-center justify-center">
+                <Users className="w-5 h-5 text-purple-500" />
               </div>
-              
-              {/* Fake SVG Line Chart */}
-              <div className="flex-grow w-full relative mt-4 min-h-[100px]">
-                <svg viewBox="0 0 400 100" className="w-full h-full overflow-visible" preserveAspectRatio="none">
-                  {/* Subtle Grid Lines */}
-                  <line x1="0" y1="20" x2="400" y2="20" stroke="#f1f5f9" strokeWidth="1" />
-                  <line x1="0" y1="50" x2="400" y2="50" stroke="#f1f5f9" strokeWidth="1" />
-                  <line x1="0" y1="80" x2="400" y2="80" stroke="#f1f5f9" strokeWidth="1" />
-                  
-                  {/* Gradient for fill */}
-                  <defs>
-                    <linearGradient id="blueGradient" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="0%" stopColor="#5A67D8" stopOpacity="0.2" />
-                      <stop offset="100%" stopColor="#5A67D8" stopOpacity="0" />
-                    </linearGradient>
-                  </defs>
-
-                  {/* Filled Area */}
-                  <polygon points="0,100 0,60 80,40 160,70 240,30 320,50 400,20 400,100" fill="url(#blueGradient)" />
-                  
-                  {/* Line */}
-                  <polyline 
-                    points="0,60 80,40 160,70 240,30 320,50 400,20" 
-                    fill="none" 
-                    stroke="#5A67D8" 
-                    strokeWidth="3" 
-                    strokeLinecap="round" 
-                    strokeLinejoin="round" 
-                  />
-                  
-                  {/* Dots */}
-                  <circle cx="80" cy="40" r="4" fill="#fff" stroke="#5A67D8" strokeWidth="2" />
-                  <circle cx="240" cy="30" r="4" fill="#fff" stroke="#5A67D8" strokeWidth="2" />
-                  <circle cx="400" cy="20" r="4" fill="#fff" stroke="#5A67D8" strokeWidth="2" />
-                </svg>
-              </div>
+              <span className="text-[10px] font-[800] text-slate-400 uppercase tracking-wider">ATTENDANCE REMINDERS</span>
             </div>
+            <div className="flex items-baseline gap-2 mb-1">
+              <span className="text-[32px] font-[800] text-slate-900 leading-none">3</span>
+              <span className="text-[13px] font-[600] text-slate-500">Classes Awaiting</span>
+            </div>
+            <div className="mt-4">
+              <span className="inline-flex px-2 py-1 rounded bg-orange-50 text-orange-600 text-[10px] font-[800] uppercase tracking-wider">ATTENTION</span>
+            </div>
+          </div>
 
-            <div className="flex items-center gap-4 mt-6 bg-slate-50 px-4 py-3 rounded-lg border border-slate-100">
+          {/* Submissions Pending */}
+          <div className="bg-white rounded-[20px] p-6 shadow-sm border border-slate-100 flex flex-col relative overflow-hidden group">
+            <div className="flex justify-between items-start mb-6">
+              <div className="w-10 h-10 rounded-xl bg-red-50 flex items-center justify-center">
+                <FileText className="w-5 h-5 text-red-500" />
+              </div>
+              <span className="text-[10px] font-[800] text-slate-400 uppercase tracking-wider">PENDING EVALUATIONS</span>
+            </div>
+            <div className="flex items-baseline gap-2 mb-1">
+              <span className="text-[32px] font-[800] text-slate-900 leading-none">12</span>
+              <span className="text-[13px] font-[600] text-slate-500">Submissions Pending</span>
+            </div>
+            <div className="mt-4">
+              <span className="inline-flex px-2 py-1 rounded bg-red-50 text-red-600 text-[10px] font-[800] uppercase tracking-wider">PENDING</span>
+            </div>
+          </div>
+
+          {/* Examinations Scheduled */}
+          <div className="bg-white rounded-[20px] p-6 shadow-sm border border-slate-100 flex flex-col relative overflow-hidden group">
+            <div className="flex justify-between items-start mb-6">
+              <div className="w-10 h-10 rounded-xl bg-blue-50 flex items-center justify-center">
+                <BookOpen className="w-5 h-5 text-blue-500" />
+              </div>
+              <span className="text-[10px] font-[800] text-slate-400 uppercase tracking-wider">UPCOMING EXAMINATIONS</span>
+            </div>
+            <div className="flex items-baseline gap-2 mb-1">
+              <span className="text-[32px] font-[800] text-slate-900 leading-none">2</span>
+              <span className="text-[13px] font-[600] text-slate-500">Examinations Scheduled</span>
+            </div>
+            <div className="mt-4">
+              <span className="inline-flex px-2 py-1 rounded bg-blue-50 text-blue-600 text-[10px] font-[800] uppercase tracking-wider">UPCOMING</span>
+            </div>
+          </div>
+        </div>
+
+        {/* Row 2: Main Content Area */}
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-5">
+          
+          {/* Today's Timetable (Left Col - ~40%) */}
+          <div className="lg:col-span-5 bg-white rounded-[24px] shadow-sm border border-slate-100 p-6 flex flex-col">
+            <div className="flex justify-between items-center mb-6">
               <div className="flex items-center gap-2">
-                <div className="w-1.5 h-1.5 rounded-full bg-emerald-500"></div>
-                <span className="text-[12px] font-semibold text-slate-600">Health Indicator: <span className="text-slate-900 font-bold">Excellent</span></span>
+                <CalendarDays className="w-5 h-5 text-[#5A67D8]" />
+                <h3 className="text-[16px] font-[800] text-slate-900 tracking-tight">Today's Timetable</h3>
               </div>
-              <div className="w-px h-3 bg-slate-300"></div>
-              <span className="text-[12px] font-semibold text-slate-600">Target: <span className="text-slate-900 font-bold">&gt;85%</span></span>
+              <Link href="/dashboard/timetable" className="text-[12px] font-[700] text-[#5A67D8] hover:underline">
+                View Full Timetable
+              </Link>
             </div>
-          </div>
-
-          {/* Workload Status (Matches "Faculty Status" card) */}
-          <div className="lg:col-span-3 bg-white rounded-xl shadow-sm border border-slate-100 p-6 flex flex-col">
-            <h3 className="text-[16px] font-bold text-slate-900 tracking-tight mb-6">Workload Status</h3>
             
-            <div className="flex gap-3 mb-8">
-              <div className="flex-1 bg-slate-50 border border-slate-100 rounded-lg p-3 text-center">
-                <span className="block text-[10px] font-bold text-[#5A67D8] uppercase tracking-wider mb-1">Assigned</span>
-                <span className="block text-2xl font-bold text-slate-900">14 <span className="text-sm text-slate-400 font-semibold">hrs</span></span>
-              </div>
-              <div className="flex-1 bg-orange-50 border border-orange-100 rounded-lg p-3 text-center">
-                <span className="block text-[10px] font-bold text-orange-600 uppercase tracking-wider mb-1">Max Cap</span>
-                <span className="block text-2xl font-bold text-orange-900">18 <span className="text-sm text-orange-400 font-semibold">hrs</span></span>
-              </div>
-            </div>
+            <div className="flex flex-col relative mt-2 pl-4">
+              {/* Timeline Connector Line */}
+              <div className="absolute left-[83px] top-4 bottom-4 w-px bg-slate-100"></div>
 
-            <div className="bg-slate-50 rounded-lg p-4 flex flex-col gap-4 border border-slate-100">
-              <div>
-                <div className="flex justify-between items-center mb-2">
-                  <span className="text-[12px] font-semibold text-slate-600">Theory Classes</span>
-                  <span className="text-[12px] font-bold text-slate-900">8 hrs</span>
-                </div>
-                <div className="w-full h-2 bg-slate-200 rounded-full overflow-hidden">
-                  <div className="h-full bg-[#5A67D8] rounded-full" style={{ width: '60%' }}></div>
-                </div>
-              </div>
+              <TimetableRow 
+                time="09:00 AM" endTime="10:00 AM"
+                subject="Data Structures" code="CS301 • Lecture"
+                room="A-301" status="completed"
+              />
               
-              <div>
-                <div className="flex justify-between items-center mb-2">
-                  <span className="text-[12px] font-semibold text-slate-600">Lab Sessions</span>
-                  <span className="text-[12px] font-bold text-slate-900">6 hrs</span>
+              <TimetableRow 
+                time="10:00 AM" endTime="11:00 AM"
+                subject="Computer Networks" code="CS304 • Lecture"
+                room="A-202" status="ongoing"
+              />
+              
+              <TimetableRow 
+                time="11:00 AM" endTime="12:00 PM"
+                subject="Mathematics III" code="MA301 • Lecture"
+                room="A-205" status="upcoming" dotColor="bg-emerald-500"
+              />
+              
+              {/* Lunch Break */}
+              <div className="flex items-center gap-6 py-4 relative group z-10">
+                <div className="w-[60px] shrink-0 text-right">
+                  <span className="block text-[11px] font-[800] text-slate-600">12:00 PM</span>
+                  <span className="block text-[9px] font-[600] text-slate-400 mt-0.5">01:00 PM</span>
                 </div>
-                <div className="w-full h-2 bg-slate-200 rounded-full overflow-hidden">
-                  <div className="h-full bg-emerald-500 rounded-full" style={{ width: '40%' }}></div>
+                <div className="relative shrink-0 flex items-center justify-center">
+                  <div className="w-2.5 h-2.5 rounded-full border-2 border-slate-300 bg-white relative z-10"></div>
+                </div>
+                <div className="flex-1 flex items-center gap-3">
+                  <span className="text-[13px] font-[700] text-slate-500">Lunch Break</span>
+                </div>
+                <div className="w-[80px] text-right">
+                  <span className="text-[11px] font-[700] text-slate-300">--</span>
+                </div>
+              </div>
+
+              <TimetableRow 
+                time="01:00 PM" endTime="02:00 PM"
+                subject="DBMS" code="CS302 • Lecture"
+                room="A-302" status="upcoming" dotColor="bg-[#5A67D8]"
+              />
+            </div>
+          </div>
+
+          {/* Attendance Reminders (Middle Col - ~35%) */}
+          <div className="lg:col-span-4 bg-white rounded-[24px] shadow-sm border border-slate-100 p-6 flex flex-col justify-between">
+            <div>
+              <div className="flex justify-between items-center mb-6">
+                <div className="flex items-center gap-2">
+                  <Users className="w-5 h-5 text-purple-500" />
+                  <h3 className="text-[16px] font-[800] text-slate-900 tracking-tight">Attendance Reminders</h3>
+                </div>
+                <Link href="#" className="text-[12px] font-[700] text-[#5A67D8] hover:underline">
+                  View All
+                </Link>
+              </div>
+
+              {/* Classes Awaiting */}
+              <div className="mb-6">
+                <span className="block text-[10px] font-[800] text-slate-400 uppercase tracking-wider mb-3">CLASSES AWAITING ATTENDANCE</span>
+                <div className="flex flex-col gap-3">
+                  <AttendanceItem title="Mathematics III (MA301)" time="A-205 • 11:00 AM" label="Today" type="warning" icon={<User className="w-3.5 h-3.5" />} />
+                  <AttendanceItem title="DBMS (CS302)" time="A-302 • 01:00 PM" label="Today" type="warning" icon={<Clock className="w-3.5 h-3.5" />} />
+                  <AttendanceItem title="Software Engineering (CS303)" time="A-201 • Tomorrow" label="Tomorrow" type="upcoming" icon={<Calendar className="w-3.5 h-3.5" />} />
+                </div>
+              </div>
+
+              {/* Recently Completed */}
+              <div>
+                <span className="block text-[10px] font-[800] text-slate-400 uppercase tracking-wider mb-3">RECENTLY COMPLETED ATTENDANCE</span>
+                <div className="flex flex-col gap-3">
+                  <AttendanceItem title="Data Structures (CS301)" time="A-301 • 10:00 AM" label="Today" type="success" icon={<Check className="w-3.5 h-3.5" />} />
+                  <AttendanceItem title="Computer Networks (CS304)" time="A-202 • 09:00 AM" label="Today" type="success" icon={<Check className="w-3.5 h-3.5" />} />
                 </div>
               </div>
             </div>
-            
-            <div className="mt-auto pt-6 flex justify-between items-center">
-              <span className="text-[12px] font-semibold text-slate-500">Utilization Rate</span>
-              <span className="text-[14px] font-bold text-slate-900">77%</span>
-            </div>
-          </div>
-          
-        </div>
 
-        {/* Row 3: Tables */}
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
-          
-          {/* Active Subjects List (Matches "Student Statistics" card proportions but different content) */}
-          <div className="lg:col-span-4 bg-white rounded-xl shadow-sm border border-slate-100 p-6">
-            <div className="flex items-center gap-2 mb-6">
-              <BookMarked className="w-5 h-5 text-[#5A67D8]" />
-              <h3 className="text-[16px] font-bold text-slate-900 tracking-tight">Active Subjects</h3>
-            </div>
-            
-            <div className="flex flex-col gap-4">
-              <SubjectSummaryCard code="CS301" name="Data Structures" students="120" type="Theory" color="bg-[#5A67D8]" />
-              <SubjectSummaryCard code="CS302" name="Software Eng." students="120" type="Theory" color="bg-emerald-500" />
-              <SubjectSummaryCard code="CS301L" name="DS Lab" students="60" type="Lab" color="bg-orange-500" />
-              <SubjectSummaryCard code="MN101" name="Mentoring" students="30" type="Other" color="bg-cyan-500" />
+            <div className="mt-6 flex items-center justify-between bg-slate-50 border border-slate-100 rounded-xl p-4">
+              <div className="flex items-center gap-3">
+                <div className="w-8 h-8 rounded-lg bg-[#5A67D8] flex items-center justify-center text-white shadow-sm">
+                  <Clock className="w-4 h-4" />
+                </div>
+                <span className="text-[12px] font-[700] text-[#5A67D8]">Next Attendance Deadline</span>
+              </div>
+              <span className="text-[12px] font-[800] text-slate-900">Today, 01:00 PM</span>
             </div>
           </div>
 
-          {/* Subject Performance (Matches "Department Performance" table) */}
-          <div className="lg:col-span-8 bg-white rounded-xl shadow-sm border border-slate-100 p-6 flex flex-col">
-            <h3 className="text-[16px] font-bold text-slate-900 tracking-tight mb-6">Subject Performance</h3>
+          {/* Pending Evaluations (Right Col - ~25%) */}
+          <div className="lg:col-span-3 bg-white rounded-[24px] shadow-sm border border-slate-100 p-6 flex flex-col">
+            <div className="flex justify-between items-center mb-6">
+              <div className="flex items-center gap-2">
+                <FileText className="w-5 h-5 text-red-500" />
+                <h3 className="text-[16px] font-[800] text-slate-900 tracking-tight">Pending Evaluations</h3>
+              </div>
+              <Link href="#" className="text-[12px] font-[700] text-[#5A67D8] hover:underline">
+                View All
+              </Link>
+            </div>
             
-            <div className="overflow-x-auto">
-              <table className="w-full text-left border-collapse min-w-[500px]">
-                <thead>
-                  <tr className="border-b border-slate-200">
-                    <th className="pb-3 text-[10px] font-bold text-slate-400 uppercase tracking-wider">Subject</th>
-                    <th className="pb-3 text-[10px] font-bold text-slate-400 uppercase tracking-wider text-center">Avg Attendance</th>
-                    <th className="pb-3 text-[10px] font-bold text-slate-400 uppercase tracking-wider text-center">Performance</th>
-                    <th className="pb-3 text-[10px] font-bold text-slate-400 uppercase tracking-wider text-right">Pass Rate</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  <tr className="border-b border-slate-100 last:border-0">
-                    <td className="py-4 flex items-center gap-3">
-                      <div className="w-8 h-8 rounded-lg bg-[#5A67D8]/10 text-[#5A67D8] flex items-center justify-center font-bold text-[10px]">CS</div>
-                      <span className="font-semibold text-[13px] text-slate-900">Data Structures</span>
-                    </td>
-                    <td className="py-4 text-center text-[13px] font-semibold text-slate-900">92%</td>
-                    <td className="py-4 text-center text-[12px] font-bold text-emerald-600">High</td>
-                    <td className="py-4 text-right text-[13px] font-semibold text-slate-900">95%</td>
-                  </tr>
-                  <tr className="border-b border-slate-100 last:border-0">
-                    <td className="py-4 flex items-center gap-3">
-                      <div className="w-8 h-8 rounded-lg bg-emerald-500/10 text-emerald-600 flex items-center justify-center font-bold text-[10px]">SE</div>
-                      <span className="font-semibold text-[13px] text-slate-900">Software Engineering</span>
-                    </td>
-                    <td className="py-4 text-center text-[13px] font-semibold text-slate-900">85%</td>
-                    <td className="py-4 text-center text-[12px] font-bold text-emerald-600">High</td>
-                    <td className="py-4 text-right text-[13px] font-semibold text-slate-900">92%</td>
-                  </tr>
-                  <tr className="border-b border-slate-100 last:border-0">
-                    <td className="py-4 flex items-center gap-3">
-                      <div className="w-8 h-8 rounded-lg bg-orange-500/10 text-orange-600 flex items-center justify-center font-bold text-[10px]">LB</div>
-                      <span className="font-semibold text-[13px] text-slate-900">DS Lab Batch A</span>
-                    </td>
-                    <td className="py-4 text-center text-[13px] font-semibold text-slate-900">98%</td>
-                    <td className="py-4 text-center text-[12px] font-bold text-emerald-600">High</td>
-                    <td className="py-4 text-right text-[13px] font-semibold text-slate-900">100%</td>
-                  </tr>
-                  <tr className="border-b border-slate-100 last:border-0">
-                    <td className="py-4 flex items-center gap-3">
-                      <div className="w-8 h-8 rounded-lg bg-cyan-500/10 text-cyan-600 flex items-center justify-center font-bold text-[10px]">MN</div>
-                      <span className="font-semibold text-[13px] text-slate-900">Mentoring</span>
-                    </td>
-                    <td className="py-4 text-center text-[13px] font-semibold text-slate-900">75%</td>
-                    <td className="py-4 text-center text-[12px] font-bold text-orange-500">Medium</td>
-                    <td className="py-4 text-right text-[13px] font-semibold text-slate-900">88%</td>
-                  </tr>
-                </tbody>
-              </table>
+            <div className="flex flex-col gap-2">
+              <EvaluationItem icon={<FileText className="w-4 h-4" />} title="Assignments" count="5" label="SUBMISSIONS" />
+              <EvaluationItem icon={<FileQuestion className="w-4 h-4" />} title="Quiz Evaluations" count="3" label="SUBMISSIONS" />
+              <EvaluationItem icon={<User className="w-4 h-4" />} title="Lab Records" count="2" label="RECORDS" />
+              <EvaluationItem icon={<Clock className="w-4 h-4" />} title="Internal Marks" count="2" label="BATCHES" />
+              <EvaluationItem icon={<Upload className="w-4 h-4" />} title="Project Evaluations" count="0" label="SUBMISSIONS" opacity="opacity-50" />
             </div>
           </div>
 
         </div>
 
-        {/* Row 4: Lists */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-          <ListCard 
-            icon={<ClipboardList className="w-4 h-4 text-[#5A67D8]" />}
-            title="Pending Actions"
-            items={[
-              { label: "Assignment Grading", value: "14" },
-              { label: "Leave Approvals", value: "2" },
-              { label: "Student Requests", value: "5" }
-            ]}
-          />
-          <ListCard 
-            icon={<Megaphone className="w-4 h-4 text-[#5A67D8]" />}
-            title="Department Announcements"
-            items={[
-              { label: "HOD Message: Exam Prep", value: "" },
-              { label: "Circular: Revised Timetable", value: "" },
-              { label: "Notice: Tech Fest Duties", value: "" }
-            ]}
-          />
-          <ListCard 
-            icon={<Calendar className="w-4 h-4 text-[#5A67D8]" />}
-            title="Upcoming Events"
-            items={[
-              { label: "First Internal Exams", value: "Oct 12" },
-              { label: "Tech Fest 2024", value: "Oct 25" },
-              { label: "Project Reviews", value: "Nov 5" }
-            ]}
-          />
+        {/* Row 3: Bottom Analytics & Lists */}
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-5">
+          
+          {/* Student Notifications */}
+          <div className="lg:col-span-5 bg-white rounded-[24px] shadow-sm border border-slate-100 p-6 flex flex-col">
+            <div className="flex justify-between items-center mb-6">
+              <div className="flex items-center gap-2">
+                <BellRing className="w-5 h-5 text-[#5A67D8]" />
+                <h3 className="text-[16px] font-[800] text-slate-900 tracking-tight">Student Notifications</h3>
+              </div>
+              <button className="flex items-center gap-1 text-[12px] font-[700] text-[#5A67D8]">
+                View All <ChevronDown className="w-3 h-3" />
+              </button>
+            </div>
+            
+            <div className="flex flex-col gap-1">
+              <NotificationItem icon={<User className="w-3 h-3" />} text="New message from Rahul S. regarding Assignment 2" time="10 min ago" unread />
+              <NotificationItem icon={<User className="w-3 h-3" />} text="Parent meeting request from Mrs. Divya Nair" time="1 hour ago" unread />
+              <NotificationItem icon={<Clock className="w-3 h-3" />} text="Query on DBMS project submission from Anjali M." time="2 hours ago" unread />
+              <NotificationItem icon={<Megaphone className="w-3 h-3" />} text="Department announcement: Workshop on AI Tools" time="3 hours ago" unread />
+              <NotificationItem icon={<Clock className="w-3 h-3" />} text="Class reminder: DBMS Internal test on Friday" time="5 hours ago" unread />
+            </div>
+          </div>
+
+          {/* Personal Workload */}
+          <div className="lg:col-span-7 bg-white rounded-[24px] shadow-sm border border-slate-100 p-6 flex flex-col">
+            <div className="flex justify-between items-center mb-8">
+              <div className="flex items-center gap-2">
+                <LayoutDashboard className="w-5 h-5 text-[#5A67D8]" />
+                <h3 className="text-[16px] font-[800] text-slate-900 tracking-tight">Personal Workload</h3>
+              </div>
+              <button className="flex items-center gap-1 text-[11px] font-[700] text-slate-600 bg-slate-50 border border-slate-200 px-3 py-1.5 rounded-lg">
+                This Week <ChevronDown className="w-3 h-3" />
+              </button>
+            </div>
+
+            <div className="grid grid-cols-4 gap-4 mb-10">
+              <WorkloadStat label="LECTURES TODAY" value="4" sub="Classes" />
+              <WorkloadStat label="TEACHING HOURS" value="4.0" sub="Hours" />
+              <WorkloadStat label="REMAINING CLASSES" value="1" sub="Today" />
+              <WorkloadStat label="PENDING TASKS" value="6" sub="Tasks" />
+            </div>
+
+            <div className="mt-auto">
+              <div className="flex justify-between items-end mb-2">
+                <span className="text-[12px] font-[700] text-slate-700">Weekly Workload Overview</span>
+                <span className="text-[14px] font-[800] text-slate-900">78%</span>
+              </div>
+              <div className="w-full h-2.5 bg-slate-100 rounded-full overflow-hidden mb-2">
+                <div className="h-full bg-gradient-to-r from-[#4F46E5] to-[#818CF8] rounded-full" style={{ width: '78%' }}></div>
+              </div>
+              <div className="flex justify-between items-center text-[10px] font-[600] text-slate-400">
+                <span>16 / 20 Hours Completed</span>
+                <span>4 Hours Remaining</span>
+              </div>
+            </div>
+          </div>
+
+        </div>
+
+        {/* Row 4: Upcoming Exams */}
+        <div className="bg-white rounded-[24px] shadow-sm border border-slate-100 p-6 flex flex-col w-full">
+          <div className="flex justify-between items-center mb-6">
+            <div className="flex items-center gap-2">
+              <Calendar className="w-5 h-5 text-[#5A67D8]" />
+              <h3 className="text-[16px] font-[800] text-slate-900 tracking-tight">Upcoming Examinations</h3>
+            </div>
+            <button className="flex items-center gap-1 text-[12px] font-[700] text-[#5A67D8]">
+              View More <ChevronDown className="w-3 h-3" />
+            </button>
+          </div>
+          
+          <div className="flex flex-wrap items-center gap-8 justify-between w-full">
+            <ExamItem month="NOV" day="28" subject="DBMS Internal Test" code="CS302 • Internal" room="A-302 • 09:00 AM" />
+            <ExamItem month="DEC" day="05" subject="Data Structures Internal" code="CS301 • Internal" room="A-301 • 11:00 AM" />
+            <ExamItem month="DEC" day="12" subject="End Semester Examination" code="CS304 • University" room="Main Hall • 09:30 PM" />
+            <ExamItem month="DEC" day="18" subject="Mathematics III University Exam" code="MA301 • University" room="Main Hall • 09:00 AM" />
+          </div>
         </div>
 
       </div>
@@ -323,104 +330,137 @@ export function TeacherDashboard() {
   );
 }
 
-// Subcomponents
+// ---------------------- Subcomponents ----------------------
 
-function MetricWidget({ icon, iconBg, title, value, subtitle, pillText, pillColor }: any) {
+function TimetableRow({ time, endTime, subject, code, room, status, dotColor }: any) {
+  const isOngoing = status === 'ongoing';
+  const isCompleted = status === 'completed';
+
   return (
-    <div className="bg-white rounded-xl shadow-sm border border-slate-100 p-5 flex flex-col relative overflow-hidden group hover:shadow-md transition-shadow">
-      <div className="flex items-center gap-3 mb-4">
-        <div className={`w-9 h-9 rounded-lg flex items-center justify-center ${iconBg}`}>
+    <div className="flex items-center gap-6 py-3 relative group z-10">
+      <div className="w-[60px] shrink-0 text-right">
+        <span className={`block text-[11px] font-[800] ${isOngoing ? 'text-[#5A67D8]' : 'text-slate-600'}`}>{time}</span>
+        <span className="block text-[9px] font-[600] text-slate-400 mt-0.5">{endTime}</span>
+      </div>
+      
+      <div className="relative shrink-0 flex items-center justify-center">
+        {isOngoing ? (
+          <div className="w-3 h-3 rounded-full bg-[#5A67D8] relative z-10 ring-4 ring-indigo-100 flex items-center justify-center">
+             <div className="w-1 h-1 rounded-full bg-white"></div>
+          </div>
+        ) : (
+          <div className={`w-2.5 h-2.5 rounded-full ${isCompleted ? 'bg-slate-300' : dotColor || 'bg-[#5A67D8]'} relative z-10`}></div>
+        )}
+      </div>
+
+      <div className={`flex-1 rounded-xl p-4 flex items-center justify-between ${isOngoing ? 'bg-indigo-50/50 border border-indigo-100 shadow-sm' : 'hover:bg-slate-50 transition-colors border border-transparent'}`}>
+        <div className="flex flex-col">
+          <span className={`text-[13px] font-[800] ${isCompleted ? 'text-slate-500' : 'text-slate-900'} leading-none mb-1.5`}>{subject}</span>
+          <span className="text-[11px] font-[600] text-slate-400 leading-none">{code}</span>
+        </div>
+        <div className="flex flex-col items-end gap-1.5">
+          <span className={`text-[12px] font-[800] ${isCompleted ? 'text-slate-500' : 'text-slate-900'}`}>{room}</span>
+          <span className={`text-[9px] font-[800] uppercase tracking-wider ${isCompleted ? 'text-emerald-500' : isOngoing ? 'text-[#5A67D8]' : 'text-slate-400'}`}>
+            {status}
+          </span>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function AttendanceItem({ title, time, label, type, icon }: any) {
+  const isWarning = type === 'warning';
+  const isSuccess = type === 'success';
+
+  return (
+    <div className="flex items-center justify-between px-4 py-3 bg-white border border-slate-100 rounded-xl hover:shadow-sm transition-all group">
+      <div className="flex items-center gap-3">
+        <div className={`w-8 h-8 rounded-lg flex items-center justify-center ${
+          isWarning ? 'bg-indigo-50 text-indigo-500' : 
+          isSuccess ? 'bg-emerald-50 text-emerald-500' : 
+          'bg-slate-50 text-slate-400'
+        }`}>
           {icon}
         </div>
-        <span className="text-[13px] font-bold text-slate-600">{title}</span>
+        <div className="flex flex-col">
+          <span className={`text-[12px] font-[800] ${isSuccess ? 'text-slate-500 line-through' : 'text-slate-900'}`}>{title}</span>
+          <span className="text-[10px] font-[600] text-slate-400 mt-0.5">{time}</span>
+        </div>
       </div>
-      
-      <div className="mb-1">
-        <span className="text-2xl font-bold text-slate-900">{value}</span>
-      </div>
-      
-      <div className="text-[12px] text-slate-500 font-medium">
-        {subtitle}
-      </div>
-
-      <div className={`absolute bottom-5 right-5 px-2 py-1 rounded text-[10px] font-bold uppercase tracking-wider ${pillColor}`}>
-        {pillText}
-      </div>
+      <span className={`text-[10px] font-[800] ${
+        isWarning ? 'text-orange-500' : 
+        isSuccess ? 'text-emerald-500' : 
+        'text-orange-300'
+      }`}>{label}</span>
     </div>
   );
 }
 
-function TimelineItem({ time, title, room, status }: any) {
-  const isCompleted = status === 'completed';
-  const isCurrent = status === 'current';
-  
+function EvaluationItem({ icon, title, count, label, opacity = "" }: any) {
   return (
-    <div className="relative pl-6">
-      {/* Circle Indicator */}
-      <div className={`absolute -left-[5px] top-1 w-2.5 h-2.5 rounded-full border-2 bg-white ${
-        isCompleted ? 'border-slate-300' : 
-        isCurrent ? 'border-[#5A67D8] ring-4 ring-[#5A67D8]/20' : 
-        'border-[#5A67D8]'
-      }`}></div>
-      
-      <div className="flex flex-col">
-        <span className={`text-[11px] font-bold mb-1 uppercase tracking-wider ${isCompleted ? 'text-slate-400' : isCurrent ? 'text-[#5A67D8]' : 'text-slate-500'}`}>
-          {time}
-        </span>
-        <span className={`text-[14px] font-bold leading-tight ${isCompleted ? 'text-slate-500' : 'text-slate-900'}`}>
-          {title}
-        </span>
-        <span className={`text-[12px] font-semibold mt-1 ${isCompleted ? 'text-slate-400' : 'text-slate-500'}`}>
-          {room}
-        </span>
-      </div>
-    </div>
-  );
-}
-
-function SubjectSummaryCard({ code, name, students, type, color }: any) {
-  return (
-    <div className="bg-slate-50 rounded-lg p-4 border border-slate-100 flex items-center justify-between group hover:border-slate-200 hover:bg-slate-100/50 transition-colors cursor-pointer">
-      <div className="flex flex-col">
-        <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1 flex items-center gap-2">
-          {code}
-          <span className="w-1 h-1 rounded-full bg-slate-300"></span>
-          {type}
-        </span>
-        <span className="text-[14px] font-bold text-slate-900">{name}</span>
+    <div className={`flex items-center justify-between p-3 rounded-xl hover:bg-slate-50 transition-colors ${opacity}`}>
+      <div className="flex items-center gap-4">
+        <div className="w-8 h-8 rounded-lg bg-indigo-50/50 flex items-center justify-center text-[#5A67D8]">
+          {icon}
+        </div>
+        <span className="text-[13px] font-[700] text-slate-800">{title}</span>
       </div>
       <div className="flex flex-col items-end">
-        <span className="text-[18px] font-bold text-slate-900">{students}</span>
-        <span className="text-[10px] font-semibold text-slate-500">Students</span>
+        <span className="text-[15px] font-[800] text-slate-900 leading-none mb-1">{count}</span>
+        <span className="text-[9px] font-[700] text-slate-400 uppercase tracking-widest leading-none">{label}</span>
       </div>
     </div>
   );
 }
 
-function ListCard({ icon, title, items }: any) {
+function NotificationItem({ icon, text, time, unread }: any) {
   return (
-    <div className="bg-white rounded-xl shadow-sm border border-slate-100 p-6 flex flex-col">
-      <div className="flex items-center justify-between mb-6">
-        <div className="flex items-center gap-2">
-          <div className="w-7 h-7 rounded-lg bg-[#5A67D8]/10 flex items-center justify-center">
-            {icon}
-          </div>
-          <h3 className="text-[14px] font-bold text-slate-900">{title}</h3>
+    <div className="flex items-center justify-between py-3.5 border-b border-slate-50 last:border-0 hover:bg-slate-50/50 rounded-lg px-2 transition-colors">
+      <div className="flex items-center gap-3">
+        <div className="w-6 h-6 rounded-full bg-slate-100 flex items-center justify-center text-slate-400 shrink-0">
+          {icon}
         </div>
-        <button className="text-[12px] font-bold text-[#5A67D8] flex items-center gap-1 hover:gap-2 transition-all">
-          View More <ArrowUpRight className="w-3 h-3" />
-        </button>
+        <span className="text-[12px] font-[600] text-slate-600 line-clamp-1 pr-4">{text}</span>
       </div>
+      <div className="flex items-center gap-3 shrink-0">
+        <span className="text-[10px] font-[600] text-slate-400">{time}</span>
+        <div className={`w-1.5 h-1.5 rounded-full ${unread ? 'bg-[#5A67D8]' : 'bg-transparent'}`}></div>
+      </div>
+    </div>
+  );
+}
 
-      <div className="flex flex-col gap-3">
-        {items.map((item: any, idx: number) => (
-          <div key={idx} className="flex justify-between items-center bg-slate-50 px-4 py-3 rounded-lg border border-slate-100/50">
-            <span className="text-[13px] font-semibold text-slate-700 truncate mr-4">{item.label}</span>
-            <span className="text-[13px] font-bold text-slate-900 whitespace-nowrap">{item.value || (
-              <ArrowUpRight className="w-4 h-4 text-slate-400" />
-            )}</span>
-          </div>
-        ))}
+function WorkloadStat({ label, value, sub }: any) {
+  return (
+    <div className="flex flex-col">
+      <span className="text-[9px] font-[800] text-slate-400 uppercase tracking-wider mb-2">{label}</span>
+      <div className="flex items-baseline gap-1">
+        <span className="text-[28px] font-[800] text-slate-900 leading-none">{value}</span>
+        <span className="text-[11px] font-[600] text-slate-400">{sub}</span>
+      </div>
+    </div>
+  );
+}
+
+function ExamItem({ month, day, subject, code, room }: any) {
+  return (
+    <div className="flex items-center gap-4 min-w-[250px] flex-1">
+      <div className="flex flex-col items-center justify-center w-12 h-14 bg-white border-2 border-slate-900 rounded-xl overflow-hidden shrink-0">
+        <div className="bg-slate-900 w-full text-center py-0.5">
+           <span className="text-[9px] font-[800] text-white uppercase tracking-wider leading-none block">{month}</span>
+        </div>
+        <div className="flex-1 flex items-center justify-center bg-white w-full">
+           <span className="text-[18px] font-[800] text-slate-900 leading-none block">{day}</span>
+        </div>
+      </div>
+      <div className="flex flex-col">
+        <span className="text-[13px] font-[800] text-slate-900 mb-1">{subject}</span>
+        <span className="text-[10px] font-[600] text-slate-500 mb-1">{code}</span>
+        <div className="flex items-center gap-1.5">
+          <span className="text-[10px] font-[600] text-slate-400">{room}</span>
+          <span className="text-[9px] font-[800] text-orange-500 uppercase">UPCOMING</span>
+        </div>
       </div>
     </div>
   );

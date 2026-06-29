@@ -63,32 +63,34 @@ export default function ConflictDrawer({ isOpen, onClose, conflicts }: ConflictD
                   {conflict.message}
                 </p>
 
-                <div className="bg-slate-50 rounded-lg p-3 space-y-1.5 border border-slate-100">
-                  {conflict.affectedSubject && (
-                    <div className="flex text-xs">
-                      <span className="w-16 text-slate-500 font-medium">Subject</span>
-                      <span className="font-bold text-slate-800">{conflict.affectedSubject}</span>
-                    </div>
-                  )}
-                  {conflict.affectedTeacher && (
-                    <div className="flex text-xs">
-                      <span className="w-16 text-slate-500 font-medium">Teacher</span>
-                      <span className="font-bold text-slate-800">{conflict.affectedTeacher}</span>
-                    </div>
-                  )}
-                  {conflict.affectedRoom && (
-                    <div className="flex text-xs">
-                      <span className="w-16 text-slate-500 font-medium">Room</span>
-                      <span className="font-bold text-slate-800">{conflict.affectedRoom}</span>
-                    </div>
-                  )}
-                  {conflict.affectedTime && (
-                    <div className="flex text-xs mt-2 pt-2 border-t border-slate-200">
-                      <span className="w-16 text-slate-500 font-medium">Time</span>
-                      <span className="font-bold text-indigo-600">{conflict.affectedTime}</span>
-                    </div>
-                  )}
-                </div>
+                {(conflict.affectedSubject || conflict.affectedTeacher || conflict.affectedRoom || conflict.affectedTime) && (
+                  <div className="bg-slate-50 rounded-lg p-3 space-y-1.5 border border-slate-100">
+                    {conflict.affectedSubject && (
+                      <div className="flex text-xs">
+                        <span className="w-16 text-slate-500 font-medium">Subject</span>
+                        <span className="font-bold text-slate-800">{conflict.affectedSubject}</span>
+                      </div>
+                    )}
+                    {conflict.affectedTeacher && (
+                      <div className="flex text-xs">
+                        <span className="w-16 text-slate-500 font-medium">Teacher</span>
+                        <span className="font-bold text-slate-800">{conflict.affectedTeacher}</span>
+                      </div>
+                    )}
+                    {conflict.affectedRoom && (
+                      <div className="flex text-xs">
+                        <span className="w-16 text-slate-500 font-medium">Room</span>
+                        <span className="font-bold text-slate-800">{conflict.affectedRoom}</span>
+                      </div>
+                    )}
+                    {conflict.affectedTime && (
+                      <div className="flex text-xs mt-2 pt-2 border-t border-slate-200">
+                        <span className="w-16 text-slate-500 font-medium">Time</span>
+                        <span className="font-bold text-indigo-600">{conflict.affectedTime}</span>
+                      </div>
+                    )}
+                  </div>
+                )}
 
                 <div className="mt-4 flex justify-end">
                    <button className="text-xs font-bold text-indigo-600 bg-indigo-50 hover:bg-indigo-100 px-3 py-1.5 rounded-md transition-colors flex items-center gap-1.5">

@@ -96,12 +96,12 @@ export default function DraftManagerToolbar({ onPublishClick }: DraftManagerTool
   };
 
   return (
-    <div className="flex flex-col sm:flex-row items-center justify-between p-3 px-4 bg-white border-b border-slate-200 shadow-sm gap-4">
+    <div className="flex flex-col sm:flex-row items-center justify-between p-3 px-6 bg-white border-b border-slate-200">
       <div className="flex items-center gap-4 w-full sm:w-auto">
-        <div className="flex flex-col">
-          <span className="text-[11px] font-bold text-slate-500 tracking-wider mb-1">ACTIVE DRAFT</span>
+        <div className="flex flex-col relative">
+          <span className="text-[10px] font-bold text-[#4F6BFF] tracking-wider absolute -top-4 left-1 uppercase">ACTIVE DRAFT</span>
           <Select value={activeDraftId || ''} onValueChange={handleDraftSelect}>
-            <SelectTrigger className="w-[250px] h-9 bg-slate-50 border-slate-200 shadow-sm font-semibold text-slate-800">
+            <SelectTrigger className="w-[260px] h-9 bg-white border-2 border-slate-200 rounded-full shadow-sm font-semibold text-slate-800 text-[13px] hover:border-slate-300 transition-colors">
               <SelectValue placeholder="Select a draft..." />
             </SelectTrigger>
             <SelectContent>
@@ -115,15 +115,15 @@ export default function DraftManagerToolbar({ onPublishClick }: DraftManagerTool
         </div>
 
         {activeDraft && (
-          <div className="flex items-center gap-1.5 self-end pb-[2px]">
+          <div className="flex items-center gap-2">
             {isPublished && (
-              <span className="flex items-center gap-1.5 px-2.5 py-1 bg-emerald-50 text-emerald-600 rounded-md text-[11px] font-bold border border-emerald-200">
+              <span className="flex items-center gap-1.5 px-3 py-1 bg-[#E8F8F0] text-[#10B981] rounded-full text-[11px] font-bold border border-[#10B981]/30">
                 <CheckCircle2 className="w-3.5 h-3.5" />
                 LIVE
               </span>
             )}
             {isDirty && (
-              <span className="flex items-center gap-1.5 px-2.5 py-1 bg-amber-50 text-amber-600 rounded-md text-[11px] font-bold border border-amber-200">
+              <span className="flex items-center gap-1.5 px-3 py-1 bg-[#FFFBEB] text-[#F59E0B] rounded-full text-[11px] font-bold border border-[#F59E0B]/30">
                 <History className="w-3.5 h-3.5" />
                 UNSAVED
               </span>
@@ -132,35 +132,27 @@ export default function DraftManagerToolbar({ onPublishClick }: DraftManagerTool
         )}
       </div>
 
-      <div className="flex items-center gap-2 w-full sm:w-auto justify-end">
-        <div className="flex items-center bg-slate-100 p-1 rounded-lg mr-2">
-          <Button variant="ghost" size="sm" className="h-8 px-2 text-slate-600 hover:text-slate-900" onClick={handleCreateNew} title="New Draft">
+      <div className="flex items-center gap-4 w-full sm:w-auto justify-end">
+        <div className="flex items-center bg-slate-50 border border-slate-100 p-1 rounded-xl shadow-inner gap-1">
+          <button className="h-7 w-7 flex items-center justify-center text-slate-400 hover:text-slate-700 hover:bg-white rounded-lg transition-all" onClick={handleCreateNew} title="New Draft">
             <Plus className="w-4 h-4" />
-          </Button>
-          <Button variant="ghost" size="sm" className="h-8 px-2 text-slate-600 hover:text-slate-900" onClick={handleDuplicate} title="Duplicate Draft" disabled={!activeDraftId}>
+          </button>
+          <button className="h-7 w-7 flex items-center justify-center text-slate-400 hover:text-slate-700 hover:bg-white rounded-lg transition-all" onClick={handleDuplicate} title="Duplicate Draft" disabled={!activeDraftId}>
             <Copy className="w-4 h-4" />
-          </Button>
-          <Button variant="ghost" size="sm" className="h-8 px-2 text-red-500 hover:text-red-600 hover:bg-red-50" onClick={handleDelete} title="Delete Draft" disabled={!activeDraftId || isPublished}>
+          </button>
+          <button className="h-7 w-7 flex items-center justify-center text-red-400 hover:text-red-600 hover:bg-white rounded-lg transition-all" onClick={handleDelete} title="Delete Draft" disabled={!activeDraftId || isPublished}>
             <Trash2 className="w-4 h-4" />
-          </Button>
+          </button>
         </div>
 
         <Button 
           variant="outline" 
-          className="h-9 font-bold bg-white border-slate-200 shadow-sm"
+          className="h-9 rounded-full px-5 font-bold text-slate-700 bg-white border-2 border-slate-200 hover:bg-slate-50 shadow-sm"
           onClick={handleSave}
           disabled={!activeDraftId || !isDirty}
         >
           <Save className="w-4 h-4 mr-2" />
           Save Draft
-        </Button>
-
-        <Button 
-          className="h-9 font-bold bg-[#5A67D8] hover:bg-[#4c58cd] text-white shadow-md shadow-[#5A67D8]/20"
-          onClick={onPublishClick}
-          disabled={!activeDraftId}
-        >
-          Publish Live
         </Button>
       </div>
     </div>

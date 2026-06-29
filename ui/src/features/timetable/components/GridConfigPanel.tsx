@@ -299,7 +299,7 @@ export default function GridConfigPanel() {
   if (!config.isGridEditMode) return null;
 
   return (
-    <aside className="h-[90dvh] w-[400px] shrink-0 bg-white/95 backdrop-blur-xl flex flex-col z-50 border-l border-white/50 shadow-[-10px_0_40px_rgba(0,0,0,0.08)] animate-in slide-in-from-right duration-300">
+    <aside className="absolute right-0 top-0 h-full w-[400px] shrink-0 bg-white/95 backdrop-blur-xl flex flex-col z-50 border-l border-slate-200 shadow-[-20px_0_40px_rgba(0,0,0,0.1)] animate-in slide-in-from-right duration-300">
         {/* Header */}
         <div className="border-b border-slate-100 px-6 py-6 sticky top-0 bg-white/80 backdrop-blur-md z-10 flex items-start justify-between">
             <div className="flex items-center gap-3">

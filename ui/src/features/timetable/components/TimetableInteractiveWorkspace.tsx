@@ -25,7 +25,7 @@ import { mergeEngine } from "@/lib/mergeEngine";
 import { isOverlap, parseTime } from "@/lib/timeEngine";
 import { merge, remove, setAllocations } from "@/store/timetableEngineSlice";
 import { fetchDrafts, publishActiveDraft, saveActiveDraft } from "@/store/timetableDraftSlice";
-import DraftManagerToolbar from "@/features/timetable/components/DraftManagerToolbar";
+
 import {
   Dialog,
   DialogContent,
@@ -361,12 +361,16 @@ export default function TimetableInteractiveWorkspace({
                   </div>
                 </div>
               ) : (
-                <>
-                  <DraftManagerToolbar onPublishClick={handlePublishClick} />
-                  <div className="mt-4 lg:hidden">
+                <div className="flex flex-col">
+                  <ActionToolbar 
+                    onOpenConflicts={() => setIsConflictDrawerOpen(true)} 
+                    onPublish={handlePublishClick} 
+                    onCancelEdit={handleCancelEdit}
+                  />
+                  <div className="lg:hidden p-4">
                     <MobileFilters />
                   </div>
-                </>
+                </div>
               )}
             </div>
 
